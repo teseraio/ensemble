@@ -1,0 +1,16 @@
+---
+title: 'Zookeeper'
+---
+
+Zookeeper is a hierarchical key-value store.
+
+```yaml
+apiVersion: "ensembleoss.io/v1"
+kind: Cluster
+metadata:
+    name: <name>
+spec:
+    backend:
+        name: zookeeper
+    replicas: <replicas>
+```

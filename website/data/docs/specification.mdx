@@ -1,0 +1,63 @@
+---
+title: 'Specification'
+---
+
+Ensemble defines custom [CRDs](/docs/concepts#custom-resource-definition) that describe all the
+things involved in a cluster.
+
+## Cluster
+
+A **Cluster** object describes the database deployment.
+
+```yaml
+apiVersion: "ensembleoss.io/v1"
+kind: Cluster
+metadata:
+    name: <name>
+spec:
+    backend:
+        name: <backend>
+    replicas: <replicas>
+```
+
+### Params:
+
+- name: Name of the cluster.
+- backend: Name of the database. It has to match one of the available builtin implementations.
+- replicas: Number of replicas for the database. 
+
+In the future, another **config** field will be included to parametrize the nodes in the cluster.
+
+## Resource
+
+A **Resource** object is an entity in the cluster that has a CRUD lifecycle. For example, a user in Rabbitmq
+or roles in Postgresql.
+
+Each database implementation creates their own Resources, please check each implementaion to see which
+resources are available.
+
+```yaml
+apiVersion: "ensembleoss.io/v1"
+kind: Resource
+metadata:
+    name: <name>
+spec:
+    backend: <backend>
+    cluster: <cluster>
+    resource: <resource>
+    params: <params>
+```
+
+### Params:
+
+- name: Name of the resource.
+- backend: Name of the database.
+- resource: Name of the resource.
+- params: a map of config parameters for the resource.
+
+Currently, only a type validation is performed during the **kubectl apply** action. Thus,
+if the YAML file includes a wrong Resource name, the object will be created anyway and will fail
+silently inside the operator logic. In the future, we will add dynamic webhook validations so that
+the operation can fail safer and with more context.
+
+The same logic applies with any arbitrary field in the YAML resources like the **config** field aforementioned.

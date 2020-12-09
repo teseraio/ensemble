@@ -1,0 +1,88 @@
+---
+title: 'Commands'
+---
+
+## server
+
+Start the operator
+
+```shell
+$ ensemble server
+```
+
+Unless for debugging purposes, the operator server is not meant to be run directly but as a
+Kubernetes deployment with the [k8s artifact](/docs/cli/k8s-artifacts) command.
+
+### Flags
+
+- --level=level. Set the log level of the server. Defaults to INFO.
+- --debug: Enables debug mode. Defaults to false.
+
+---
+
+## k8s artifacts
+
+Print all the YAML Kubernetes resources required to run Ensemble
+
+```shell
+$ ensemble k8s artifacts
+```
+
+There are two types of resources:
+- The Custom Resource Definitions (CRD) defined by Ensemble.
+- The Deployment description to run the operator server on Kubernetes.
+
+The result of this command can be piped into kubectl to register the resources.
+
+### Flags
+
+- --crd. Print only the CRDs. Defaults to false.
+- --service. Print only the deployment description. Defaults to false.
+
+### Example
+
+Register the CRDs:
+
+```shell
+$ ensemble k8s artifacts | kubectl apply -f -
+```
+
+Stop the operator but keep the CRDs.
+
+```shell
+$ ensemble k8s artifacts --service | kubectl delete -f - 
+```
+
+---
+
+## k8s init
+
+Helper command to print a YAML description of a cluster.
+
+```shell
+$ ensemble k8s init
+```
+
+### Flags
+
+- --name=name: Name of the cluster.
+- --backend=backend: Name of the backend.
+- --replicas=replicas: Number of replicas.
+
+### Example
+
+Create a Zookeeper cluster with 3 nodes
+
+```shell
+$ ensemble k8s init --name zk1 --backend zookeeper --replicas 3 > zk1.yaml
+```
+
+---
+
+## version
+
+Print the version of the binary
+
+```shell
+$ ensemble version
+```

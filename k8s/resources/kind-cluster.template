@@ -1,0 +1,13 @@
+{
+    "apiVersion": "ensembleoss.io/v1",
+    "kind": "Cluster",
+    "metadata": {
+        "name": "{{.Name}}"
+    },
+    "spec": {
+        "backend": {
+            "name": "{{.Backend}}"
+        },
+        "replicas": {{.Replicas}}
+    }
+}

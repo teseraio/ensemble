@@ -1,0 +1,37 @@
+{
+    "properties": {
+      "a": {
+        "description": "String field",
+        "type": "string"
+      },
+      "b": {
+        "properties": {
+          "c": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "c"
+        ],
+        "type": "object"
+      },
+      "d": {
+        "type": "string"
+      },
+      "e": {
+        "items": {
+          "properties": {
+            "e1": {
+              "type": "string"
+            },
+            "e2": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  }

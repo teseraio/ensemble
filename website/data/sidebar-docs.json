@@ -1,0 +1,43 @@
+{
+    "sidebar": [
+        {
+            "name": "Get started",
+            "href": "/docs/get-started"
+        },
+        {
+            "name": "Concepts",
+            "href": "/docs/concepts"
+        },
+        {
+            "name": "Roadmap",
+            "href": "/docs/roadmap"
+        },
+        {
+            "name": "Specification",
+            "href": "/docs/specification"
+        },
+        {
+            "name": "Commands",
+            "href": "/docs/cli"
+        },
+        {
+            "name": "Databases",
+            "prefix": "/docs/databases",
+            "routes": [
+                {
+                    "name": "Cassandra",
+                    "href": "/docs/databases/cassandra"
+                },
+                {
+                    "name": "Zookeeper",
+                    "href": "/docs/databases/zookeeper"
+                },
+                {
+                    "name": "Rabbitmq",
+                    "href": "/docs/databases/rabbitmq"
+                }
+            ]
+        }
+
+    ]
+}

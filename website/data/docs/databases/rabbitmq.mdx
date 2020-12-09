@@ -1,0 +1,84 @@
+---
+title: 'Rabbitmq'
+---
+
+Rabbitmq is a message broker.
+
+```yaml
+apiVersion: "ensembleoss.io/v1"
+kind: Cluster
+metadata:
+    name: <name>
+spec:
+    backend:
+        name: rabbitmq
+    replicas: <replicas>
+```
+
+## Resources
+
+Take a look to the resources page to learn more about resources.
+
+### User
+
+Users are entities with permissions to interact with the Rabbitmq cluster.
+
+```yaml
+apiVersion: "ensembleoss.io/v1"
+kind: Resource
+spec:
+    cluster: <cluster>
+    backend: rabbitmq
+    resource: User
+    params:
+        username: <username>
+        password: <password>
+```
+
+#### Params
+
+- username=username: Username for the user.
+- password=password: Password for the user.
+
+### VHost
+
+VHosts are logical groups of resources.
+
+```yaml
+apiVersion: "ensembleoss.io/v1"
+kind: Resource
+spec:
+    cluster: <cluster>
+    backend: rabbitmq
+    resource: VHost
+    params:
+        vhost: <vhost>
+```
+
+#### Params
+
+- vhost=vhost: Name of the virtual host.
+
+### Exchange
+
+Exchanges route messages to queues.
+
+```yaml
+apiVersion: "ensembleoss.io/v1"
+kind: Resource
+spec:
+    cluster: <cluster>
+    backend: rabbitmq
+    resource: Exchange
+    params:
+        name: <name>
+        vhost: <vhost>
+        settings:
+            type: <type>
+```
+
+#### Params
+
+- name=name. Name of the exchange.
+- vhost=vhost. Name of the virtual host for the exchange.
+- type=type. Type of the exchange (i.e. fanout).

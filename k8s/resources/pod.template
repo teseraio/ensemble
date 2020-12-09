@@ -1,0 +1,60 @@
+{
+	"apiVersion": "v1",
+	"kind": "Pod",
+	"metadata": {
+		"name": "{{.Name}}",
+		"labels": {
+			"ensemble": "{{.Ensemble}}"
+		}
+	},
+	"spec": {
+		"hostname": "{{.Name}}",
+		"subdomain": "{{.Ensemble}}",
+		"containers": [
+			{
+				{{if .Env}}
+				"env": [
+					{{ $s := separator ", " }}
+					{{ range $key, $value := .Env }}
+					{{ call $s }}
+					{
+						"name": "{{$key}}",
+						"value": "{{$value}}"
+					}
+					{{end}}
+				],
+				{{end}}
+				"volumeMounts": [
+					{{if .Volume}}
+					{
+						"name": "{{.Volume.Name}}",
+						"mountPath": "{{.Volume.Path}}",
+						"readOnly": true
+					}
+					{{end}}
+				],
+				"imagePullPolicy": "Never",
+				"name": "main-container",
+				"image": "{{.Image}}:{{.Version}}"
+			}
+		],
+		"volumes": [
+			{{if .Volume}}
+			{
+				"name": "{{.Volume.Name}}",
+				"configMap": {
+					"name": "{{.Name}}-files",
+					"items": [
+						{{ range $key, $value := .Volume.Items }}
+						{
+							"key": "{{$key}}",
+							"path": "{{$value}}"
+						}
+						{{end}}
+					]
+				}
+			}
+			{{end}}
+		]
+	}
+}

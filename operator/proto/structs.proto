@@ -1,0 +1,109 @@
+syntax = "proto3";
+
+package proto;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "/operator/proto";
+
+message NodeSpec {
+    map<string, string> env = 1;
+    map<string, string> files = 2;
+    string image = 3;
+    string version = 4;
+    repeated string cmd = 5;
+}
+
+message Mount {
+    string id = 1;
+    string name = 2;
+    string path = 3;
+}
+
+message Nodeset {
+    string name = 1;
+    int64 replicas = 2;
+    string config = 3;
+    string resource = 4;
+}
+
+enum NodeState {
+    UNKNOWN = 0;
+    INITIALIZED = 1;
+    PENDING = 2;
+    RUNNING = 3;
+    TAINTED = 4;
+    DOWN = 5;
+}
+
+message Node {
+    string ID = 1;
+    string Addr = 2;
+    string Handle = 3;
+    string Namespace = 4;
+    string Nodeset = 5;
+    string Nodetype = 6;
+    NodeState State = 7;
+    string Cluster = 8;
+    NodeSpec Spec = 9;
+    map<string, string> KV = 10;
+    repeated Mount Mounts = 11;
+    string ResourceVersion = 12;
+}
+
+message Cluster {
+    string Name = 1;
+    string Namespace = 2;
+    repeated Node Nodes = 3;
+}
+
+message Resource {
+    string ID = 1;
+    Evaluation Evaluation = 2;
+}
+
+message Snapshot {
+    Cluster Cluster = 1;
+    repeated Resource Resources = 2;
+}
+
+message Plan {
+    bool Bootstrap = 1;
+    repeated Node AddNodes = 2;
+    int64 DelNodesNum = 3;
+    repeated string DelNodes = 4;
+    repeated string UpdateNodes = 5;
+    Cluster Cluster = 6;
+}
+
+message Task {
+    string ID = 1;
+    google.protobuf.Timestamp Timestamp = 6;
+    Evaluation Evaluation = 8;
+}
+
+enum EvaluationState {
+    CREATED = 0;
+    UPDATED = 1;
+    DELETED = 2;
+}
+
+message Evaluation {
+    int64 Generation = 1;
+    string ResourceVersion = 2;
+    // Name of the instance object (either cluster or resource)
+    string Name = 3;
+    // Name of the resource being created (if any)
+    string Resource = 4;
+    // Name of the cluster (if its a resource)
+    string Cluster = 5;
+    // Name of the backend/database
+    string Backend = 6;
+    // JSON string of the specification
+    string Spec = 7;
+    // JSON string of the status
+    string Status = 8;
+    EvaluationState State = 9;
+    string Namespace = 10;
+    bool IsDeleted = 11;
+}

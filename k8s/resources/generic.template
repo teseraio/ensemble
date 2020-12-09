@@ -1,0 +1,22 @@
+{
+	"apiVersion": "{{.Domain}}",
+	"kind": "{{.Kind}}",
+	{{if .Spec}}
+	"spec": {{map .Spec}},
+	{{end}}
+	{{if .Status}}
+	"status": {{map .Status}},
+	{{end}}
+	"metadata": {
+		{{if .ResourceVersion}}
+		"resourceVersion": "{{.ResourceVersion}}",
+		{{end}}
+		{{if .Labels}}
+		"labels": {{map .Labels}},
+		{{end}}
+		{{if .Metadata}}
+		{{mapX .Metadata}},
+		{{end}}
+		"name": "{{.Name}}"
+	}
+}

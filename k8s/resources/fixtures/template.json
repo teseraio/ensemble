@@ -1,0 +1,14 @@
+{
+    "example1": {
+        "apiVersion": "",
+        "kind": "",
+        "status": {
+            "observedGeneration": "1"
+        },
+        "metadata": {
+            "resourceVersion": "2",
+            "name": "",
+            "a": "b"
+        }
+    }
+}

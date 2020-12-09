@@ -1,0 +1,45 @@
+---
+title: 'Roadmap'
+---
+
+This page describes some of the core ideas that will be developed towards a 1.0 release of Ensemble.
+We encourage you to check our Github issue tracker for a more detailed version and priorities.
+
+Ensemble is on his early stages and we want to encourage the community to participate and give as much feedback as possible.
+
+## Parametrization
+
+As with any other complex application, databases have a rich set of configuration parameters that control things
+like memory usage, control access, users or security certificates among other things.
+While some of these options can be changed dynamically with API calls ([Resources](/docs/specification#resource)), others may require SIGHUP signals
+or rolling updates of the nodes in the cluster.
+
+Ensemble will provide common and flexible interfaces to configure all the options in the databases and abstract the user
+of any management burden.
+
+## Monitoring
+
+Ensemble should be able to scrape metrics and insights from the databases under his management so that another external sidecar
+application is not required.
+
+These metrics will be exported in Prometheus format on the operator server. Another application (i.e. Telegraf) can relay
+this information to any other external metrics server.
+
+## Encryption
+
+There is no plan to use the native SSL/TLS communication primitives of the databases to support transit encryption for
+two reasons: First, each database has his own configuration for the certificates. Second, it would require custom
+implementations to support complex workflows like certificate rotation and hot reloadings.
+Thus, Ensemble will rely on external mesh networks like Istio or Consul for transit encryption.
+
+## Databases
+
+There exists three types of database topologies:
+
+- Homogeneous: All the nodes are the same type. Any node can be promoted to primary (i.e. Postgresql, Rabbitmq)
+- Heterogeneous: Each node has a distinct function. Usually, one group acts as primaries and another group
+as secondaries (i.e. Kubernetes, Spark).
+- Mixed: Each node performs multiple tasks. (i.e. Elasticsearch).
+
+Currently, Ensemble only handles homogeneous clusters but our goal is to support all three types including complex
+node topologies (i.e. partitions) and multi-cloud deployments.

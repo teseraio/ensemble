@@ -1,0 +1,52 @@
+{
+    "apiVersion": "rbac.authorization.k8s.io/v1",
+    "kind": "ClusterRole",
+    "metadata": {
+        "name": "ensemble-operator"
+    },
+    "rules": [
+        {
+            "apiGroups": [
+                "ensembleoss.io"
+            ],
+            "resources": [
+                "clusters",
+                "clusters/status",
+                "resources",
+                "resources/status",
+                "nodes",
+                "nodes/status"
+            ],
+            "verbs": [
+                "*"
+            ]
+        },
+        {
+            "apiGroups": [
+                ""
+            ],
+            "resources": [
+                "pods",
+                "pods/exec",
+                "services",
+                "endpoints",
+                "events",
+                "configmaps"
+            ],
+            "verbs": [
+                "*"
+            ]
+        },
+        {
+            "apiGroups": [
+                ""
+            ],
+            "resources": [
+                "secrets"
+            ],
+            "verbs": [
+                "get"
+            ]
+        }
+    ]
+}

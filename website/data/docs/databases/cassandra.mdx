@@ -1,0 +1,16 @@
+---
+title: 'Cassandra'
+---
+
+Cassandra is a NoSQL wide column store.
+
+```yaml
+apiVersion: "ensembleoss.io/v1"
+kind: Cluster
+metadata:
+    name: <name>
+spec:
+    backend:
+        name: cassandra
+    replicas: <replicas>
+```

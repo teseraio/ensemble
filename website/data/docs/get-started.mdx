@@ -1,0 +1,37 @@
+---
+title: 'Get Started'
+---
+
+Download the latest release of Ensemble from the Github release pages [here](https://github.com/teseraio/ensemble/releases).
+
+Start Minikube:
+
+```shell-session
+$ minikube start
+```
+
+Register the Custom Resource Definitions used in ensemble
+
+```shell-session
+$ ensemble k8s artifacts --crd | kubectl apply -f -
+```
+
+Deploy the Ensemble operator as a deployment service in Kubernetes
+
+```shell-session
+$ ensemble k8s artifacts --service | kubectl apply -f -
+```
+
+Now, Ensemble should be running waiting for Cluster declarations.
+
+Create a cluster YAML spec for a Zookeeper cluster.
+
+```shell-session
+$ ensemble k8s init --name zk1 --backend zookeeper --replicas 3 > zk.yaml
+```
+
+Deploy the Zookeeper cluster
+
+```shell-session
+$ kubectl apply -f zk.yaml
+```
