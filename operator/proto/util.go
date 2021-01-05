@@ -18,9 +18,9 @@ func (c *Cluster) Size() int {
 func (c *Cluster) NewNode() *Node {
 	return &Node{
 		ID:      uuid.New().String(),
-		State:   NodeState_UNKNOWN,
+		State:   Node_UNKNOWN,
 		Cluster: c.Name,
-		Spec:    &NodeSpec{},
+		Spec:    &Node_NodeSpec{},
 	}
 }
 
@@ -45,8 +45,8 @@ func (c *Cluster) Copy() *Cluster {
 	return proto.Clone(c).(*Cluster)
 }
 
-func (m *Mount) Copy() *Mount {
-	return proto.Clone(m).(*Mount)
+func (m *Node_Mount) Copy() *Node_Mount {
+	return proto.Clone(m).(*Node_Mount)
 }
 
 func (n *Node) FullName() string {
@@ -110,14 +110,14 @@ func (n *Node) Copy() *Node {
 	return proto.Clone(n).(*Node)
 }
 
-func (b *NodeSpec) AddFile(path string, content string) {
+func (b *Node_NodeSpec) AddFile(path string, content string) {
 	if b.Files == nil {
 		b.Files = map[string]string{}
 	}
 	b.Files[path] = content
 }
 
-func (b *NodeSpec) AddEnvList(l []string) {
+func (b *Node_NodeSpec) AddEnvList(l []string) {
 	for _, i := range l {
 		indx := strings.Index(i, "=")
 		if indx == -1 {
@@ -127,21 +127,21 @@ func (b *NodeSpec) AddEnvList(l []string) {
 	}
 }
 
-func (b *NodeSpec) AddEnvMap(m map[string]string) {
+func (b *Node_NodeSpec) AddEnvMap(m map[string]string) {
 	for k, v := range m {
 		b.AddEnv(k, v)
 	}
 }
 
-func (b *NodeSpec) AddEnv(k, v string) {
+func (b *Node_NodeSpec) AddEnv(k, v string) {
 	if b.Env == nil {
 		b.Env = map[string]string{}
 	}
 	b.Env[k] = v
 }
 
-func (b *NodeSpec) Copy() *NodeSpec {
-	return proto.Clone(b).(*NodeSpec)
+func (b *Node_NodeSpec) Copy() *Node_NodeSpec {
+	return proto.Clone(b).(*Node_NodeSpec)
 }
 
 func (t *Task) Time() (time.Time, error) {

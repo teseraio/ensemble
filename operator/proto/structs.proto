@@ -2,41 +2,50 @@ syntax = "proto3";
 
 package proto;
 
-import "google/protobuf/timestamp.proto";
-
 option go_package = "/operator/proto";
 
-message NodeSpec {
-    map<string, string> env = 1;
-    map<string, string> files = 2;
-    string image = 3;
-    string version = 4;
-    repeated string cmd = 5;
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+service EnsembleService {
+    rpc UpsertCluster (ClusterSpec) returns (google.protobuf.Empty);
+
+    rpc UpsertResource (ResourceSpec) returns (google.protobuf.Empty);
 }
 
-message Mount {
-    string id = 1;
-    string name = 2;
-    string path = 3;
-}
-
-message Nodeset {
+// Description of the cluster
+message ClusterSpec {
+    // name of the cluster
     string name = 1;
-    int64 replicas = 2;
-    string config = 3;
-    string resource = 4;
+
+    // name of the backend
+    string backend = 2;
+
+    // version of the backend (RESERVED)
+    string version = 3;
+
+    // number of replicas for the cluster
+    int64 replicas = 4;
 }
 
-enum NodeState {
-    UNKNOWN = 0;
-    INITIALIZED = 1;
-    PENDING = 2;
-    RUNNING = 3;
-    TAINTED = 4;
-    DOWN = 5;
+// Description of the resource
+message ResourceSpec {
+    // logic name of the resource
+    string name = 1;
+
+    // name of the cluster
+    string cluster = 2;
+
+    // name of the resource in the backend
+    string resource = 3;
+
+    // params are the params to configure the resource
+    map<string, string> params = 4;
 }
 
 message Node {
+    // TODO: Add reference for pair backend,version or soemthign like that??
+
     string ID = 1;
     string Addr = 2;
     string Handle = 3;
@@ -49,6 +58,35 @@ message Node {
     map<string, string> KV = 10;
     repeated Mount Mounts = 11;
     string ResourceVersion = 12;
+    
+    enum NodeState {
+        UNKNOWN = 0;
+        INITIALIZED = 1;
+        PENDING = 2;
+        RUNNING = 3;
+        TAINTED = 4;
+        DOWN = 5;
+    }
+
+    message NodeSpec {
+        map<string, string> env = 1;
+        map<string, string> files = 2;
+        string image = 3;
+        string version = 4;
+        repeated string cmd = 5;
+    }
+    
+    message Mount {
+        string id = 1;
+        string name = 2;
+        string path = 3;
+    }
+}
+
+message Cluster1 {
+    ClusterSpec spec = 1;
+
+    repeated Node nodes = 2;
 }
 
 message Cluster {
@@ -60,11 +98,6 @@ message Cluster {
 message Resource {
     string ID = 1;
     Evaluation Evaluation = 2;
-}
-
-message Snapshot {
-    Cluster Cluster = 1;
-    repeated Resource Resources = 2;
 }
 
 message Plan {
@@ -91,18 +124,25 @@ enum EvaluationState {
 message Evaluation {
     int64 Generation = 1;
     string ResourceVersion = 2;
+
     // Name of the instance object (either cluster or resource)
     string Name = 3;
+
     // Name of the resource being created (if any)
     string Resource = 4;
+
     // Name of the cluster (if its a resource)
     string Cluster = 5;
+
     // Name of the backend/database
     string Backend = 6;
+
     // JSON string of the specification
     string Spec = 7;
+
     // JSON string of the status
     string Status = 8;
+
     EvaluationState State = 9;
     string Namespace = 10;
     bool IsDeleted = 11;

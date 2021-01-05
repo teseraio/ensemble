@@ -1,0 +1,54 @@
+{
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {
+        "labels": {
+            "app": "ensemble-operator"
+        },
+        "name": "ensemble-operator"
+    },
+    "spec": {
+        "replicas": 1,
+        "selector": {
+            "matchLabels": {
+                "app": "ensemble-operator"
+            }
+        },
+        "strategy": {
+            "type": "RollingUpdate"
+        },
+        "template": {
+            "metadata": {
+                "labels": {
+                    "app": "ensemble-operator"
+                }
+            },
+            "spec": {
+                "serviceAccountName": "ensemble-operator",
+                "containers": [
+                    {
+                        "image": "{{.Image}}",
+                        "imagePullPolicy": "{{.ImagePullPolicy}}",
+                        "name": "app",
+                        "securityContext": {
+                            "readOnlyRootFilesystem": true,
+                            "runAsNonRoot": true,
+                            "runAsUser": 1000
+                        },
+                        "resources": {
+                            "limits": {
+                                "cpu": "100m",
+                                "memory": "50Mi"
+                            },
+                            "requests": {
+                                "cpu": "10m",
+                                "memory": "50Mi"
+                            }
+                        }
+                    }
+                ],
+                "restartPolicy": "Always"
+            }
+        }
+    }
+}

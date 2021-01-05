@@ -74,16 +74,16 @@ func (b *backend) Client(node *proto.Node) (interface{}, error) {
 // Reconcile implements the Handler interface
 func (b *backend) Reconcile(executor operator.Executor, e *proto.Cluster, node *proto.Node, plan *proto.Plan) error {
 	switch node.State {
-	case proto.NodeState_INITIALIZED:
+	case proto.Node_INITIALIZED:
 		recocileNodeInitialized(node)
 
-	case proto.NodeState_PENDING:
+	case proto.Node_PENDING:
 		time.Sleep(10 * time.Second)
 
-	case proto.NodeState_RUNNING:
+	case proto.Node_RUNNING:
 		return b.reconcileNodeRunning(executor, e, node)
 
-	case proto.NodeState_TAINTED:
+	case proto.Node_TAINTED:
 		return reconcileNodeTainted(executor, node)
 	}
 	return nil

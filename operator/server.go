@@ -3,12 +3,15 @@ package operator
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"reflect"
 	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/teseraio/ensemble/operator/proto"
+	"github.com/teseraio/ensemble/operator/state"
 	"github.com/teseraio/ensemble/schema"
+	"google.golang.org/grpc"
 )
 
 // Config is the parametrization of the operator server
@@ -16,17 +19,24 @@ type Config struct {
 	// Provider is the provider used by the operator
 	Provider Provider
 
+	// State is the state access
+	State state.State
+
 	// Backends are the list of backends handled by the operator
 	HandlerFactories []HandlerFactory
+
+	// GRPCAddr is the address of the grpc server
+	GRPCAddr *net.TCPAddr
 }
 
 // Server is the operator server
 type Server struct {
-	config   *Config
-	logger   hclog.Logger
-	Provider Provider
-	handlers map[string]Handler
-	stopCh   chan struct{}
+	config     *Config
+	logger     hclog.Logger
+	Provider   Provider
+	handlers   map[string]Handler
+	grpcServer *grpc.Server
+	stopCh     chan struct{}
 }
 
 // NewServer starts an instance of the operator server
@@ -52,12 +62,31 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	return s, nil
 }
 
+func (s *Server) setupGRPCServer() error {
+	lis, err := net.Listen("tcp", s.config.GRPCAddr.String())
+	if err != nil {
+		return err
+	}
+
+	s.grpcServer = grpc.NewServer()
+	proto.RegisterEnsembleServiceServer(s.grpcServer, &service{s})
+
+	go func() {
+		if err := s.grpcServer.Serve(lis); err != nil {
+			panic(err)
+		}
+	}()
+
+	s.logger.Info("Server started", "addr", s.config.GRPCAddr.String())
+	return nil
+}
+
 // Stop stops the server
 func (s *Server) Stop() {
 	close(s.stopCh)
 }
 
-func (s *Server) applyChange(handler Handler, c *proto.Cluster, n *proto.Node, newState proto.NodeState, plan *proto.Plan) (*proto.Cluster, error) {
+func (s *Server) applyChange(handler Handler, c *proto.Cluster, n *proto.Node, newState proto.Node_NodeState, plan *proto.Plan) (*proto.Cluster, error) {
 	indx := c.NodeAtIndex(n.ID)
 
 BACK:
@@ -65,7 +94,7 @@ BACK:
 	nn.State = newState
 
 	var err error
-	var nextState proto.NodeState
+	var nextState proto.Node_NodeState
 
 	// call the reconcile function
 	if err := handler.Reconcile(s, c, nn, plan); err != nil {
@@ -74,7 +103,7 @@ BACK:
 
 	s.logger.Debug("Apply state change", "id", nn.ID, "state", nn.State.String())
 
-	if nn.State == proto.NodeState_INITIALIZED {
+	if nn.State == proto.Node_INITIALIZED {
 		// include the default image and version
 		typ, ok := handler.Spec().Nodetypes[nn.Nodetype]
 		if !ok {
@@ -82,7 +111,7 @@ BACK:
 		}
 
 		if nn.Spec == nil {
-			nn.Spec = &proto.NodeSpec{}
+			nn.Spec = &proto.Node_NodeSpec{}
 		}
 		nn.Spec.Image = typ.Image
 		nn.Spec.Version = typ.Version
@@ -91,7 +120,7 @@ BACK:
 		if nn, err = s.Provider.CreateResource(nn); err != nil {
 			return nil, err
 		}
-	} else if nn.State == proto.NodeState_TAINTED {
+	} else if nn.State == proto.Node_TAINTED {
 		// delete
 		if nn, err = s.Provider.DeleteResource(nn); err != nil {
 			return nil, err
@@ -100,19 +129,19 @@ BACK:
 
 	// state transitions
 	switch nn.State {
-	case proto.NodeState_INITIALIZED:
-		nextState = proto.NodeState_PENDING
+	case proto.Node_INITIALIZED:
+		nextState = proto.Node_PENDING
 
-	case proto.NodeState_PENDING:
-		nextState = proto.NodeState_RUNNING
+	case proto.Node_PENDING:
+		nextState = proto.Node_RUNNING
 
-	case proto.NodeState_RUNNING:
+	case proto.Node_RUNNING:
 		// No transition
 
-	case proto.NodeState_TAINTED:
-		nextState = proto.NodeState_DOWN
+	case proto.Node_TAINTED:
+		nextState = proto.Node_DOWN
 
-	case proto.NodeState_DOWN:
+	case proto.Node_DOWN:
 		// No transition
 	}
 
@@ -130,7 +159,7 @@ BACK:
 		return nil, err
 	}
 
-	if nextState != proto.NodeState_UNKNOWN {
+	if nextState != proto.Node_UNKNOWN {
 		c = cc
 		n = nn
 		newState = nextState
@@ -261,11 +290,11 @@ func (s *Server) handleTask(task *proto.Task) error {
 }
 
 func (s *Server) deleteNode(handler Handler, e *proto.Cluster, n *proto.Node, plan *proto.Plan) (*proto.Cluster, error) {
-	return s.applyChange(handler, e, n, proto.NodeState_TAINTED, plan)
+	return s.applyChange(handler, e, n, proto.Node_TAINTED, plan)
 }
 
 func (s *Server) addNode(handler Handler, e *proto.Cluster, n *proto.Node, plan *proto.Plan) (*proto.Cluster, error) {
-	return s.applyChange(handler, e, n, proto.NodeState_INITIALIZED, plan)
+	return s.applyChange(handler, e, n, proto.Node_INITIALIZED, plan)
 }
 
 type clusterSpec struct {

@@ -163,7 +163,7 @@ func (p *Provider) LoadCluster(id string) (*proto.Cluster, error) {
 		if err := nn.Unmarshal([]byte(obj.evaluation().Spec)); err != nil {
 			return nil, err
 		}
-		if nn.State != proto.NodeState_TAINTED && nn.State != proto.NodeState_DOWN {
+		if nn.State != proto.Node_TAINTED && nn.State != proto.Node_DOWN {
 			c.Nodes = append(c.Nodes, nn)
 		}
 	}

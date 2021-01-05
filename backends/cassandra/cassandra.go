@@ -45,7 +45,7 @@ func (b *backend) Client(node *proto.Node) (interface{}, error) {
 // Reconcile implements the Handler interface
 func (b *backend) Reconcile(executor operator.Executor, e *proto.Cluster, node *proto.Node, plan *proto.Plan) error {
 	switch node.State {
-	case proto.NodeState_INITIALIZED:
+	case proto.Node_INITIALIZED:
 		b.recocileNodeInitialized(executor, e, node, plan)
 	}
 	return nil

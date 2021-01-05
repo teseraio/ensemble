@@ -10,13 +10,13 @@ func TestNodeSpec(t *testing.T) {
 		"A": "B",
 	}
 
-	b := &NodeSpec{}
+	b := &Node_NodeSpec{}
 	b.AddEnv("A", "B")
 	if !reflect.DeepEqual(b.Env, out) {
 		t.Fatal("bad")
 	}
 
-	b = &NodeSpec{}
+	b = &Node_NodeSpec{}
 	b.AddEnvList([]string{
 		"A=B",
 	})
@@ -24,7 +24,7 @@ func TestNodeSpec(t *testing.T) {
 		t.Fatal("bad")
 	}
 
-	b = &NodeSpec{}
+	b = &Node_NodeSpec{}
 	b.AddEnvMap(map[string]string{
 		"A": "B",
 	})
@@ -32,7 +32,7 @@ func TestNodeSpec(t *testing.T) {
 		t.Fatal("bad")
 	}
 
-	b = &NodeSpec{}
+	b = &Node_NodeSpec{}
 	b.AddEnvList([]string{
 		"A=",
 	})

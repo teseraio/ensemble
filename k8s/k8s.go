@@ -401,6 +401,10 @@ func (p *Provider) purgeCluster(name string) error {
 	return nil
 }
 
+func (p *Provider) CreateNode(node *proto.Node) error {
+	return nil
+}
+
 // GetTask implements the Provider interface
 func (p *Provider) GetTask() (*proto.Task, error) {
 	task := p.taskQueue.pop(p.stopCh)

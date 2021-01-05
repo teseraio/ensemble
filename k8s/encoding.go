@@ -16,7 +16,7 @@ import (
 type Pod struct {
 	Name     string
 	Ensemble string
-	Builder  *proto.NodeSpec
+	Builder  *proto.Node_NodeSpec
 }
 
 type volumeMount struct {
@@ -131,7 +131,7 @@ func marshalNode(node *proto.Node) ([]byte, error) {
 		})
 	}
 
-	mounts := []*proto.Mount{}
+	mounts := []*proto.Node_Mount{}
 	if node.Mounts != nil {
 		mounts = node.Mounts
 	}
@@ -156,7 +156,7 @@ func marshalNode(node *proto.Node) ([]byte, error) {
 		"Status": map[string]interface{}{
 			"podIP":  node.Addr,
 			"handle": node.Handle,
-			"status": proto.NodeState_name[int32(node.State)],
+			"status": proto.Node_NodeState_name[int32(node.State)],
 			"kv":     kvs,
 		},
 	}
@@ -225,7 +225,7 @@ func unmarshalNode(i *Item) (*proto.Node, error) {
 		if err != nil {
 			return nil, err
 		}
-		n.State = proto.NodeState(proto.NodeState_value[statusStr])
+		n.State = proto.Node_NodeState(proto.Node_NodeState_value[statusStr])
 
 		var kvEntries []*kvEntry
 		kv, ok := i.Status["kv"]

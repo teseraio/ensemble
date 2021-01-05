@@ -105,7 +105,7 @@ func resourcesConfigMapTemplate() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/config-map.template", size: 194, mode: os.FileMode(420), modTime: time.Unix(1606145037, 0)}
+	info := bindataFileInfo{name: "resources/config-map.template", size: 194, mode: os.FileMode(420), modTime: time.Unix(1608931048, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -125,7 +125,7 @@ func resourcesCrdClusterJson() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/crd-cluster.json", size: 1794, mode: os.FileMode(420), modTime: time.Unix(1606145037, 0)}
+	info := bindataFileInfo{name: "resources/crd-cluster.json", size: 1794, mode: os.FileMode(420), modTime: time.Unix(1608931048, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -145,7 +145,7 @@ func resourcesCrdNodeJson() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/crd-node.json", size: 2492, mode: os.FileMode(420), modTime: time.Unix(1606145037, 0)}
+	info := bindataFileInfo{name: "resources/crd-node.json", size: 2492, mode: os.FileMode(420), modTime: time.Unix(1608931048, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -165,7 +165,7 @@ func resourcesCrdResourceJson() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/crd-resource.json", size: 1861, mode: os.FileMode(420), modTime: time.Unix(1606145037, 0)}
+	info := bindataFileInfo{name: "resources/crd-resource.json", size: 1861, mode: os.FileMode(420), modTime: time.Unix(1608931048, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -185,7 +185,7 @@ func resourcesCrdTemplate() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/crd.template", size: 972, mode: os.FileMode(420), modTime: time.Unix(1606145037, 0)}
+	info := bindataFileInfo{name: "resources/crd.template", size: 972, mode: os.FileMode(420), modTime: time.Unix(1608931048, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -205,7 +205,7 @@ func resourcesGenericTemplate() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/generic.template", size: 383, mode: os.FileMode(420), modTime: time.Unix(1606145037, 0)}
+	info := bindataFileInfo{name: "resources/generic.template", size: 383, mode: os.FileMode(420), modTime: time.Unix(1608931048, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -225,7 +225,7 @@ func resourcesHeadlessServiceTemplate() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/headless-service.template", size: 216, mode: os.FileMode(420), modTime: time.Unix(1606145037, 0)}
+	info := bindataFileInfo{name: "resources/headless-service.template", size: 216, mode: os.FileMode(420), modTime: time.Unix(1608931048, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -245,7 +245,7 @@ func resourcesKindClusterTemplate() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/kind-cluster.template", size: 239, mode: os.FileMode(420), modTime: time.Unix(1606145037, 0)}
+	info := bindataFileInfo{name: "resources/kind-cluster.template", size: 239, mode: os.FileMode(420), modTime: time.Unix(1608931048, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -265,7 +265,7 @@ func resourcesKindResourceTemplate() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/kind-resource.template", size: 245, mode: os.FileMode(420), modTime: time.Unix(1606145037, 0)}
+	info := bindataFileInfo{name: "resources/kind-resource.template", size: 245, mode: os.FileMode(420), modTime: time.Unix(1608931048, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -285,7 +285,7 @@ func resourcesPodTemplate() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/pod.template", size: 1030, mode: os.FileMode(420), modTime: time.Unix(1606145037, 0)}
+	info := bindataFileInfo{name: "resources/pod.template", size: 1030, mode: os.FileMode(420), modTime: time.Unix(1608931048, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -305,7 +305,7 @@ func resourcesSrvClusterRoleBindingJson() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/srv-cluster-role-binding.json", size: 446, mode: os.FileMode(420), modTime: time.Unix(1606145037, 0)}
+	info := bindataFileInfo{name: "resources/srv-cluster-role-binding.json", size: 446, mode: os.FileMode(420), modTime: time.Unix(1608931048, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -325,7 +325,7 @@ func resourcesSrvClusterRoleJson() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/srv-cluster-role.json", size: 1095, mode: os.FileMode(420), modTime: time.Unix(1606145037, 0)}
+	info := bindataFileInfo{name: "resources/srv-cluster-role.json", size: 1095, mode: os.FileMode(420), modTime: time.Unix(1608931048, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -345,7 +345,7 @@ func resourcesSrvDeploymentJsonTemplate() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/srv-deployment.json.template", size: 1598, mode: os.FileMode(420), modTime: time.Unix(1607508190, 0)}
+	info := bindataFileInfo{name: "resources/srv-deployment.json.template", size: 1598, mode: os.FileMode(420), modTime: time.Unix(1608931048, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -365,7 +365,7 @@ func resourcesSrvServiceAccountJson() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/srv-service-account.json", size: 117, mode: os.FileMode(420), modTime: time.Unix(1606145037, 0)}
+	info := bindataFileInfo{name: "resources/srv-service-account.json", size: 117, mode: os.FileMode(420), modTime: time.Unix(1608931048, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }

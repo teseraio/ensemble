@@ -46,7 +46,7 @@ func setupCRDs(t *testing.T, p *Provider) func() {
 }
 
 func TestUpsertConfigMap(t *testing.T) {
-	p := K8sFactory(hclog.NewNullLogger(), nil)
+	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
 
 	id := uuid.New().String()
 
@@ -86,7 +86,7 @@ func TestUpsertConfigMap(t *testing.T) {
 }
 
 func TestPodLifecycle(t *testing.T) {
-	p := K8sFactory(hclog.NewNullLogger(), nil)
+	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
 
 	purgeFn := setupCRDs(t, p)
 	defer purgeFn()
@@ -98,8 +98,8 @@ func TestPodLifecycle(t *testing.T) {
 	n0 := &proto.Node{
 		ID:      id,
 		Cluster: "a",
-		State:   proto.NodeState_RUNNING,
-		Spec: &proto.NodeSpec{
+		State:   proto.Node_RUNNING,
+		Spec: &proto.Node_NodeSpec{
 			Image:   "redis", // TODO: Something better
 			Version: "latest",
 		},
@@ -126,7 +126,7 @@ func TestPodLifecycle(t *testing.T) {
 		t.Fatal("bad")
 	}
 
-	n2.State = proto.NodeState_DOWN
+	n2.State = proto.Node_DOWN
 
 	n3, err := p.DeleteResource(n2)
 	if err != nil {
@@ -139,7 +139,7 @@ func TestPodLifecycle(t *testing.T) {
 }
 
 func TestPurgeCluster(t *testing.T) {
-	p := K8sFactory(hclog.NewNullLogger(), nil)
+	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
 
 	purgeFn := setupCRDs(t, p)
 	defer purgeFn()
@@ -153,8 +153,8 @@ func TestPurgeCluster(t *testing.T) {
 		return &proto.Node{
 			ID:      uuid.New().String(),
 			Cluster: ensembleName,
-			State:   proto.NodeState_RUNNING,
-			Spec: &proto.NodeSpec{
+			State:   proto.Node_RUNNING,
+			Spec: &proto.Node_NodeSpec{
 				Image:   "redis", // TODO: Something better
 				Version: "latest",
 			},
@@ -200,7 +200,7 @@ func isNotFound(err error) bool {
 }
 
 func TestNodeEncoding(t *testing.T) {
-	p := K8sFactory(hclog.NewNullLogger(), nil)
+	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
 
 	purgeFn := setupCRDs(t, p)
 	defer purgeFn()
@@ -214,8 +214,8 @@ func TestNodeEncoding(t *testing.T) {
 			Nodetype: "b",
 			Addr:     "c",
 			Handle:   "d",
-			State:    proto.NodeState_RUNNING,
-			Spec: &proto.NodeSpec{
+			State:    proto.Node_RUNNING,
+			Spec: &proto.Node_NodeSpec{
 				Image: "h",
 				Env: map[string]string{
 					"a": "b",
@@ -228,8 +228,8 @@ func TestNodeEncoding(t *testing.T) {
 			KV: map[string]string{
 				"a": "b",
 			},
-			Mounts: []*proto.Mount{
-				&proto.Mount{
+			Mounts: []*proto.Node_Mount{
+				&proto.Node_Mount{
 					Id:   "id",
 					Name: "name",
 					Path: "path",
@@ -266,7 +266,7 @@ func TestNodeEncoding(t *testing.T) {
 }
 
 func TestLoadCluster(t *testing.T) {
-	p := K8sFactory(hclog.NewNullLogger(), nil)
+	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
 
 	purgeFn := setupCRDs(t, p)
 	defer purgeFn()
@@ -279,8 +279,8 @@ func TestLoadCluster(t *testing.T) {
 		return &proto.Node{
 			ID:      uuid.New().String(),
 			Cluster: ensembleName,
-			State:   proto.NodeState_RUNNING,
-			Spec: &proto.NodeSpec{
+			State:   proto.Node_RUNNING,
+			Spec: &proto.Node_NodeSpec{
 				Image: "redis",
 			},
 		}
@@ -305,7 +305,7 @@ func TestLoadCluster(t *testing.T) {
 }
 
 func TestTrackerLifecycle(t *testing.T) {
-	p := K8sFactory(hclog.NewNullLogger(), nil)
+	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
 
 	purgeFn := setupCRDs(t, p)
 	defer purgeFn()

@@ -35,6 +35,9 @@ type Provider interface {
 
 	// FinalizeTask is used to notify the provider that the given task is done
 	FinalizeTask(uuid string) error
+
+	// ----
+	CreateNode(*proto.Node) error
 }
 
 // ProviderFactory is a factory method to create factories

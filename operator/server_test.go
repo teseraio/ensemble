@@ -35,7 +35,7 @@ func TestNodeHooks(t *testing.T) {
 	if node.ID != id {
 		t.Fatal("bad")
 	}
-	if node.State != proto.NodeState_RUNNING {
+	if node.State != proto.Node_RUNNING {
 		t.Fatal("bad")
 	}
 
@@ -48,7 +48,7 @@ func TestNodeHooks(t *testing.T) {
 	if len(cc.Nodes) != 1 {
 		t.Fatal("bad")
 	}
-	if cc.Nodes[0].State != proto.NodeState_DOWN {
+	if cc.Nodes[0].State != proto.Node_DOWN {
 		t.Fatal("bad")
 	}
 }
