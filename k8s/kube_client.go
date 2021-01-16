@@ -1,19 +1,14 @@
 package k8s
 
 import (
-	"bufio"
 	"bytes"
-	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
-	"strconv"
-	"strings"
 
 	"github.com/teseraio/ensemble/k8s/spdy"
 )
@@ -43,140 +38,7 @@ func NewKubeClient(config *Config) *KubeClient {
 	return k8sClient
 }
 
-type ListResponse struct {
-	Items    []*Item
-	Metadata ListMetadata
-}
-
-type ListMetadata struct {
-	Continue        string
-	ResourceVersion string
-}
-
-type ListOpts struct {
-	Continue string
-	Limit    int
-}
-
-func (c *KubeClient) List(path string, opts *ListOpts) (*ListResponse, error) {
-	if !strings.Contains(path, "?") {
-		path = path + "?"
-	} else {
-		path = path + "&"
-	}
-	if opts != nil {
-		if opts.Continue != "" {
-			path += "continue=" + opts.Continue + "&"
-		}
-		if opts.Limit != 0 {
-			path += "limit=" + strconv.Itoa(opts.Limit)
-		}
-	}
-
-	data, err := c.Get(path)
-	if err != nil {
-		return nil, err
-	}
-
-	var result *ListResponse
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-func (c *KubeClient) Track(ctx context.Context, path string) (chan *Item, chan struct{}) {
-	itemCh := make(chan *Item)
-	watchCh := make(chan struct{})
-
-	go func() {
-		if err := c.trackImpl(ctx, path, itemCh, watchCh); err != nil {
-			// TODO
-			fmt.Printf("ERR: %v", err)
-		}
-	}()
-
-	return itemCh, watchCh
-}
-
-func (c *KubeClient) listFull(path string, callback func(i *Item)) error {
-	// list
-	opts := &ListOpts{
-		Limit: 10,
-	}
-	for {
-		listResp, err := c.List(path, opts)
-		if err != nil {
-			return err
-		}
-		for _, i := range listResp.Items {
-			callback(i)
-		}
-		if listResp.Metadata.Continue == "" {
-			break
-		}
-		opts.Continue = listResp.Metadata.Continue
-	}
-	return nil
-}
-
-func (c *KubeClient) trackImpl(ctx context.Context, path string, itemCh chan *Item, watchCh chan struct{}) error {
-
-	// list
-	opts := &ListOpts{
-		Limit: 10,
-	}
-	var resourceVersion string
-	for {
-		listResp, err := c.List(path, opts)
-		if err != nil {
-			return err
-		}
-		for _, i := range listResp.Items {
-			itemCh <- i
-		}
-		if listResp.Metadata.Continue == "" {
-			resourceVersion = listResp.Metadata.ResourceVersion
-			break
-		}
-		opts.Continue = listResp.Metadata.Continue
-	}
-
-	// notify that we start the watch, weird
-	close(watchCh)
-
-	// watch
-	if err := c.watchImpl(path, resourceVersion, itemCh); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *KubeClient) watchImpl(path string, resourceVersion string, itemCh chan *Item) error {
-	path = path + "?watch=true&resourceVersion=" + resourceVersion
-	resp, err := c.HTTPReqWithResponse(http.MethodGet, path, nil)
-	if err != nil {
-		return err
-	}
-	buffer := bufio.NewReader(resp.Body)
-	for {
-		res, err := buffer.ReadBytes(byte('\n'))
-		if err != nil {
-			if err == io.EOF {
-				continue
-			}
-			return err
-		}
-		var evnt watchEvent
-		if err := json.Unmarshal(res, &evnt); err != nil {
-			return err
-		}
-		itemCh <- evnt.Object
-	}
-}
-
-type watchEvent struct {
+type WatchEvent struct {
 	Type   string
 	Object *Item
 }

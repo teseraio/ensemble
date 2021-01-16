@@ -3,3 +3,5 @@ main
 
 bin/
 pkg/
+
+test.db

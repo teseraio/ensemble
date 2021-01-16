@@ -1,11 +1,13 @@
 package operator
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"net"
 	"reflect"
 	"strings"
+
+	gproto "github.com/golang/protobuf/proto"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/teseraio/ensemble/operator/proto"
@@ -31,9 +33,12 @@ type Config struct {
 
 // Server is the operator server
 type Server struct {
-	config     *Config
-	logger     hclog.Logger
-	Provider   Provider
+	config *Config
+	logger hclog.Logger
+
+	Provider Provider
+	State    state.State
+
 	handlers   map[string]Handler
 	grpcServer *grpc.Server
 	stopCh     chan struct{}
@@ -42,8 +47,10 @@ type Server struct {
 // NewServer starts an instance of the operator server
 func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	s := &Server{
+		config:   config,
 		logger:   logger,
 		Provider: config.Provider,
+		State:    config.State,
 		stopCh:   make(chan struct{}),
 		handlers: map[string]Handler{},
 	}
@@ -51,6 +58,18 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	for _, factory := range config.HandlerFactories {
 		handler := factory()
 		s.handlers[strings.ToLower(handler.Spec().Name)] = handler
+	}
+
+	s.grpcServer = grpc.NewServer()
+	proto.RegisterEnsembleServiceServer(s.grpcServer, &service{s})
+
+	// grpc remote
+	if err := s.setupGRPCServer("tcp", s.config.GRPCAddr.String()); err != nil {
+		return nil, err
+	}
+	// local
+	if err := s.setupGRPCServer("unix", "/tmp/local-ensemble"); err != nil {
+		return nil, err
 	}
 
 	s.logger.Info("Start provider")
@@ -62,14 +81,11 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	return s, nil
 }
 
-func (s *Server) setupGRPCServer() error {
-	lis, err := net.Listen("tcp", s.config.GRPCAddr.String())
+func (s *Server) setupGRPCServer(network, addr string) error {
+	lis, err := net.Listen(network, addr)
 	if err != nil {
 		return err
 	}
-
-	s.grpcServer = grpc.NewServer()
-	proto.RegisterEnsembleServiceServer(s.grpcServer, &service{s})
 
 	go func() {
 		if err := s.grpcServer.Serve(lis); err != nil {
@@ -77,12 +93,17 @@ func (s *Server) setupGRPCServer() error {
 		}
 	}()
 
-	s.logger.Info("Server started", "addr", s.config.GRPCAddr.String())
+	s.logger.Info("Server started", "proto", network, "addr", addr)
 	return nil
+}
+
+func (s *Server) Config() *Config {
+	return s.config
 }
 
 // Stop stops the server
 func (s *Server) Stop() {
+	s.grpcServer.Stop()
 	close(s.stopCh)
 }
 
@@ -155,7 +176,7 @@ BACK:
 	}
 
 	// save the new node state
-	if nn, err = s.Provider.UpdateNodeStatus(nn); err != nil {
+	if err = s.State.UpsertNode(nn); err != nil {
 		return nil, err
 	}
 
@@ -177,54 +198,68 @@ func (s *Server) Exec(n *proto.Node, path string, cmd ...string) error {
 }
 
 func (s *Server) taskQueue() {
-	s.logger.Info("Starting task queue")
+	s.logger.Info("Starting task worker")
 
 	for {
-		task, err := s.Provider.GetTask()
+		task, err := s.State.GetTask(context.Background())
 		if err != nil {
 			s.logger.Error("failed to get task", "err", err)
 			continue
 		}
 
-		s.logger.Info("New task", "id", task.ID)
+		s.logger.Info("New task", "id", task.Id)
 		if err := s.handleTask(task); err != nil {
-			s.logger.Error("failed to handle task", "id", task.ID, "err", err)
+			s.logger.Error("failed to handle task", "id", task.Id, "err", err)
 		}
 
-		s.logger.Info("Finalize task", "id", task.ID)
-		s.Provider.FinalizeTask(task.ID)
+		s.logger.Info("Finalize task", "id", task.Id)
+		s.State.Finalize(task.Id)
 	}
 }
 
 func (s *Server) getHandler(name string) (Handler, bool) {
-	h, ok := s.handlers[name]
+	h, ok := s.handlers[strings.ToLower(name)]
 	return h, ok
 }
 
-func HandleResource(eval *proto.Evaluation, handler Handler, e *proto.Cluster) error {
+func (s *Server) handleResourceTask(eval *proto.Component) error {
+	var spec proto.ResourceSpec
+	if err := gproto.Unmarshal(eval.Spec.Value, &spec); err != nil {
+		return err
+	}
+
+	cluster, err := s.State.LoadCluster(eval.Name)
+	if err != nil {
+		return err
+	}
+	handler, ok := s.getHandler(cluster.Backend)
+	if !ok {
+		return fmt.Errorf("handler not found %s", cluster.Backend)
+	}
+
 	// take any of the nodes in the cluster to connect
-	clt, err := handler.Client(e.Nodes[0])
+	clt, err := handler.Client(cluster.Nodes[0])
 	if err != nil {
 		return err
 	}
 
 	var resource Resource
 	for _, r := range handler.Spec().Resources {
-		if r.GetName() == eval.Resource {
+		if r.GetName() == spec.Resource {
 			resource = r
 		}
 	}
 	if resource == nil {
-		return fmt.Errorf("resource not found %s", eval.Resource)
+		return fmt.Errorf("resource not found %s", spec.Resource)
 	}
 
 	val := reflect.New(reflect.TypeOf(resource)).Elem().Interface()
-	if err := schema.DecodeString(eval.Spec, &val); err != nil {
+	if err := schema.DecodeString(spec.Params, &val); err != nil {
 		return err
 	}
 
 	resource = val.(Resource)
-	if eval.State == proto.EvaluationState_DELETED {
+	if eval.Action == proto.Component_DELETE {
 		if err := resource.Delete(clt); err != nil {
 			return err
 		}
@@ -236,8 +271,38 @@ func HandleResource(eval *proto.Evaluation, handler Handler, e *proto.Cluster) e
 	return nil
 }
 
-func (s *Server) handleClusterTask(eval *proto.Evaluation, handler Handler, e *proto.Cluster) error {
-	plan, err := evaluateCluster(eval, e, handler)
+func (s *Server) handleClusterTask(eval *proto.Component) error {
+	var spec proto.ClusterSpec
+	if err := gproto.Unmarshal(eval.Spec.Value, &spec); err != nil {
+		return err
+	}
+
+	cluster, err := s.State.LoadCluster(eval.Name)
+	if err != nil {
+		if err == state.ErrClusterNotFound {
+			// bootstrap
+			cluster = &proto.Cluster{
+				Name:    eval.Name,
+				Backend: spec.Backend,
+				Nodes:   []*proto.Node{},
+			}
+			if err := s.State.UpsertCluster(cluster); err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+	if cluster.Backend != spec.Backend {
+		return fmt.Errorf("trying to use a different backend")
+	}
+
+	handler, ok := s.getHandler(spec.Backend)
+	if !ok {
+		return fmt.Errorf("handler not found %s", spec.Backend)
+	}
+
+	plan, err := evaluateCluster(eval, &spec, cluster, handler)
 	if err != nil {
 		return err
 	}
@@ -247,40 +312,27 @@ func (s *Server) handleClusterTask(eval *proto.Evaluation, handler Handler, e *p
 	}
 
 	if plan.DelNodes != nil {
-		if e, err = s.deleteNodes(handler, e, plan); err != nil {
+		if cluster, err = s.deleteNodes(handler, cluster, plan); err != nil {
 			return err
 		}
 	}
 	if plan.AddNodes != nil {
-		if e, err = s.addNodes(handler, e, plan); err != nil {
+		if cluster, err = s.addNodes(handler, cluster, plan); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *Server) handleTask(task *proto.Task) error {
-	eval := task.Evaluation
+func (s *Server) handleTask(task *proto.Component) error {
 
-	clusterName := eval.Cluster
-	if clusterName == "" {
-		clusterName = eval.Name
-	}
-	cluster, err := s.Provider.LoadCluster(clusterName)
-	if err != nil {
-		return err
-	}
-
-	handler, ok := s.getHandler(eval.Backend)
-	if !ok {
-		return fmt.Errorf("handler not found %s", eval.Backend)
-	}
-
-	// execute the evaluation by type
-	if eval.Resource == "" {
-		err = s.handleClusterTask(eval, handler, cluster)
+	var err error
+	if task.Spec.TypeUrl == "ensembleoss.io/proto.ClusterSpec" {
+		err = s.handleClusterTask(task)
+	} else if task.Spec.TypeUrl == "ensembleoss.io/proto.ResourceSpec" {
+		err = s.handleResourceTask(task)
 	} else {
-		err = HandleResource(eval, handler, cluster)
+		return fmt.Errorf("type url not found '%s'", task.Spec.TypeUrl)
 	}
 	if err != nil {
 		return err
@@ -297,16 +349,7 @@ func (s *Server) addNode(handler Handler, e *proto.Cluster, n *proto.Node, plan 
 	return s.applyChange(handler, e, n, proto.Node_INITIALIZED, plan)
 }
 
-type clusterSpec struct {
-	Replicas int64
-}
-
-func clusterDiff(c *proto.Cluster, eval *proto.Evaluation) (*proto.Plan, error) {
-	var spec clusterSpec
-	if err := json.Unmarshal([]byte(eval.Spec), &spec); err != nil {
-		return nil, err
-	}
-
+func clusterDiff(c *proto.Cluster, spec *proto.ClusterSpec, eval *proto.Component) (*proto.Plan, error) {
 	oldNum := int64(len(c.Nodes))
 	newNum := spec.Replicas
 
@@ -329,8 +372,8 @@ func clusterDiff(c *proto.Cluster, eval *proto.Evaluation) (*proto.Plan, error) 
 	return nil, nil
 }
 
-func evaluateCluster(eval *proto.Evaluation, c *proto.Cluster, handler Handler) (*proto.Plan, error) {
-	plan, err := clusterDiff(c, eval)
+func evaluateCluster(eval *proto.Component, spec *proto.ClusterSpec, c *proto.Cluster, handler Handler) (*proto.Plan, error) {
+	plan, err := clusterDiff(c, spec, eval)
 	if err != nil {
 		return nil, err
 	}

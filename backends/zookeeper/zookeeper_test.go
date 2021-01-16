@@ -4,22 +4,23 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/testutil"
 )
 
 func TestZookeeperBootstrap(t *testing.T) {
-	provider, _ := testutil.NewTestProvider(t, "zookeeper", nil)
+	srv := testutil.TestOperator(t, Factory)
+	defer srv.Close()
 
-	srv := operator.TestOperator(t, provider, Factory)
-	defer srv.Stop()
-
-	uuid := provider.Apply(&testutil.TestTask{
-		Name:  "A",
-		Input: `{"replicas": 3}`,
+	uuid := srv.Apply(&proto.Component{
+		Name: "A",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			Backend:  "Zookeeper",
+			Replicas: 3,
+		}),
 	})
-	provider.WaitForTask(uuid)
+
+	srv.WaitForTask(uuid)
 }
 
 func TestDeleteNodes(t *testing.T) {
@@ -31,19 +32,19 @@ func TestDeleteNodes(t *testing.T) {
 		{
 			&proto.Cluster{
 				Nodes: []*proto.Node{
-					&proto.Node{
+					{
 						ID: "A",
 						KV: map[string]string{
 							keyRole: roleParticipant,
 						},
 					},
-					&proto.Node{
+					{
 						ID: "B",
 						KV: map[string]string{
 							keyRole: roleParticipant,
 						},
 					},
-					&proto.Node{
+					{
 						ID: "C",
 						KV: map[string]string{
 							keyRole: roleObserver,

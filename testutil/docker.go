@@ -13,8 +13,11 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
+	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 )
+
+var _ operator.Provider = &Client{}
 
 // Client is a sugarcoat version of the docker client
 type Client struct {
@@ -26,12 +29,20 @@ type Client struct {
 }
 
 // NewClient creates a new docker Client
-func NewClient() (*Client, error) {
+func NewDockerClient() (*Client, error) {
 	cli, err := client.NewEnvClient()
 	if err != nil {
 		return nil, err
 	}
 	return &Client{client: cli, resources: []string{}, volumes: map[string]string{}}, nil
+}
+
+func (c *Client) Start() error {
+	return nil
+}
+
+func (c *Client) Setup() error {
+	return nil
 }
 
 func (c *Client) Remove(id string) error {
@@ -92,7 +103,7 @@ func createIfNotExists(path string) error {
 	return err
 }
 
-func (c *Client) Exec(ctx context.Context, id string, execCmd []string) error {
+func (c *Client) execImpl(ctx context.Context, id string, execCmd []string) error {
 	ec := types.ExecConfig{
 		User:         "",
 		AttachStderr: true,
@@ -183,4 +194,33 @@ func (c *Client) Create(ctx context.Context, node *proto.Node) (string, error) {
 		return "", err
 	}
 	return body.ID, nil
+}
+
+func (c *Client) CreateResource(node *proto.Node) (*proto.Node, error) {
+	id, err := c.Create(context.TODO(), node)
+	if err != nil {
+		return nil, err
+	}
+
+	ip := c.GetIP(id)
+
+	nn := node.Copy()
+	nn.Addr = ip
+	nn.Handle = id
+
+	return nn, nil
+}
+
+func (c *Client) Exec(handler string, path string, args ...string) error {
+	execCmd := []string{path}
+	execCmd = append(execCmd, args...)
+
+	return c.execImpl(context.Background(), handler, execCmd)
+}
+
+func (c *Client) DeleteResource(node *proto.Node) (*proto.Node, error) {
+	if err := c.Remove(node.Handle); err != nil {
+		return nil, err
+	}
+	return node, nil
 }

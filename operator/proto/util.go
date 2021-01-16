@@ -1,15 +1,26 @@
 package proto
 
 import (
+	"bytes"
 	"encoding/json"
 	"reflect"
 	"strings"
-	"time"
 
-	"github.com/golang/protobuf/ptypes"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 )
+
+func Equal(p0, p1 proto.Message) bool {
+	m0, err := proto.Marshal(p0)
+	if err != nil {
+		panic("BAD")
+	}
+	m1, err := proto.Marshal(p1)
+	if err != nil {
+		panic("BAD")
+	}
+	return bytes.Equal(m0, m1)
+}
 
 func (c *Cluster) Size() int {
 	return len(c.Nodes)
@@ -144,6 +155,7 @@ func (b *Node_NodeSpec) Copy() *Node_NodeSpec {
 	return proto.Clone(b).(*Node_NodeSpec)
 }
 
+/*
 func (t *Task) Time() (time.Time, error) {
 	return ptypes.Timestamp(t.Timestamp)
 }
@@ -153,6 +165,7 @@ type XX struct {
 	Config   string
 	Resource string
 }
+*/
 
 func (p *Plan) Add(n *Node) {
 	p.AddNodes = append(p.AddNodes, n)

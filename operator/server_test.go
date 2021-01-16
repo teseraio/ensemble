@@ -1,14 +1,6 @@
 package operator
 
-import (
-	"strconv"
-	"testing"
-
-	"github.com/teseraio/ensemble/lib/uuid"
-	"github.com/teseraio/ensemble/operator/proto"
-	"github.com/teseraio/ensemble/testutil"
-)
-
+/*
 func TestNodeHooks(t *testing.T) {
 	provider, _ := testutil.NewTestProvider(t, "Mock", nil)
 	srv := TestOperator(t, provider, nil)
@@ -52,7 +44,9 @@ func TestNodeHooks(t *testing.T) {
 		t.Fatal("bad")
 	}
 }
+*/
 
+/*
 func TestEvaluateCluster(t *testing.T) {
 	handler := &mockHandler{}
 
@@ -133,3 +127,4 @@ func (m *mockHandler) Spec() *Spec {
 func (m *mockHandler) Client(node *proto.Node) (interface{}, error) {
 	return nil, nil
 }
+*/

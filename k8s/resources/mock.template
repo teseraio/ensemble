@@ -1,0 +1,9 @@
+{
+    "apiVersion": "mock.io/v1",
+    "kind": "{{.resource}}",
+    "metadata": {
+        "name": "{{.name}}"
+    },
+    "spec": {
+    }
+}

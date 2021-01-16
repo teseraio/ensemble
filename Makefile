@@ -13,4 +13,3 @@ protoc:
 
 bindata:
 	go generate ./k8s
-	go generate ./operator/operator

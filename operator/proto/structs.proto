@@ -4,20 +4,58 @@ package proto;
 
 option go_package = "/operator/proto";
 
-import "google/protobuf/empty.proto";
+import "google/protobuf/any.proto";
+// import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 service EnsembleService {
-    rpc UpsertCluster (ClusterSpec) returns (google.protobuf.Empty);
+    rpc Apply(Component) returns (Component);
+}
 
-    rpc UpsertResource (ResourceSpec) returns (google.protobuf.Empty);
+// Component is like a snapshot or something. AKA Evaluation
+message Component {
+    // id of the component
+    string id = 1;
+
+    // name is the name of the component
+    string name = 2;
+
+    // spec of the stuff being applied
+    google.protobuf.Any spec = 3;
+
+    // generation of the component
+    int64 sequence = 4;
+
+    // status of the component
+    Status status = 5;
+
+    // Type of action
+    Action action = 6;
+
+    // timestamp
+    google.protobuf.Timestamp Timestamp = 7;
+
+    // metadata of the component
+    map<string, string> metadata = 8;
+
+    enum Status {
+        UNKNOWN = 0;
+        PENDING = 1;
+        QUEUED = 2;
+        FAILED = 3;
+        APPLIED = 4;
+        CANCELED = 5;
+    }
+
+    enum Action {
+        NONE = 0;
+        CREATE = 1;
+        DELETE = 2;
+    }
 }
 
 // Description of the cluster
 message ClusterSpec {
-    // name of the cluster
-    string name = 1;
-
     // name of the backend
     string backend = 2;
 
@@ -30,17 +68,21 @@ message ClusterSpec {
 
 // Description of the resource
 message ResourceSpec {
-    // logic name of the resource
-    string name = 1;
-
+    string backend = 1;
+    
     // name of the cluster
     string cluster = 2;
 
     // name of the resource in the backend
     string resource = 3;
 
-    // params are the params to configure the resource
-    map<string, string> params = 4;
+    // params are the params to configure the resource (in JSON)
+    string params = 4;
+}
+
+message NodeUpdate {
+    string id = 1;
+    Node.NodeState state = 2;
 }
 
 message Node {
@@ -57,8 +99,7 @@ message Node {
     NodeSpec Spec = 9;
     map<string, string> KV = 10;
     repeated Mount Mounts = 11;
-    string ResourceVersion = 12;
-    
+
     enum NodeState {
         UNKNOWN = 0;
         INITIALIZED = 1;
@@ -83,21 +124,16 @@ message Node {
     }
 }
 
-message Cluster1 {
-    ClusterSpec spec = 1;
-
-    repeated Node nodes = 2;
-}
-
+// Instance of a cluster
 message Cluster {
-    string Name = 1;
-    string Namespace = 2;
-    repeated Node Nodes = 3;
-}
+    // name of the cluster
+    string name = 1;
 
-message Resource {
-    string ID = 1;
-    Evaluation Evaluation = 2;
+    string namespace = 2;
+
+    string backend = 3;
+
+    repeated Node nodes = 4;
 }
 
 message Plan {
@@ -109,6 +145,7 @@ message Plan {
     Cluster Cluster = 6;
 }
 
+/*
 message Task {
     string ID = 1;
     google.protobuf.Timestamp Timestamp = 6;
@@ -147,3 +184,4 @@ message Evaluation {
     string Namespace = 10;
     bool IsDeleted = 11;
 }
+*/

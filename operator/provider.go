@@ -23,21 +23,6 @@ type Provider interface {
 
 	// Exec executes a shell script
 	Exec(handler string, path string, args ...string) error
-
-	// Update the status of the node
-	UpdateNodeStatus(*proto.Node) (*proto.Node, error)
-
-	// LoadCluster loads a Cluster at the specific resourceVersion
-	LoadCluster(name string) (*proto.Cluster, error)
-
-	// GetTask receives updates for ensembles
-	GetTask() (*proto.Task, error)
-
-	// FinalizeTask is used to notify the provider that the given task is done
-	FinalizeTask(uuid string) error
-
-	// ----
-	CreateNode(*proto.Node) error
 }
 
 // ProviderFactory is a factory method to create factories
