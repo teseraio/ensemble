@@ -9,8 +9,6 @@ import (
 	"github.com/teseraio/ensemble/lib/uuid"
 )
 
-const crdURL = "/apis/apiextensions.k8s.io/v1/customresourcedefinitions"
-
 func TestWatcher(t *testing.T) {
 	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
 

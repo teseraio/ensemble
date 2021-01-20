@@ -2,11 +2,22 @@ package k8s
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/mitchellh/mapstructure"
 	"github.com/teseraio/ensemble/operator/proto"
 )
+
+func decodeItem(item *Item) (*any.Any, error) {
+	if item.Kind == "Cluster" {
+		return decodeClusterSpec(item)
+	}
+	if item.Kind == "Resource" {
+		return decodeResourceSpec(item)
+	}
+	return nil, fmt.Errorf("unknown type %s", item.Kind)
+}
 
 func decodeClusterSpec(item *Item) (*any.Any, error) {
 	// it should correspond to the crd-cluster.json spec
@@ -34,13 +45,17 @@ func decodeResourceSpec(item *Item) (*any.Any, error) {
 		Resource string
 		Params   map[string]interface{}
 	}
-	if err := mapstructure.Decode(item.Spec, &spec); err != nil {
+	err := mapstructure.Decode(item.Spec, &spec)
+	if err != nil {
 		return nil, err
 	}
 
-	raw, err := json.Marshal(spec.Params)
-	if err != nil {
-		return nil, err
+	var raw []byte
+	if len(spec.Params) != 0 {
+		raw, err = json.Marshal(spec.Params)
+		if err != nil {
+			return nil, err
+		}
 	}
 	res := proto.MustMarshalAny(&proto.ResourceSpec{
 		Backend:  spec.Backend,

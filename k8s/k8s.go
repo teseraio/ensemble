@@ -10,12 +10,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/protobuf/ptypes/any"
 	"github.com/hashicorp/go-hclog"
 	"github.com/mitchellh/mapstructure"
 	"github.com/teseraio/ensemble/operator/proto"
 	"google.golang.org/grpc"
 )
+
+const crdURL = "/apis/apiextensions.k8s.io/v1/customresourcedefinitions"
 
 // Provider is a Provider implementation for kubernetes.
 type Provider struct {
@@ -31,6 +32,11 @@ func (p *Provider) Stop() {
 
 func (p *Provider) Setup() error {
 	return nil
+}
+
+func (p *Provider) createCRD(crdDefinition []byte) error {
+	_, _, err := p.post(crdURL, crdDefinition)
+	return err
 }
 
 func (p *Provider) contextWithClose() context.Context {
@@ -226,12 +232,9 @@ func (p *Provider) TrackStuff(clt proto.EnsembleServiceClient) {
 		task := store.pop(context.Background())
 		item := task.item
 
-		var spec *any.Any
-		if task.item.Kind == "Cluster" {
-			spec, _ = decodeClusterSpec(task.item)
-
-		} else if task.item.Kind == "Resource" {
-
+		spec, err := decodeItem(item)
+		if err != nil {
+			panic(err)
 		}
 
 		c := &proto.Component{
@@ -239,8 +242,6 @@ func (p *Provider) TrackStuff(clt proto.EnsembleServiceClient) {
 			Spec:     spec,
 			Metadata: item.Metadata.Labels,
 		}
-		fmt.Println("- c -")
-		fmt.Println(c)
 		if _, err := clt.Apply(context.Background(), c); err != nil {
 			panic(err)
 		}

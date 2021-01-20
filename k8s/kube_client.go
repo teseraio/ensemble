@@ -128,8 +128,8 @@ type Item struct {
 	Metadata *Metadata
 	Kind     string
 	Spec     map[string]interface{}
-	Status   map[string]interface{}
-	Data     map[string]interface{}
+	// Status   map[string]interface{}
+	Data map[string]interface{}
 }
 
 // InCluster returns whether we are running inside a Kubernetes pod
