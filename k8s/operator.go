@@ -1,6 +1,7 @@
 package k8s
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -8,6 +9,40 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/teseraio/ensemble/operator/proto"
 )
+
+const (
+	// clustersURL is the k8s url for the cluster objects
+	clustersURL = "/apis/ensembleoss.io/v1/namespaces/default/clusters"
+
+	// resourcesURL is the k8s url for the resource objects
+	resourcesURL = "/apis/ensembleoss.io/v1/namespaces/default/resources"
+)
+
+func (p *Provider) TrackStuff(clt proto.EnsembleServiceClient) {
+
+	store := newStore()
+	newWatcher(store, p.client, clustersURL)
+	newWatcher(store, p.client, resourcesURL)
+
+	go func() {
+		task := store.pop(context.Background())
+		item := task.item
+
+		spec, err := decodeItem(item)
+		if err != nil {
+			panic(err)
+		}
+
+		c := &proto.Component{
+			Name:     item.Metadata.Name,
+			Spec:     spec,
+			Metadata: item.Metadata.Labels,
+		}
+		if _, err := clt.Apply(context.Background(), c); err != nil {
+			panic(err)
+		}
+	}()
+}
 
 func decodeItem(item *Item) (*any.Any, error) {
 	if item.Kind == "Cluster" {

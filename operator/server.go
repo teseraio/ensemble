@@ -14,6 +14,7 @@ import (
 	"github.com/teseraio/ensemble/operator/state"
 	"github.com/teseraio/ensemble/schema"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/test/bufconn"
 )
 
 // Config is the parametrization of the operator server
@@ -67,10 +68,17 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	if err := s.setupGRPCServer("tcp", s.config.GRPCAddr.String()); err != nil {
 		return nil, err
 	}
-	// local
-	if err := s.setupGRPCServer("unix", "/tmp/local-ensemble"); err != nil {
-		return nil, err
-	}
+
+	// in-memory grpc server
+
+	buffer := 1024 * 1024
+	listener := bufconn.Listen(buffer)
+
+	go func() {
+		if err := s.grpcServer.Serve(); err != nil {
+			panic(err)
+		}
+	}()
 
 	s.logger.Info("Start provider")
 	if err := s.Provider.Start(); err != nil {

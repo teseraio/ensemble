@@ -13,9 +13,7 @@
                 "clusters",
                 "clusters/status",
                 "resources",
-                "resources/status",
-                "nodes",
-                "nodes/status"
+                "resources/status"
             ],
             "verbs": [
                 "*"
@@ -28,7 +26,6 @@
             "resources": [
                 "pods",
                 "pods/exec",
-                "services",
                 "endpoints",
                 "events",
                 "configmaps"
