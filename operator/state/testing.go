@@ -13,7 +13,7 @@ func TestSuite(t *testing.T, setup setupFn) {
 	b, closeFn := setup(t)
 	defer closeFn()
 
-	/*
+	t.Run("Upsert cluster", func(t *testing.T) {
 		c0 := &proto.Cluster{
 			Name: "C",
 		}
@@ -32,8 +32,14 @@ func TestSuite(t *testing.T, setup setupFn) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		fmt.Println(c00)
-	*/
+		if len(c00.Nodes) != 1 {
+			t.Fatal("bad")
+		}
+		n := c00.Nodes[0]
+		if n.ID != "A" {
+			t.Fatal("bad")
+		}
+	})
 
 	t.Run("Task get", func(t *testing.T) {
 		c0 := &proto.Component{
@@ -47,7 +53,7 @@ func TestSuite(t *testing.T, setup setupFn) {
 			t.Fatal(err)
 		}
 
-		// send the same task again, the sequence gets updated anyway
+		// send the same task again, the sequence is not updated
 		if err := b.Apply(c0); err != nil {
 			t.Fatal(err)
 		}
@@ -56,7 +62,7 @@ func TestSuite(t *testing.T, setup setupFn) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if c00.Sequence != 2 {
+		if c00.Sequence != 1 {
 			t.Fatal("bad")
 		}
 	})

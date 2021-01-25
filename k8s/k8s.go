@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"reflect"
 	"strings"
@@ -50,20 +49,14 @@ func (p *Provider) contextWithClose() context.Context {
 
 // Start starts the kubernetes provider
 func (p *Provider) Start() error {
-
 	// create the protocol
-	conn, err := grpc.Dial(
-		"/tmp/local-ensemble",
-		grpc.WithInsecure(),
-		grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
-			return net.DialTimeout("unix", addr, timeout)
-		}))
+	conn, err := grpc.Dial("127.0.0.1:6001", grpc.WithInsecure())
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	clt := proto.NewEnsembleServiceClient(conn)
-	p.TrackStuff(clt)
+	go p.trackCRDs(clt)
 
 	return nil
 }
@@ -163,10 +156,31 @@ func (p *Provider) upsertConfigMap(name string, data map[string]string) error {
 	return nil
 }
 
+func (p *Provider) createHeadlessService(cluster string) error {
+	// In order to do pod communication we need to create a headless service
+	// TODO: Lets find a better place for this.
+	obj := map[string]string{
+		"Ensemble": cluster,
+	}
+	data, err := RunTmpl2("headless-service", obj)
+	if err != nil {
+		return err
+	}
+	if _, _, err := p.post("/api/v1/namespaces/{namespace}/services", data); err != nil {
+		if err != errAlreadyExists {
+			return err
+		}
+	}
+	return nil
+}
+
 // CreateResource implements the Provider interface
 func (p *Provider) CreateResource(node *proto.Node) (*proto.Node, error) {
 	node = node.Copy()
 
+	if err := p.createHeadlessService(node.Cluster); err != nil {
+		return nil, err
+	}
 	if len(node.Spec.Files) > 0 {
 		// store all the files under the '-files' prefix
 		if err := p.upsertConfigMap(node.ID+"-files", node.Spec.Files); err != nil {

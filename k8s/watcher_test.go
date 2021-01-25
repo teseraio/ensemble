@@ -41,12 +41,41 @@ func TestWatcher(t *testing.T) {
 		}
 	}
 
+	ids := []string{}
 	for i := 0; i < 20; i++ {
-		create(uuid.UUID())
+		id := uuid.UUID()
+		ids = append(ids, id)
+		create(id)
 	}
 
 	store := newStore()
 	newWatcher(store, p.client, "/apis/mock.io/v1/namespaces/default/test1s")
+
+	for i := 0; i < 20; i++ {
+		e := store.pop(context.Background())
+		if !contains(ids, e.item.Metadata.Name) {
+			t.Fatal("bad")
+		}
+	}
+
+	// delete an element
+	if err := p.delete("/apis/mock.io/v1/namespaces/{namespace}/test1s/"+ids[0], emptyDel); err != nil {
+		t.Fatal(err)
+	}
+
+	tt := store.pop(context.Background())
+	if tt.item.Metadata.Name != ids[0] {
+		t.Fatal("bad")
+	}
+}
+
+func contains(i []string, j string) bool {
+	for _, o := range i {
+		if o == j {
+			return true
+		}
+	}
+	return false
 }
 
 func TestWatcherStore(t *testing.T) {

@@ -14,7 +14,6 @@ import (
 	"github.com/teseraio/ensemble/operator/state"
 	"github.com/teseraio/ensemble/schema"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/test/bufconn"
 )
 
 // Config is the parametrization of the operator server
@@ -43,6 +42,8 @@ type Server struct {
 	handlers   map[string]Handler
 	grpcServer *grpc.Server
 	stopCh     chan struct{}
+
+	service proto.EnsembleServiceServer
 }
 
 // NewServer starts an instance of the operator server
@@ -61,24 +62,15 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		s.handlers[strings.ToLower(handler.Spec().Name)] = handler
 	}
 
-	s.grpcServer = grpc.NewServer()
-	proto.RegisterEnsembleServiceServer(s.grpcServer, &service{s})
+	s.service = &service{s}
 
-	// grpc remote
-	if err := s.setupGRPCServer("tcp", s.config.GRPCAddr.String()); err != nil {
+	s.grpcServer = grpc.NewServer()
+	proto.RegisterEnsembleServiceServer(s.grpcServer, s.service)
+
+	// grpc address
+	if err := s.setupGRPCServer(s.config.GRPCAddr.String()); err != nil {
 		return nil, err
 	}
-
-	// in-memory grpc server
-
-	buffer := 1024 * 1024
-	listener := bufconn.Listen(buffer)
-
-	go func() {
-		if err := s.grpcServer.Serve(); err != nil {
-			panic(err)
-		}
-	}()
 
 	s.logger.Info("Start provider")
 	if err := s.Provider.Start(); err != nil {
@@ -89,8 +81,8 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	return s, nil
 }
 
-func (s *Server) setupGRPCServer(network, addr string) error {
-	lis, err := net.Listen(network, addr)
+func (s *Server) setupGRPCServer(addr string) error {
+	lis, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
 	}
@@ -101,7 +93,7 @@ func (s *Server) setupGRPCServer(network, addr string) error {
 		}
 	}()
 
-	s.logger.Info("Server started", "proto", network, "addr", addr)
+	s.logger.Info("Server started", "addr", addr)
 	return nil
 }
 

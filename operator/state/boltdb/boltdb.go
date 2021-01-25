@@ -1,6 +1,7 @@
 package boltdb
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strconv"
@@ -154,14 +155,28 @@ func (b *BoltDB) applyImpl(bucket []byte, c *proto.Component) error {
 		}
 	}
 
-	// update the sequence number in the component
-	c.Sequence = int64(seq) + 1
-
 	// append to the sequence bucket
 	seqBkt, err := compBkt.CreateBucketIfNotExists(seqKey)
 	if err != nil {
 		return err
 	}
+
+	// get the current version and check if it has changed
+	{
+		if seq != 0 {
+			c0 := proto.Component{}
+			if err := dbGet(seqBkt, []byte(fmt.Sprintf("seq-%d", seq)), &c0); err != nil {
+				return err
+			}
+			if bytes.Equal(c0.Spec.Value, c.Spec.Value) {
+				return nil
+			}
+		}
+	}
+
+	// update the sequence number in the component
+	c.Sequence = int64(seq) + 1
+
 	seqID := []byte(fmt.Sprintf("seq-%d", c.Sequence))
 	if err := dbPut(seqBkt, seqID, c); err != nil {
 		return err

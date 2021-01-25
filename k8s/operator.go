@@ -18,13 +18,12 @@ const (
 	resourcesURL = "/apis/ensembleoss.io/v1/namespaces/default/resources"
 )
 
-func (p *Provider) TrackStuff(clt proto.EnsembleServiceClient) {
-
+func (p *Provider) trackCRDs(clt proto.EnsembleServiceClient) {
 	store := newStore()
 	newWatcher(store, p.client, clustersURL)
 	newWatcher(store, p.client, resourcesURL)
 
-	go func() {
+	for {
 		task := store.pop(context.Background())
 		item := task.item
 
@@ -41,7 +40,7 @@ func (p *Provider) TrackStuff(clt proto.EnsembleServiceClient) {
 		if _, err := clt.Apply(context.Background(), c); err != nil {
 			panic(err)
 		}
-	}()
+	}
 }
 
 func decodeItem(item *Item) (*any.Any, error) {

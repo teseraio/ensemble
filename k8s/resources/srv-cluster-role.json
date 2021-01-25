@@ -26,6 +26,7 @@
             "resources": [
                 "pods",
                 "pods/exec",
+                "services",
                 "endpoints",
                 "events",
                 "configmaps"
