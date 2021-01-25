@@ -12,12 +12,14 @@ func TestZookeeperBootstrap(t *testing.T) {
 	srv := testutil.TestOperator(t, Factory)
 	defer srv.Close()
 
-	uuid := srv.Apply(&proto.Component{
-		Name: "A",
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-			Backend:  "Zookeeper",
-			Replicas: 3,
-		}),
+	uuid := srv.Apply(&proto.ApplyReq{
+		Component: &proto.Component{
+			Name: "A",
+			Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+				Backend:  "Zookeeper",
+				Replicas: 3,
+			}),
+		},
 	})
 
 	srv.WaitForTask(uuid)

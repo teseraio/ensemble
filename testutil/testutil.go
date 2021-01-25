@@ -26,8 +26,8 @@ type TestServer struct {
 	clt    proto.EnsembleServiceClient
 }
 
-func (t *TestServer) Apply(c *proto.Component) string {
-	cc, err := t.clt.Apply(context.Background(), c)
+func (t *TestServer) Apply(req *proto.ApplyReq) string {
+	cc, err := t.clt.Apply(context.Background(), req)
 	if err != nil {
 		t.t.Fatal(err)
 	}

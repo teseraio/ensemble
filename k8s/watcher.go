@@ -5,6 +5,7 @@ import (
 	"container/heap"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -76,6 +77,7 @@ func (w *Watcher) listImpl() {
 		}
 		var result *ListResponse
 		if err := json.Unmarshal(data, &result); err != nil {
+			fmt.Println(string(data))
 			panic(err)
 		}
 		for _, item := range result.Items {

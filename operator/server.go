@@ -324,6 +324,45 @@ func (s *Server) handleClusterTask(eval *proto.Component) error {
 	return nil
 }
 
+func (s *Server) validate(c *proto.Component) error {
+	// TODO: Validate clusters (i.e. we should not be able to create a Zk cluster with 2 nodes)
+	if c.Spec.TypeUrl != "ensembleoss.io/proto.ResourceSpec" {
+		return nil
+	}
+
+	// Validate arbitrary values in resource
+	// TODO: Reuse this logic
+	var spec proto.ResourceSpec
+	if err := gproto.Unmarshal(c.Spec.Value, &spec); err != nil {
+		return err
+	}
+
+	cluster, err := s.State.LoadCluster(c.Name)
+	if err != nil {
+		return err
+	}
+	handler, ok := s.getHandler(cluster.Backend)
+	if !ok {
+		return fmt.Errorf("handler not found %s", cluster.Backend)
+	}
+
+	var resource Resource
+	for _, r := range handler.Spec().Resources {
+		if r.GetName() == spec.Resource {
+			resource = r
+		}
+	}
+	if resource == nil {
+		return fmt.Errorf("resource not found %s", spec.Resource)
+	}
+
+	val := reflect.New(reflect.TypeOf(resource)).Elem().Interface()
+	if err := schema.DecodeString(spec.Params, &val); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *Server) handleTask(task *proto.Component) error {
 
 	var err error

@@ -9,7 +9,15 @@ import "google/protobuf/any.proto";
 import "google/protobuf/timestamp.proto";
 
 service EnsembleService {
-    rpc Apply(Component) returns (Component);
+    rpc Apply(ApplyReq) returns (Component);
+}
+
+message ApplyReq {
+    // Component spec to be applied
+    Component component = 1;
+
+    // Id dry run is try we only perform validation of component
+    bool dryRun = 2;
 }
 
 // Component is like a snapshot or something. AKA Evaluation

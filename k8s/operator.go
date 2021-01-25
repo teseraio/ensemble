@@ -37,7 +37,10 @@ func (p *Provider) trackCRDs(clt proto.EnsembleServiceClient) {
 			Spec:     spec,
 			Metadata: item.Metadata.Labels,
 		}
-		if _, err := clt.Apply(context.Background(), c); err != nil {
+		req := &proto.ApplyReq{
+			Component: c,
+		}
+		if _, err := clt.Apply(context.Background(), req); err != nil {
 			panic(err)
 		}
 	}

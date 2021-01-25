@@ -11,10 +11,12 @@
 // resources/mock-crd.template
 // resources/mock.template
 // resources/pod.template
+// resources/srv-admission-control.json
 // resources/srv-cluster-role-binding.json
 // resources/srv-cluster-role.json
 // resources/srv-deployment.json.template
 // resources/srv-service-account.json
+// resources/srv-service.json
 package k8s
 
 import (
@@ -146,7 +148,7 @@ func resourcesCrdResourceJson() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/crd-resource.json", size: 1941, mode: os.FileMode(420), modTime: time.Unix(1611561105, 0)}
+	info := bindataFileInfo{name: "resources/crd-resource.json", size: 1941, mode: os.FileMode(420), modTime: time.Unix(1611565320, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -266,7 +268,7 @@ func resourcesMockCrdTemplate() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/mock-crd.template", size: 1159, mode: os.FileMode(420), modTime: time.Unix(1611561105, 0)}
+	info := bindataFileInfo{name: "resources/mock-crd.template", size: 1159, mode: os.FileMode(420), modTime: time.Unix(1611565320, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -286,7 +288,7 @@ func resourcesMockTemplate() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/mock.template", size: 137, mode: os.FileMode(420), modTime: time.Unix(1611561105, 0)}
+	info := bindataFileInfo{name: "resources/mock.template", size: 137, mode: os.FileMode(420), modTime: time.Unix(1611565320, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -306,7 +308,27 @@ func resourcesPodTemplate() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/pod.template", size: 1031, mode: os.FileMode(420), modTime: time.Unix(1611562504, 0)}
+	info := bindataFileInfo{name: "resources/pod.template", size: 1031, mode: os.FileMode(420), modTime: time.Unix(1611565320, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _resourcesSrvAdmissionControlJson = []byte("\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\x94\x93\x41\x8f\xda\x30\x10\x85\xef\xf9\x15\x96\xcf\x40\x85\x54\x54\x94\x5b\x45\x51\x6f\x55\x45\xbb\xec\x61\xc5\xc1\xd8\x13\x76\x44\xe2\x89\x3c\x4e\x38\xac\xf2\xdf\x57\x89\x21\x28\x21\x81\x25\xb7\x24\x6f\xbe\xe7\x99\x79\xfe\x88\x84\x10\x42\xaa\x1c\xb7\xe0\x18\xc9\xca\x58\x48\x65\x32\xe4\xfa\xc5\xc1\x01\xd9\x3b\xe5\x91\xec\xec\xb8\xe4\x19\xd2\xb7\x72\x2e\x27\xa1\xe8\x88\xd6\xd4\xf2\xad\x4a\xd1\x28\x8f\xf6\xf0\x0a\xfb\x77\xa2\xe3\x8a\x6c\x82\x87\x22\xd4\x5d\xd4\x19\x78\x65\x94\x57\x32\x16\xc1\xb4\xf9\x6a\x55\x06\x35\xa3\x0c\x0c\x98\x81\x65\xc8\xf6\x29\x10\xd7\x6e\xb2\x51\x56\x67\xc4\x29\xe0\x59\xc6\xe2\xad\x45\x5c\x61\x5f\x02\x4e\xba\x72\x57\xa4\xd0\xe5\x0d\x73\xdb\x02\x95\xe3\x6f\x47\x45\x3e\x5c\xd4\xca\x86\xda\xe8\x3f\xbb\xc9\xa8\xc5\x79\x19\x0f\x4c\xca\xf9\x73\x60\xca\x21\xec\xe4\x01\x77\xb5\x59\xff\xfc\xbf\x96\xc3\x94\x46\xf1\xf2\xf7\x57\xad\x78\xca\xdd\x01\x53\xe1\xf4\xc8\xb8\x5b\x99\x4e\x0b\xf6\xe0\xf8\x9e\xfd\x15\xf5\xd4\x09\x58\x53\xde\x84\xe3\x8f\xca\x80\x73\xa5\xc1\xdc\x02\xaa\xe8\x0e\x4a\xea\x14\xc1\xfa\x10\xf0\x4e\x92\xaf\x26\xe0\x4a\xd4\x30\xf8\x53\x5c\x12\xda\x98\xd7\x27\x31\x90\xa8\x22\xf5\x23\xcd\xb6\x69\xbe\xc4\x69\x1a\x56\x48\x6e\xca\xa5\x1e\x2b\xca\xc9\x79\x19\x8b\xef\x8b\x1f\xcb\x07\xdd\x55\xbd\xee\xda\x8b\xbf\x81\x12\xe1\x74\x37\x85\x37\xe9\xeb\x8f\x8a\xd1\xc0\x3a\x49\x40\x7b\x6e\x66\x4e\x16\xfa\xb7\xcf\x63\x06\x54\xf8\x7f\xa0\xc9\x9a\x5a\xb5\x88\xba\x07\xdd\x45\xd5\x67\x00\x00\x00\xff\xff\xcc\xd4\xf8\xc0\xa2\x04\x00\x00")
+
+func resourcesSrvAdmissionControlJsonBytes() ([]byte, error) {
+	return bindataRead(
+		_resourcesSrvAdmissionControlJson,
+		"resources/srv-admission-control.json",
+	)
+}
+
+func resourcesSrvAdmissionControlJson() (*asset, error) {
+	bytes, err := resourcesSrvAdmissionControlJsonBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "resources/srv-admission-control.json", size: 1186, mode: os.FileMode(420), modTime: time.Unix(1611575532, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -346,7 +368,7 @@ func resourcesSrvClusterRoleJson() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/srv-cluster-role.json", size: 1038, mode: os.FileMode(420), modTime: time.Unix(1611563758, 0)}
+	info := bindataFileInfo{name: "resources/srv-cluster-role.json", size: 1038, mode: os.FileMode(420), modTime: time.Unix(1611565320, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -366,7 +388,7 @@ func resourcesSrvDeploymentJsonTemplate() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/srv-deployment.json.template", size: 2278, mode: os.FileMode(420), modTime: time.Unix(1611561105, 0)}
+	info := bindataFileInfo{name: "resources/srv-deployment.json.template", size: 2278, mode: os.FileMode(420), modTime: time.Unix(1611565320, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -387,6 +409,26 @@ func resourcesSrvServiceAccountJson() (*asset, error) {
 	}
 
 	info := bindataFileInfo{name: "resources/srv-service-account.json", size: 117, mode: os.FileMode(420), modTime: time.Unix(1608931048, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _resourcesSrvServiceJson = []byte("\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\x6c\x8f\xbf\x6a\xc3\x30\x10\xc6\x77\x3f\xc5\x71\x73\x3d\x14\x5a\x5a\xb4\xf6\x05\x0a\x09\x59\x42\x86\xb3\x7c\x21\xc2\xb2\x4e\x48\x8a\x33\x04\xbd\x7b\xf0\x9f\x18\x0b\x3c\xea\xbb\x9f\x7e\xdf\xdd\xb3\x02\x00\x40\xf2\xe6\xc4\x21\x1a\x71\xa8\x00\x87\x4f\xfc\x98\xf3\xce\xb8\x76\x4c\x0e\x1c\x06\xa3\xf9\x1d\xf7\x9c\xa8\xa5\x44\xa8\x60\x16\x4c\xa9\xa3\x9e\x47\x98\x5d\xe4\xbe\xb1\x5c\x8b\xe7\x40\x49\x42\x1d\x07\xbd\x7c\x5d\xc1\xe8\x49\x4f\x74\xcb\x57\xba\xdb\x84\xd3\x38\x2f\x05\xd1\xb3\x2e\xe5\x91\x2d\xeb\x24\xa1\x48\x97\xdd\xfd\x6e\x2b\xae\x58\xde\x74\x7b\x09\x29\xa2\x82\x73\x21\x29\x95\xc5\x35\x0f\x6e\x6e\x22\xdd\x66\xff\xc2\x85\x0a\xbe\xbe\x7f\x7e\xf7\xa6\x41\x92\x68\xb1\xa3\xe4\xf8\xf7\x8f\x05\x91\xd7\xd7\x65\x3e\xbc\xca\xaf\x00\x00\x00\xff\xff\x71\xa9\x9a\x2a\x8b\x01\x00\x00")
+
+func resourcesSrvServiceJsonBytes() ([]byte, error) {
+	return bindataRead(
+		_resourcesSrvServiceJson,
+		"resources/srv-service.json",
+	)
+}
+
+func resourcesSrvServiceJson() (*asset, error) {
+	bytes, err := resourcesSrvServiceJsonBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "resources/srv-service.json", size: 395, mode: os.FileMode(420), modTime: time.Unix(1611575644, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -454,10 +496,12 @@ var _bindata = map[string]func() (*asset, error){
 	"resources/mock-crd.template":             resourcesMockCrdTemplate,
 	"resources/mock.template":                 resourcesMockTemplate,
 	"resources/pod.template":                  resourcesPodTemplate,
+	"resources/srv-admission-control.json":    resourcesSrvAdmissionControlJson,
 	"resources/srv-cluster-role-binding.json": resourcesSrvClusterRoleBindingJson,
 	"resources/srv-cluster-role.json":         resourcesSrvClusterRoleJson,
 	"resources/srv-deployment.json.template":  resourcesSrvDeploymentJsonTemplate,
 	"resources/srv-service-account.json":      resourcesSrvServiceAccountJson,
+	"resources/srv-service.json":              resourcesSrvServiceJson,
 }
 
 // AssetDir returns the file names below a certain
@@ -513,10 +557,12 @@ var _bintree = &bintree{nil, map[string]*bintree{
 		"mock-crd.template":             &bintree{resourcesMockCrdTemplate, map[string]*bintree{}},
 		"mock.template":                 &bintree{resourcesMockTemplate, map[string]*bintree{}},
 		"pod.template":                  &bintree{resourcesPodTemplate, map[string]*bintree{}},
+		"srv-admission-control.json":    &bintree{resourcesSrvAdmissionControlJson, map[string]*bintree{}},
 		"srv-cluster-role-binding.json": &bintree{resourcesSrvClusterRoleBindingJson, map[string]*bintree{}},
 		"srv-cluster-role.json":         &bintree{resourcesSrvClusterRoleJson, map[string]*bintree{}},
 		"srv-deployment.json.template":  &bintree{resourcesSrvDeploymentJsonTemplate, map[string]*bintree{}},
 		"srv-service-account.json":      &bintree{resourcesSrvServiceAccountJson, map[string]*bintree{}},
+		"srv-service.json":              &bintree{resourcesSrvServiceJson, map[string]*bintree{}},
 	}},
 }}
 

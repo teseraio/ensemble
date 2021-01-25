@@ -14,6 +14,7 @@ require (
 	github.com/golang/protobuf v1.4.3
 	github.com/google/gops v0.3.12
 	github.com/google/uuid v1.1.2
+	github.com/hashicorp/go-cleanhttp v0.5.1
 	github.com/hashicorp/go-hclog v0.14.1
 	github.com/michaelklishin/rabbit-hole/v2 v2.5.0
 	github.com/mitchellh/cli v1.1.2

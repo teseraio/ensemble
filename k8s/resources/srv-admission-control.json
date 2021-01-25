@@ -1,0 +1,43 @@
+{
+    "apiVersion": "admissionregistration.k8s.io/v1",
+    "kind": "ValidatingWebhookConfiguration",
+    "metadata": {
+        "name": "validate.ensembleoss.io"
+    },
+    "webhooks": [
+        {
+            "name": "validate.ensembleoss.io",
+            "rules": [
+                {
+                    "apiGroups": [
+                        "ensembleoss.io"
+                    ],
+                    "apiVersions": [
+                        "v1"
+                    ],
+                    "operations": [
+                        "CREATE",
+                        "UPDATE"
+                    ],
+                    "resources": [
+                        "clusters",
+                        "resources"
+                    ],
+                    "scope": "Namespaced"
+                }
+            ],
+            "clientConfig": {
+                "service": {
+                    "namespace": "default",
+                    "name": "ensemble-operator-svc",
+                    "port": 4578
+                }
+            },
+            "admissionReviewVersions": [
+                "v1"
+            ],
+            "sideEffects": "None",
+            "timeoutSeconds": 5
+        }
+    ]
+}

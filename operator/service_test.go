@@ -16,5 +16,5 @@ func TestApply(t *testing.T) {
 	}
 
 	s := &service{}
-	s.Apply(context.Background(), c)
+	s.Apply(context.Background(), &proto.ApplyReq{Component: c})
 }

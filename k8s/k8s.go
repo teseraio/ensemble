@@ -22,6 +22,7 @@ type Provider struct {
 	client *KubeClient
 	logger hclog.Logger
 	stopCh chan struct{}
+	clt    proto.EnsembleServiceClient
 }
 
 // Stop stops the kubernetes provider
@@ -54,9 +55,16 @@ func (p *Provider) Start() error {
 	if err != nil {
 		return err
 	}
+	p.clt = proto.NewEnsembleServiceClient(conn)
 
-	clt := proto.NewEnsembleServiceClient(conn)
-	go p.trackCRDs(clt)
+	// start webhook validation server
+	w := &webhookValidation{
+		logger:    p.logger,
+		validator: p,
+	}
+	w.startHTTPServer()
+
+	go p.trackCRDs(p.clt)
 
 	return nil
 }
@@ -172,6 +180,32 @@ func (p *Provider) createHeadlessService(cluster string) error {
 		}
 	}
 	return nil
+}
+
+func (p *Provider) Validate(req *admissionReviewRequest) (*admissionReviewResponse, error) {
+	item := req.Object
+
+	spec, err := decodeItem(item)
+	if err != nil {
+		panic(err)
+	}
+	c := &proto.Component{
+		Name:     item.Metadata.Name,
+		Spec:     spec,
+		Metadata: item.Metadata.Labels,
+	}
+	applyReq := &proto.ApplyReq{
+		Component: c,
+		DryRun:    true,
+	}
+
+	resp := &admissionReviewResponse{
+		Allowed: true,
+	}
+	if _, err := p.clt.Apply(context.Background(), applyReq); err != nil {
+		resp.Allowed = false
+	}
+	return resp, nil
 }
 
 // CreateResource implements the Provider interface
