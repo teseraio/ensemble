@@ -1,23 +1,24 @@
 package schema
 
 import (
-	"fmt"
 	"testing"
 )
 
 func TestValidate(t *testing.T) {
+	var struct1 struct {
+		A string `schema:"a,required"`
+		B struct {
+			C string `schema:",required"`
+		}
+	}
+
 	cases := []struct {
 		obj   interface{}
 		input map[string]interface{}
 		err   bool
 	}{
 		{
-			obj: struct {
-				A string `schema:"a,required"`
-				B struct {
-					C string `schema:",required"`
-				}
-			}{},
+			obj: struct1,
 			input: map[string]interface{}{
 				"a": "a",
 				"B": map[string]interface{}{
@@ -26,8 +27,38 @@ func TestValidate(t *testing.T) {
 			},
 			err: false,
 		},
+		{
+			obj: struct1,
+			input: map[string]interface{}{
+				"a": "a",
+				"B": map[string]interface{}{},
+			},
+			err: true,
+		},
+		{
+			obj: struct {
+				A string `schema:"a,required"`
+			}{},
+			input: map[string]interface{}{
+				"a": "",
+			},
+			err: false,
+		},
+		{
+			obj: struct {
+				A string `schema:",required"`
+			}{},
+			input: map[string]interface{}{},
+			err:   true,
+		},
 	}
 	for _, c := range cases {
-		fmt.Println(ValidateRequired(c.input, c.obj))
+		err := ValidateRequired(c.input, c.obj)
+		if err != nil && !c.err {
+			t.Fatal(err)
+		}
+		if err == nil && c.err {
+			t.Fatal("bad")
+		}
 	}
 }

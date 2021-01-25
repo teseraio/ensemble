@@ -20,6 +20,9 @@ func DecodeString(input string, obj interface{}) error {
 
 // Decode decodes a map into an object
 func Decode(input map[string]interface{}, obj interface{}) error {
+	if err := ValidateRequired(input, obj); err != nil {
+		return err
+	}
 	dc := &mapstructure.DecoderConfig{
 		Result:  obj,
 		TagName: "schema",
