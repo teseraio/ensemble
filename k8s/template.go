@@ -50,6 +50,7 @@ func RunTmpl(tmpl string, obj interface{}) ([]byte, error) {
 		// mapX is the same as map but removing the outer JSON brackets
 		"mapX": func(v interface{}) string { return marshalToJSON(v, true) },
 
+		"title":     func(v interface{}) string { return strings.Title(v.(string)) },
 		"separator": separator,
 	}
 	t, err := template.New("").Funcs(funcMap).Parse(tmpl)

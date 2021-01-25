@@ -3,19 +3,21 @@ package cassandra
 import (
 	"testing"
 
-	"github.com/teseraio/ensemble/operator"
+	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/testutil"
 )
 
 func TestCassandraBootstrap(t *testing.T) {
-	provider, _ := testutil.NewTestProvider(t, "cassandra", nil)
+	srv := testutil.TestOperator(t, Factory)
+	defer srv.Close()
 
-	srv := operator.TestOperator(t, provider, Factory)
-	defer srv.Stop()
-
-	uuid := provider.Apply(&testutil.TestTask{
-		Name:  "A",
-		Input: `{"replicas": 2}`,
+	uuid := srv.Apply(&proto.Component{
+		Name: "A",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			Backend:  "Cassandra",
+			Replicas: 2,
+		}),
 	})
-	provider.WaitForTask(uuid)
+
+	srv.WaitForTask(uuid)
 }

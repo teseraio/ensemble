@@ -33,7 +33,8 @@
                                             "type": "string"
                                         }
                                     }
-                                }
+                                },
+                                "required": ["backend", "cluster", "resource"]
                             },
                             "status": {
                                 "type": "object",

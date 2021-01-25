@@ -3,29 +3,35 @@ package rabbitmq
 import (
 	"testing"
 
-	"github.com/teseraio/ensemble/operator"
+	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/testutil"
 )
 
 func TestVHost(t *testing.T) {
-	provider, _ := testutil.NewTestProvider(t, "rabbitmq", nil)
+	srv := testutil.TestOperator(t, Factory)
+	defer srv.Close()
 
-	srv := operator.TestOperator(t, provider, Factory)
-	defer srv.Stop()
-
-	uuid := provider.Apply(&testutil.TestTask{
-		Name:  "A",
-		Input: `{"replicas": 1}`,
+	uuid1 := srv.Apply(&proto.Component{
+		Name: "A",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			Backend:  "Rabbitmq",
+			Replicas: 1,
+		}),
 	})
-	provider.WaitForTask(uuid)
+
+	srv.WaitForTask(uuid1)
 
 	// create the vhost
-	uuid = provider.Apply(&testutil.TestTask{
-		Name:     "B",
-		Resource: "VHost",
-		Input: `{
-			"name": "B"
-		}`,
+	uuid2 := srv.Apply(&proto.Component{
+		Name: "B",
+		Spec: proto.MustMarshalAny(&proto.ResourceSpec{
+			Cluster:  "A",
+			Resource: "VHost",
+			Params: `{
+				"name": "B"
+			}`,
+		}),
 	})
-	provider.WaitForTask(uuid)
+
+	srv.WaitForTask(uuid2)
 }

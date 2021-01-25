@@ -3,3 +3,7 @@ main
 
 bin/
 pkg/
+
+test.db
+
+test*.yaml

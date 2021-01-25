@@ -3,6 +3,7 @@ package server
 import (
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,6 +12,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/teseraio/ensemble/k8s"
 	"github.com/teseraio/ensemble/operator"
+	"github.com/teseraio/ensemble/operator/state/boltdb"
 
 	"github.com/google/gops/agent"
 	"github.com/mitchellh/cli"
@@ -34,13 +36,14 @@ func (c *Command) Synopsis() string {
 // Run implements the cli.Command interface
 func (c *Command) Run(args []string) int {
 	var debug bool
-	var logLevel string
+	var logLevel, boltdbPath string
 
 	flags := flag.NewFlagSet("operator", flag.ContinueOnError)
 	flags.Usage = func() {}
 
 	flags.BoolVar(&debug, "debug", false, "")
 	flags.StringVar(&logLevel, "log-level", "", "")
+	flags.StringVar(&boltdbPath, "boltdb", "test.db", "")
 
 	if err := flags.Parse(args); err != nil {
 		c.UI.Error(err.Error())
@@ -59,6 +62,7 @@ func (c *Command) Run(args []string) int {
 		Level: hclog.LevelFromString(logLevel),
 	})
 
+	// setup resource provider
 	k8sProvider, err := k8s.K8sFactory(logger, nil)
 	if err != nil {
 		c.UI.Error(fmt.Sprintf("Failed to create the provider: %v", err))
@@ -69,9 +73,20 @@ func (c *Command) Run(args []string) int {
 		return 1
 	}
 
+	// setup state
+	state, err := boltdb.Factory(map[string]interface{}{
+		"path": boltdbPath,
+	})
+	if err != nil {
+		c.UI.Error(fmt.Sprintf("Failed to start boltdb state: %v", err))
+		return 1
+	}
+
 	config := &operator.Config{
 		Provider:         k8sProvider,
+		State:            state,
 		HandlerFactories: BuiltinBackends,
+		GRPCAddr:         &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 6001},
 	}
 	srv, err := operator.NewServer(logger, config)
 	if err != nil {

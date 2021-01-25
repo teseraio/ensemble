@@ -33,7 +33,7 @@
 					}
 					{{end}}
 				],
-				"imagePullPolicy": "Never",
+				"imagePullPolicy": "Always",
 				"name": "main-container",
 				"image": "{{.Image}}:{{.Version}}"
 			}

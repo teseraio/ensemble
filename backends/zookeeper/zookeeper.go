@@ -39,7 +39,7 @@ func Factory() operator.Handler {
 
 // Reconcile implements the Handler interface
 func (b *backend) Reconcile(_ operator.Executor, e *proto.Cluster, node *proto.Node, plan *proto.Plan) error {
-	if node.State == proto.NodeState_INITIALIZED {
+	if node.State == proto.Node_INITIALIZED {
 		nodeInitialized(e, node, plan)
 	}
 	return nil
