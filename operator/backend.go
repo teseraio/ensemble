@@ -69,6 +69,7 @@ type Resource interface {
 	GetName() string
 	Delete(conn interface{}) error
 	Reconcile(conn interface{}) error
+	Init(spec map[string]interface{}) error
 }
 
 // BaseResource is a resource that can have multiple instances
@@ -79,4 +80,9 @@ type BaseResource struct {
 // SetID sets the id of the specific resource
 func (b *BaseResource) SetID(id string) {
 	b.ID = id
+}
+
+// Init implements the Resource interface
+func (b *BaseResource) Init(spec map[string]interface{}) error {
+	return nil
 }
