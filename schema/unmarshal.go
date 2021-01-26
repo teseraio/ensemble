@@ -88,14 +88,24 @@ func existsKey(input map[string]interface{}, key string) bool {
 func readRequiredFlags(obj interface{}) []string {
 	res := []string{}
 
-	var impl func(parent string, v reflect.Type)
+	var impl func(parent string, v reflect.Value)
 
-	impl = func(parent string, v reflect.Type) {
-		if v.Kind() == reflect.Ptr {
-			v = v.Elem()
+	impl = func(parent string, v reflect.Value) {
+		if v.Kind() != reflect.Struct {
+			switch v.Kind() {
+			case reflect.Ptr:
+				impl("", v.Elem())
+
+			case reflect.Interface:
+				impl("", v.Elem())
+			}
+			return
 		}
+
+		typ := v.Type()
 		for i := 0; i < v.NumField(); i++ {
-			f := v.Field(i)
+			f := typ.Field(i)
+
 			name := f.Name
 			tags := f.Tag.Get("schema")
 
@@ -117,11 +127,11 @@ func readRequiredFlags(obj interface{}) []string {
 				}
 			}
 			if f.Type.Kind() == reflect.Struct {
-				impl(fullName, f.Type)
+				impl(fullName, v.Field(i))
 			}
 		}
 	}
 
-	impl("", reflect.TypeOf(obj))
+	impl("", reflect.ValueOf(obj))
 	return res
 }

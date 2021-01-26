@@ -2,6 +2,7 @@ package operator
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"reflect"
@@ -228,7 +229,7 @@ func (s *Server) handleResourceTask(eval *proto.Component) error {
 		return err
 	}
 
-	cluster, err := s.State.LoadCluster(eval.Name)
+	cluster, err := s.State.LoadCluster(spec.Cluster)
 	if err != nil {
 		return err
 	}
@@ -253,12 +254,20 @@ func (s *Server) handleResourceTask(eval *proto.Component) error {
 		return fmt.Errorf("resource not found %s", spec.Resource)
 	}
 
+	var params map[string]interface{}
+	if err := json.Unmarshal([]byte(spec.Params), &params); err != nil {
+		return err
+	}
 	val := reflect.New(reflect.TypeOf(resource)).Elem().Interface()
-	if err := schema.DecodeString(spec.Params, &val); err != nil {
+	if err := schema.Decode(params, &val); err != nil {
+		return err
+	}
+	resource = val.(Resource)
+
+	if err := resource.Init(params); err != nil {
 		return err
 	}
 
-	resource = val.(Resource)
 	if eval.Action == proto.Component_DELETE {
 		if err := resource.Delete(clt); err != nil {
 			return err
