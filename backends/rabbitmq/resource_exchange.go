@@ -1,6 +1,8 @@
 package rabbitmq
 
 import (
+	"fmt"
+
 	rabbithole "github.com/michaelklishin/rabbit-hole/v2"
 	"github.com/teseraio/ensemble/operator"
 )
@@ -50,4 +52,21 @@ func (e *Exchange) Reconcile(req interface{}) error {
 		return err
 	}
 	return nil
+}
+
+// Init implements the Resource interface
+func (e *Exchange) Init(spec map[string]interface{}) error {
+	if !contains([]string{"direct", "topic", "headers", "fanout"}, e.Settings.Type) {
+		return fmt.Errorf("exchange type %s is invalid", e.Settings.Type)
+	}
+	return nil
+}
+
+func contains(j []string, i string) bool {
+	for _, o := range j {
+		if o == i {
+			return true
+		}
+	}
+	return false
 }

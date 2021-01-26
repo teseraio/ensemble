@@ -262,11 +262,12 @@ func (s *Server) handleResourceTask(eval *proto.Component) error {
 	if err := schema.Decode(params, &val); err != nil {
 		return err
 	}
+	resource = val.(Resource)
+
 	if err := resource.Init(params); err != nil {
 		return err
 	}
 
-	resource = val.(Resource)
 	if eval.Action == proto.Component_DELETE {
 		if err := resource.Delete(clt); err != nil {
 			return err
