@@ -208,13 +208,15 @@ func (s *Server) taskQueue() {
 			continue
 		}
 
-		s.logger.Info("New task", "id", task.Id)
+		s.logger.Info("New task", "id", task.New.Id)
 		if err := s.handleTask(task); err != nil {
-			s.logger.Error("failed to handle task", "id", task.Id, "err", err)
+			s.logger.Error("failed to handle task", "id", task.New.Id, "err", err)
 		}
 
-		s.logger.Info("Finalize task", "id", task.Id)
-		s.State.Finalize(task.Id)
+		s.logger.Info("Finalize task", "id", task.New.Id)
+		if err := s.State.Finalize(task.New.Id); err != nil {
+			s.logger.Error("Failed to finalize task", "id", task.New.Id, "err", err)
+		}
 	}
 }
 
@@ -223,7 +225,13 @@ func (s *Server) getHandler(name string) (Handler, bool) {
 	return h, ok
 }
 
-func (s *Server) handleResourceTask(eval *proto.Component) error {
+func (s *Server) handleResourceTask(task *proto.ComponentTask) error {
+	eval := task.New
+
+	fmt.Println("-- eval --")
+	fmt.Println(task.Old)
+	fmt.Println(task.New)
+
 	var spec proto.ResourceSpec
 	if err := gproto.Unmarshal(eval.Spec.Value, &spec); err != nil {
 		return err
@@ -268,6 +276,7 @@ func (s *Server) handleResourceTask(eval *proto.Component) error {
 		return err
 	}
 
+	// check current value for the resource
 	if eval.Action == proto.Component_DELETE {
 		if err := resource.Delete(clt); err != nil {
 			return err
@@ -280,7 +289,9 @@ func (s *Server) handleResourceTask(eval *proto.Component) error {
 	return nil
 }
 
-func (s *Server) handleClusterTask(eval *proto.Component) error {
+func (s *Server) handleClusterTask(task *proto.ComponentTask) error {
+	eval := task.New
+
 	var spec proto.ClusterSpec
 	if err := gproto.Unmarshal(eval.Spec.Value, &spec); err != nil {
 		return err
@@ -333,15 +344,15 @@ func (s *Server) handleClusterTask(eval *proto.Component) error {
 	return nil
 }
 
-func (s *Server) handleTask(task *proto.Component) error {
+func (s *Server) handleTask(task *proto.ComponentTask) error {
 
 	var err error
-	if task.Spec.TypeUrl == "ensembleoss.io/proto.ClusterSpec" {
+	if task.New.Spec.TypeUrl == "ensembleoss.io/proto.ClusterSpec" {
 		err = s.handleClusterTask(task)
-	} else if task.Spec.TypeUrl == "ensembleoss.io/proto.ResourceSpec" {
+	} else if task.New.Spec.TypeUrl == "ensembleoss.io/proto.ResourceSpec" {
 		err = s.handleResourceTask(task)
 	} else {
-		return fmt.Errorf("type url not found '%s'", task.Spec.TypeUrl)
+		return fmt.Errorf("type url not found '%s'", task.New.Spec.TypeUrl)
 	}
 	if err != nil {
 		return err

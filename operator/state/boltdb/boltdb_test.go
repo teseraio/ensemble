@@ -48,6 +48,7 @@ func TestIndexUpdate(t *testing.T) {
 		Status: proto.Component_PENDING,
 		Spec: &any.Any{
 			TypeUrl: "1",
+			Value:   []byte{0x1},
 		},
 	}
 	if err := st.Apply(ca1); err != nil {
@@ -60,6 +61,7 @@ func TestIndexUpdate(t *testing.T) {
 		Status: proto.Component_PENDING,
 		Spec: &any.Any{
 			TypeUrl: "2",
+			Value:   []byte{0x2},
 		},
 	}
 	if err := st.Apply(ca2); err != nil {
@@ -68,7 +70,7 @@ func TestIndexUpdate(t *testing.T) {
 
 	// it must return the first version
 	cb, _ := st.GetTask(context.Background())
-	if cb.Spec.TypeUrl != "1" {
+	if cb.New.Spec.TypeUrl != "1" {
 		t.Fatal("bad")
 	}
 
@@ -85,10 +87,9 @@ func TestIndexUpdate(t *testing.T) {
 	if err := st.Finalize(ca1.Id); err != nil {
 		t.Fatal(err)
 	}
-
 	// now we can retrieve the task 2
 	cb, _ = st.GetTask(context.Background())
-	if cb.Spec.TypeUrl != "2" {
+	if cb.New.Spec.TypeUrl != "2" {
 		t.Fatal("bad")
 	}
 }

@@ -10,7 +10,7 @@ import (
 )
 
 type task struct {
-	*proto.Component
+	*proto.ComponentTask
 
 	// internal fields for the sort heap
 	ready     bool
@@ -38,7 +38,7 @@ func (t *taskQueue) existsByName(name string) bool {
 	defer t.lock.Unlock()
 
 	for _, i := range t.items {
-		if i.Name == name {
+		if i.New.Name == name {
 			return true
 		}
 	}
@@ -53,16 +53,19 @@ func (t *taskQueue) get(id string) (*task, bool) {
 	return tt, ok
 }
 
-func (t *taskQueue) add(c *proto.Component) {
+func (t *taskQueue) add(new, old *proto.Component) {
 	tt := &task{
-		Component: c,
+		ComponentTask: &proto.ComponentTask{
+			Old: old,
+			New: new,
+		},
 	}
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
 	tt.ready = true
 
-	t.items[tt.Id] = tt
+	t.items[new.Id] = tt
 	heap.Push(&t.heap, tt)
 
 	select {
@@ -93,14 +96,16 @@ POP:
 	}
 }
 
-func (t *taskQueue) finalize(id string) {
+func (t *taskQueue) finalize(id string) (*task, bool) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
 	i, ok := t.items[id]
 	if ok {
 		heap.Remove(&t.heap, i.index)
+		delete(t.items, id)
 	}
+	return i, ok
 }
 
 type taskQueueImpl []*task

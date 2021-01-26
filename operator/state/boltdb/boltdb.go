@@ -101,7 +101,8 @@ func (b *BoltDB) initialize() error {
 
 				// Find the first version in the sequence bucket that is pending and push
 				// it to the task queue
-				cursor := itemBkt.Bucket(seqKey).Cursor()
+				seqBkt := itemBkt.Bucket(seqKey)
+				cursor := seqBkt.Cursor()
 
 				for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
 					c := proto.Component{}
@@ -109,7 +110,13 @@ func (b *BoltDB) initialize() error {
 						return err
 					}
 					if c.Status == proto.Component_PENDING {
-						b.queue.add(&c)
+						old := proto.Component{}
+						if c.Sequence != 1 {
+							if err := dbGet(seqBkt, []byte(fmt.Sprintf("seq-%d", c.Sequence-1)), &old); err != nil {
+								return err
+							}
+						}
+						b.queue.add(&c, &old)
 						break
 					}
 				}
@@ -162,15 +169,13 @@ func (b *BoltDB) applyImpl(bucket []byte, c *proto.Component) error {
 	}
 
 	// get the current version and check if it has changed
-	{
-		if seq != 0 {
-			c0 := proto.Component{}
-			if err := dbGet(seqBkt, []byte(fmt.Sprintf("seq-%d", seq)), &c0); err != nil {
-				return err
-			}
-			if bytes.Equal(c0.Spec.Value, c.Spec.Value) {
-				return nil
-			}
+	old := proto.Component{}
+	if seq != 0 {
+		if err := dbGet(seqBkt, []byte(fmt.Sprintf("seq-%d", seq)), &old); err != nil {
+			return err
+		}
+		if bytes.Equal(old.Spec.Value, c.Spec.Value) {
+			return nil
 		}
 	}
 
@@ -192,7 +197,7 @@ func (b *BoltDB) applyImpl(bucket []byte, c *proto.Component) error {
 
 	// update the index if there is no task for this id
 	if !b.queue.existsByName(c.Name) {
-		b.queue.add(c)
+		b.queue.add(c, &old)
 	}
 	return nil
 }
@@ -243,12 +248,12 @@ func (b *BoltDB) Apply(c *proto.Component) error {
 	return b.applyImpl(clusterIndex, c)
 }
 
-func (b *BoltDB) GetTask(ctx context.Context) (*proto.Component, error) {
+func (b *BoltDB) GetTask(ctx context.Context) (*proto.ComponentTask, error) {
 	t := b.queue.pop(ctx)
 	if t == nil {
 		return nil, nil
 	}
-	return t.Component, nil
+	return t.ComponentTask, nil
 }
 
 func seqID(seq int64) []byte {
@@ -256,7 +261,7 @@ func seqID(seq int64) []byte {
 }
 
 func (b *BoltDB) Finalize(id string) error {
-	task, ok := b.queue.get(id)
+	task, ok := b.queue.finalize(id)
 	if !ok {
 		return fmt.Errorf("task for id '%s' not found", id)
 	}
@@ -267,7 +272,7 @@ func (b *BoltDB) Finalize(id string) error {
 	}
 	defer tx.Rollback()
 
-	comp := task.Component
+	comp := task.New
 
 	generalBkt := tx.Bucket(clusterIndex)
 
@@ -287,7 +292,7 @@ func (b *BoltDB) Finalize(id string) error {
 		}
 	} else {
 		// there exists a next component
-		b.queue.add(&nextComp)
+		b.queue.add(&nextComp, comp)
 	}
 
 	if err := tx.Commit(); err != nil {

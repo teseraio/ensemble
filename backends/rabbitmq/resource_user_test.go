@@ -21,52 +21,33 @@ func TestUser(t *testing.T) {
 
 	srv.WaitForTask(uuid1)
 
-	// create the vhost
+	// create the user
 	uuid2 := srv.Apply(&proto.Component{
 		Name: "B",
 		Spec: proto.MustMarshalAny(&proto.ResourceSpec{
 			Cluster:  "A",
-			Resource: "VHost",
+			Resource: "User",
 			Params: `{
-				"name": "v"
+				"username": "user",
+				"password": "pass"
 			}`,
 		}),
 	})
 
 	srv.WaitForTask(uuid2)
 
-	/*
-		provider, _ := testutil.NewTestProvider(t, "rabbitmq", nil)
-
-		srv := operator.TestOperator(t, provider, Factory)
-		defer srv.Stop()
-
-		uuid := provider.Apply(&testutil.TestTask{
-			Name:  "A",
-			Input: `{"replicas": 1}`,
-		})
-		provider.WaitForTask(uuid)
-
-		// create the user
-		uuid = provider.Apply(&testutil.TestTask{
-			Name:     "B",
+	// change the name of the user
+	uuid3 := srv.Apply(&proto.Component{
+		Name: "B",
+		Spec: proto.MustMarshalAny(&proto.ResourceSpec{
+			Cluster:  "A",
 			Resource: "User",
-			Input: `{
-				"username": "B",
-				"password": "xxx"
+			Params: `{
+				"username": "user2",
+				"password": "pass"
 			}`,
-		})
-		provider.WaitForTask(uuid)
+		}),
+	})
 
-		// update the password
-		uuid = provider.Apply(&testutil.TestTask{
-			Name:     "B",
-			Resource: "User",
-			Input: `{
-				"username": "B",
-				"password": "yyy"
-			}`,
-		})
-		provider.WaitForTask(uuid)
-	*/
+	srv.WaitForTask(uuid3)
 }

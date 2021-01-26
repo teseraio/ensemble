@@ -10,7 +10,7 @@ type User struct {
 	operator.BaseResource `schema:",squash"`
 
 	// Username is the name of the user
-	Username string
+	Username string `schema:",force-new"`
 
 	// Password is the password of the user
 	Password string
