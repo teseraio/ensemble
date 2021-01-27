@@ -208,13 +208,15 @@ func (s *Server) taskQueue() {
 			continue
 		}
 
-		s.logger.Info("New task", "id", task.Id)
+		s.logger.Info("New task", "id", task.New.Id)
 		if err := s.handleTask(task); err != nil {
-			s.logger.Error("failed to handle task", "id", task.Id, "err", err)
+			s.logger.Error("failed to handle task", "id", task.New.Id, "err", err)
 		}
 
-		s.logger.Info("Finalize task", "id", task.Id)
-		s.State.Finalize(task.Id)
+		s.logger.Info("Finalize task", "id", task.New.Id)
+		if err := s.State.Finalize(task.New.Id); err != nil {
+			s.logger.Error("Failed to finalize task", "id", task.New.Id, "err", err)
+		}
 	}
 }
 
@@ -223,7 +225,53 @@ func (s *Server) getHandler(name string) (Handler, bool) {
 	return h, ok
 }
 
-func (s *Server) handleResourceTask(eval *proto.Component) error {
+func isForceNew(r Resource, old, new *proto.ResourceSpec) (bool, error) {
+	var oldParams map[string]interface{}
+	if err := json.Unmarshal([]byte(old.Params), &oldParams); err != nil {
+		return false, err
+	}
+	var newParams map[string]interface{}
+	if err := json.Unmarshal([]byte(new.Params), &newParams); err != nil {
+		return false, err
+	}
+
+	// determine which fields are correct
+	forcedFields := schema.ReadByTag(r, "force-new")
+
+	for _, field := range forcedFields {
+		oldVal, _ := schema.GetKey(oldParams, field)
+		newVal, _ := schema.GetKey(newParams, field)
+
+		if !reflect.DeepEqual(oldVal, newVal) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func decodeResource(resource Resource, rawParams string) (Resource, map[string]interface{}, error) {
+	var params map[string]interface{}
+	if err := json.Unmarshal([]byte(rawParams), &params); err != nil {
+		return nil, nil, err
+	}
+	val := reflect.New(reflect.TypeOf(resource)).Elem().Interface()
+	if err := schema.Decode(params, &val); err != nil {
+		return nil, nil, err
+	}
+	resource = val.(Resource)
+	return resource, params, nil
+}
+
+func (s *Server) handleResourceTask(task *proto.ComponentTask) error {
+	eval := task.New
+
+	var oldSpec proto.ResourceSpec
+	isFirst := task.Old.Name == ""
+	if !isFirst {
+		if err := gproto.Unmarshal(task.Old.Spec.Value, &oldSpec); err != nil {
+			return err
+		}
+	}
 	var spec proto.ResourceSpec
 	if err := gproto.Unmarshal(eval.Spec.Value, &spec); err != nil {
 		return err
@@ -254,20 +302,34 @@ func (s *Server) handleResourceTask(eval *proto.Component) error {
 		return fmt.Errorf("resource not found %s", spec.Resource)
 	}
 
-	var params map[string]interface{}
-	if err := json.Unmarshal([]byte(spec.Params), &params); err != nil {
-		return err
+	// Check if we have to destroy the current object if a force-new field
+	// has changed
+	if !isFirst {
+		forceNew, err := isForceNew(resource, &spec, &oldSpec)
+		if err != nil {
+			return err
+		}
+		if forceNew {
+			// delete object
+			removeResource, _, err := decodeResource(resource, oldSpec.Params)
+			if err != nil {
+				return err
+			}
+			if err := removeResource.Delete(clt); err != nil {
+				return err
+			}
+		}
 	}
-	val := reflect.New(reflect.TypeOf(resource)).Elem().Interface()
-	if err := schema.Decode(params, &val); err != nil {
-		return err
-	}
-	resource = val.(Resource)
 
+	resource, params, err := decodeResource(resource, spec.Params)
+	if err != nil {
+		return err
+	}
 	if err := resource.Init(params); err != nil {
 		return err
 	}
 
+	// check current value for the resource
 	if eval.Action == proto.Component_DELETE {
 		if err := resource.Delete(clt); err != nil {
 			return err
@@ -280,7 +342,9 @@ func (s *Server) handleResourceTask(eval *proto.Component) error {
 	return nil
 }
 
-func (s *Server) handleClusterTask(eval *proto.Component) error {
+func (s *Server) handleClusterTask(task *proto.ComponentTask) error {
+	eval := task.New
+
 	var spec proto.ClusterSpec
 	if err := gproto.Unmarshal(eval.Spec.Value, &spec); err != nil {
 		return err
@@ -333,15 +397,15 @@ func (s *Server) handleClusterTask(eval *proto.Component) error {
 	return nil
 }
 
-func (s *Server) handleTask(task *proto.Component) error {
+func (s *Server) handleTask(task *proto.ComponentTask) error {
 
 	var err error
-	if task.Spec.TypeUrl == "ensembleoss.io/proto.ClusterSpec" {
+	if task.New.Spec.TypeUrl == "ensembleoss.io/proto.ClusterSpec" {
 		err = s.handleClusterTask(task)
-	} else if task.Spec.TypeUrl == "ensembleoss.io/proto.ResourceSpec" {
+	} else if task.New.Spec.TypeUrl == "ensembleoss.io/proto.ResourceSpec" {
 		err = s.handleResourceTask(task)
 	} else {
-		return fmt.Errorf("type url not found '%s'", task.Spec.TypeUrl)
+		return fmt.Errorf("type url not found '%s'", task.New.Spec.TypeUrl)
 	}
 	if err != nil {
 		return err

@@ -25,7 +25,7 @@ type State interface {
 	Get(name string) (*proto.Component, error)
 
 	// GetTask returns a new task to apply
-	GetTask(ctx context.Context) (*proto.Component, error)
+	GetTask(ctx context.Context) (*proto.ComponentTask, error)
 
 	// LoadCluster loads a cluster from memory
 	LoadCluster(id string) (*proto.Cluster, error)

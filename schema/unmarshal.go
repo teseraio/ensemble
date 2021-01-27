@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"unicode"
 
 	"github.com/mitchellh/mapstructure"
 )
@@ -41,11 +42,11 @@ func ValidateRequired(input map[string]interface{}, obj interface{}) error {
 	// we have to do this manually since mapstructure does not allow required tags.
 
 	// read all the values in obj that are required
-	requiredFields := readRequiredFlags(obj)
+	requiredFields := ReadByTag(obj, "required")
 
 	// check if any of these fields is nil
 	for _, field := range requiredFields {
-		if !existsKey(input, field) {
+		if _, ok := GetKey(input, field); ok {
 			return fmt.Errorf("bad")
 		}
 	}
@@ -53,10 +54,10 @@ func ValidateRequired(input map[string]interface{}, obj interface{}) error {
 	return nil
 }
 
-func existsKey(input map[string]interface{}, key string) bool {
+func GetKey(input map[string]interface{}, key string) (interface{}, bool) {
 	keys := strings.Split(strings.Trim(key, "."), ".")
 	if len(keys) == 0 {
-		return false
+		return nil, false
 	}
 
 	val := input
@@ -68,24 +69,31 @@ func existsKey(input map[string]interface{}, key string) bool {
 
 		elemVal, ok := val[elem]
 		if !ok {
-			// the key does not exists
-			return false
+			if unicode.IsUpper(rune(elem[0])) {
+				// try in lowercase
+				elem = string(unicode.ToLower(rune(elem[0]))) + elem[1:]
+				elemVal, ok = val[elem]
+				if !ok {
+					// the key does not exists
+					return nil, false
+				}
+			}
 		}
 
 		if len(keys) == 0 {
-			return true
+			return elemVal, true
 		}
 
 		// there are some keys left, elemVal must be a map
 		elemMap, ok := elemVal.(map[string]interface{})
 		if !ok {
-			return false
+			return nil, false
 		}
 		val = elemMap
 	}
 }
 
-func readRequiredFlags(obj interface{}) []string {
+func ReadByTag(obj interface{}, target string) []string {
 	res := []string{}
 
 	var impl func(parent string, v reflect.Value)
@@ -122,7 +130,7 @@ func readRequiredFlags(obj interface{}) []string {
 
 			fullName := parent + "." + name
 			for _, tag := range parts[1:] {
-				if tag == "required" {
+				if tag == target {
 					res = append(res, fullName)
 				}
 			}
