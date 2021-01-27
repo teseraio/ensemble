@@ -225,13 +225,53 @@ func (s *Server) getHandler(name string) (Handler, bool) {
 	return h, ok
 }
 
+func isForceNew(r Resource, old, new *proto.ResourceSpec) (bool, error) {
+	var oldParams map[string]interface{}
+	if err := json.Unmarshal([]byte(old.Params), &oldParams); err != nil {
+		return false, err
+	}
+	var newParams map[string]interface{}
+	if err := json.Unmarshal([]byte(new.Params), &newParams); err != nil {
+		return false, err
+	}
+
+	// determine which fields are correct
+	forcedFields := schema.ReadByTag(r, "force-new")
+
+	for _, field := range forcedFields {
+		oldVal, _ := schema.GetKey(oldParams, field)
+		newVal, _ := schema.GetKey(newParams, field)
+
+		if !reflect.DeepEqual(oldVal, newVal) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func decodeResource(resource Resource, rawParams string) (Resource, map[string]interface{}, error) {
+	var params map[string]interface{}
+	if err := json.Unmarshal([]byte(rawParams), &params); err != nil {
+		return nil, nil, err
+	}
+	val := reflect.New(reflect.TypeOf(resource)).Elem().Interface()
+	if err := schema.Decode(params, &val); err != nil {
+		return nil, nil, err
+	}
+	resource = val.(Resource)
+	return resource, params, nil
+}
+
 func (s *Server) handleResourceTask(task *proto.ComponentTask) error {
 	eval := task.New
 
-	fmt.Println("-- eval --")
-	fmt.Println(task.Old)
-	fmt.Println(task.New)
-
+	var oldSpec proto.ResourceSpec
+	isFirst := task.Old.Name == ""
+	if !isFirst {
+		if err := gproto.Unmarshal(task.Old.Spec.Value, &oldSpec); err != nil {
+			return err
+		}
+	}
 	var spec proto.ResourceSpec
 	if err := gproto.Unmarshal(eval.Spec.Value, &spec); err != nil {
 		return err
@@ -262,16 +302,29 @@ func (s *Server) handleResourceTask(task *proto.ComponentTask) error {
 		return fmt.Errorf("resource not found %s", spec.Resource)
 	}
 
-	var params map[string]interface{}
-	if err := json.Unmarshal([]byte(spec.Params), &params); err != nil {
-		return err
+	// Check if we have to destroy the current object if a force-new field
+	// has changed
+	if !isFirst {
+		forceNew, err := isForceNew(resource, &spec, &oldSpec)
+		if err != nil {
+			return err
+		}
+		if forceNew {
+			// delete object
+			removeResource, _, err := decodeResource(resource, oldSpec.Params)
+			if err != nil {
+				return err
+			}
+			if err := removeResource.Delete(clt); err != nil {
+				return err
+			}
+		}
 	}
-	val := reflect.New(reflect.TypeOf(resource)).Elem().Interface()
-	if err := schema.Decode(params, &val); err != nil {
-		return err
-	}
-	resource = val.(Resource)
 
+	resource, params, err := decodeResource(resource, spec.Params)
+	if err != nil {
+		return err
+	}
 	if err := resource.Init(params); err != nil {
 		return err
 	}

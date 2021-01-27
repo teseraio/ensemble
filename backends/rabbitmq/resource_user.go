@@ -25,7 +25,7 @@ func (u *User) GetName() string {
 func (u *User) Delete(req interface{}) error {
 	client := req.(*rabbithole.Client)
 
-	if _, err := client.DeleteUser(u.ID); err != nil {
+	if _, err := client.DeleteUser(u.Username); err != nil {
 		return err
 	}
 	return nil
@@ -42,6 +42,5 @@ func (u *User) Reconcile(req interface{}) error {
 	if _, err := client.PutUser(u.Username, settings); err != nil {
 		return err
 	}
-	u.SetID(u.Username)
 	return nil
 }
