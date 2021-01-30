@@ -55,11 +55,19 @@ func TestItemDecoding(t *testing.T) {
 				"backend": {
 					"name": "a"
 				},
-				"replicas": 1
+				"sets": [
+					{
+						"replicas": 1
+					}
+				]
 			}`,
 			spec: &proto.ClusterSpec{
-				Backend:  "a",
-				Replicas: 1,
+				Backend: "a",
+				Sets: []*proto.ClusterSpec_Set{
+					{
+						Replicas: 1,
+					},
+				},
 			},
 		},
 		{

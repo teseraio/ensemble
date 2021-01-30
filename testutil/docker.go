@@ -12,6 +12,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/client"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
@@ -60,7 +61,13 @@ func (c *Client) PullImage(ctx context.Context, image string) error {
 	if strings.HasPrefix(image, "docker.elastic.co") {
 		return nil
 	}
-	canonicalName := filepath.Join("docker.io/library", image)
+
+	canonicalName := "docker.io/"
+	if strings.Contains(image, "/") {
+		canonicalName += image
+	} else {
+		canonicalName += "library"
+	}
 
 	_, _, err := c.client.ImageInspectWithRaw(ctx, canonicalName)
 	if err != nil {
@@ -173,6 +180,7 @@ func (c *Client) Create(ctx context.Context, node *proto.Node) (string, error) {
 		Hostname: name,
 		Image:    image,
 		Env:      env,
+		Cmd:      strslice.StrSlice(builder.Cmd),
 	}
 	hostConfig := &container.HostConfig{
 		Binds: binds,

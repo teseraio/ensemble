@@ -65,8 +65,8 @@ func decodeClusterSpec(item *Item) (*any.Any, error) {
 		return nil, err
 	}
 	res := proto.MustMarshalAny(&proto.ClusterSpec{
-		Backend:  spec.Backend.Name,
-		Replicas: spec.Replicas,
+		Backend: spec.Backend.Name,
+		Sets:    []*proto.ClusterSpec_Set{},
 	})
 	return res, nil
 }

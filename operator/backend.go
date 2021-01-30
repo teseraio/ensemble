@@ -5,13 +5,18 @@ import "github.com/teseraio/ensemble/operator/proto"
 // HandlerFactory is a factory for Handlers
 type HandlerFactory func() Handler
 
+type PlanCtx struct {
+	Plan    *proto.Plan
+	Cluster *proto.Cluster
+}
+
 // Handler is the interface that needs to be implemented by the backend
 type Handler interface {
 	// Reconcile is called whenever there is an internal state change in the cluster
-	Reconcile(executor Executor, e *proto.Cluster, node *proto.Node, plan *proto.Plan) error
+	Reconcile(executor Executor, e *proto.Cluster, node *proto.Node, plan *proto.Plan_Set) error
 
 	// EvaluatePlan evaluates and modifies the execution plan
-	EvaluatePlan(plan *proto.Plan) error
+	EvaluatePlan(plan *PlanCtx) error
 
 	// Spec returns the specification for the cluster
 	Spec() *Spec

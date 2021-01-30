@@ -423,26 +423,44 @@ func (s *Server) addNode(handler Handler, e *proto.Cluster, n *proto.Node, plan 
 }
 
 func clusterDiff(c *proto.Cluster, spec *proto.ClusterSpec, eval *proto.Component) (*proto.Plan, error) {
-	oldNum := int64(len(c.Nodes))
-	newNum := spec.Replicas
-
-	// scale down
-	if oldNum > newNum {
-		return &proto.Plan{DelNodesNum: oldNum - newNum}, nil
+	nodesBySet := map[string][]*proto.Node{}
+	for _, node := range c.Nodes {
+		if set, ok := nodesBySet[node.Nodeset]; ok {
+			set = append(set, node)
+		} else {
+			nodesBySet[node.Nodeset] = []*proto.Node{node}
+		}
 	}
 
-	// scale up
-	if oldNum < newNum {
-		plan := &proto.Plan{
-			Bootstrap: oldNum == 0,
-		}
-		for i := int64(0); i < newNum-oldNum; i++ {
-			plan.Add(c.NewNode())
-		}
-		return plan, nil
+	plan := &proto.Plan{}
+	if len(c.Nodes) == 0 {
+		plan.Bootstrap = true
 	}
 
-	return nil, nil
+	// check all the sets
+	for _, set := range spec.Sets {
+		nodes, ok := nodesBySet[set.Name]
+		if !ok {
+			nodes = []*proto.Node{}
+		}
+
+		oldNum := int64(len(nodes))
+		newNum := set.Replicas
+
+		var step *proto.Plan_Set
+		if oldNum > newNum {
+			// scale down
+			step = &proto.Plan_Set{DelNodesNum: oldNum - newNum}
+		} else if oldNum < newNum {
+			// scale up
+			for i := int64(0); i < newNum-oldNum; i++ {
+				step.Add(c.NewNode())
+			}
+		}
+		plan.Sets = append(plan.Sets, step)
+	}
+
+	return plan, nil
 }
 
 func evaluateCluster(eval *proto.Component, spec *proto.ClusterSpec, c *proto.Cluster, handler Handler) (*proto.Plan, error) {
@@ -454,17 +472,18 @@ func evaluateCluster(eval *proto.Component, spec *proto.ClusterSpec, c *proto.Cl
 		return nil, nil
 	}
 
-	// make a copy of the cluster
-	plan.Cluster = c.Copy()
-
+	planCtx := &PlanCtx{
+		Plan:    plan,
+		Cluster: c.Copy(),
+	}
 	// call the handler in case it wants to do something
-	if err := handler.EvaluatePlan(plan); err != nil {
+	if err := handler.EvaluatePlan(planCtx); err != nil {
 		return nil, err
 	}
 	return plan, nil
 }
 
-func (s *Server) deleteNodes(handler Handler, e *proto.Cluster, plan *proto.Plan) (*proto.Cluster, error) {
+func (s *Server) deleteNodes(handler Handler, e *proto.Cluster, plan *proto.Plan_Set) (*proto.Cluster, error) {
 	s.logger.Info("Scale down", "num", len(plan.DelNodes))
 
 	var err error
