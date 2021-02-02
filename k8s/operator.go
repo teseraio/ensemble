@@ -56,17 +56,30 @@ func decodeItem(item *Item) (*any.Any, error) {
 func decodeClusterSpec(item *Item) (*any.Any, error) {
 	// it should correspond to the crd-cluster.json spec
 	var spec struct {
-		Replicas int64
-		Backend  struct {
+		Backend struct {
 			Name string
+		}
+		Sets []struct {
+			Type     string
+			Name     string
+			Replicas uint64
 		}
 	}
 	if err := mapstructure.Decode(item.Spec, &spec); err != nil {
 		return nil, err
 	}
+
+	var sets []*proto.ClusterSpec_Set
+	for _, s := range spec.Sets {
+		sets = append(sets, &proto.ClusterSpec_Set{
+			Name:     s.Name,
+			Replicas: int64(s.Replicas),
+			Type:     s.Type,
+		})
+	}
 	res := proto.MustMarshalAny(&proto.ClusterSpec{
 		Backend: spec.Backend.Name,
-		Sets:    []*proto.ClusterSpec_Set{},
+		Sets:    sets,
 	})
 	return res, nil
 }
@@ -92,7 +105,6 @@ func decodeResourceSpec(item *Item) (*any.Any, error) {
 		}
 	}
 	res := proto.MustMarshalAny(&proto.ResourceSpec{
-		Backend:  spec.Backend,
 		Cluster:  spec.Cluster,
 		Resource: spec.Resource,
 		Params:   string(raw),

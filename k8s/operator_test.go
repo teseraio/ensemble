@@ -52,15 +52,15 @@ func TestItemDecoding(t *testing.T) {
 	}{
 		{
 			item: `{
-				"backend": {
-					"name": "a"
-				},
-				"sets": [
-					{
-						"replicas": 1
-					}
-				]
-			}`,
+					"backend": {
+						"name": "a"
+					},
+					"sets": [
+						{
+							"replicas": 1
+						}
+					]
+				}`,
 			spec: &proto.ClusterSpec{
 				Backend: "a",
 				Sets: []*proto.ClusterSpec_Set{
@@ -72,27 +72,23 @@ func TestItemDecoding(t *testing.T) {
 		},
 		{
 			item: `{
-				"backend": "b",
-				"cluster": "c",
-				"resource": "r"
-			}`,
+					"cluster": "c",
+					"resource": "r"
+				}`,
 			spec: &proto.ResourceSpec{
-				Backend:  "b",
 				Cluster:  "c",
 				Resource: "r",
 			},
 		},
 		{
 			item: `{
-				"backend": "b",
-				"cluster": "c",
-				"resource": "r",
-				"params": {
-					"a": "b"
-				}
-			}`,
+					"cluster": "c",
+					"resource": "r",
+					"params": {
+						"a": "b"
+					}
+				}`,
 			spec: &proto.ResourceSpec{
-				Backend:  "b",
 				Cluster:  "c",
 				Resource: "r",
 				Params:   "{\"a\":\"b\"}",

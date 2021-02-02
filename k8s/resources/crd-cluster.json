@@ -32,9 +32,15 @@
                                         "items": {
                                             "type": "object",
                                             "properties": {
-                                                "name": "string",
-                                                "type": "string",
-                                                "replicas": "integer"
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "type": {
+                                                    "type": "string"
+                                                },
+                                                "replicas": {
+                                                    "type": "integer"
+                                                }
                                             },
                                             "required": [
                                                 "replicas"

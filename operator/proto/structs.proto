@@ -78,8 +78,6 @@ message ClusterSpec {
 
 // Description of the resource
 message ResourceSpec {
-    string backend = 1;
-    
     // name of the cluster
     string cluster = 2;
 
