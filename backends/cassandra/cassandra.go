@@ -14,9 +14,13 @@ func Factory() operator.Handler {
 }
 
 // EvaluatePlan implements the Handler interface
-func (b *backend) EvaluatePlan(plan *proto.Plan) error {
-	if plan.DelNodesNum != 0 {
-		return b.delNodes(plan)
+func (b *backend) EvaluatePlan(ctx *proto.Context) error {
+	if ctx.Plan.Sets[0].DelNodesNum != 0 {
+		set := ctx.Plan.Sets[0]
+		// pick the last elements
+		for _, n := range ctx.Cluster.Nodes[:set.DelNodesNum] {
+			set.DelNodes = append(set.DelNodes, n.ID)
+		}
 	}
 	return nil
 }
@@ -43,23 +47,20 @@ func (b *backend) Client(node *proto.Node) (interface{}, error) {
 }
 
 // Reconcile implements the Handler interface
-func (b *backend) Reconcile(executor operator.Executor, e *proto.Cluster, node *proto.Node, plan *proto.Plan) error {
+func (b *backend) Reconcile(executor operator.Executor, e *proto.Cluster, node *proto.Node, ctx *proto.Context) error {
 	switch node.State {
 	case proto.Node_INITIALIZED:
-		b.recocileNodeInitialized(executor, e, node, plan)
+		b.recocileNodeInitialized(executor, e, node)
 	}
 	return nil
 }
 
 func (b *backend) delNodes(plan *proto.Plan) error {
-	// pick the last elements
-	for _, n := range plan.Cluster.Nodes[:plan.DelNodesNum] {
-		plan.DelNodes = append(plan.DelNodes, n.ID)
-	}
+
 	return nil
 }
 
-func (b *backend) recocileNodeInitialized(executor operator.Executor, e *proto.Cluster, node *proto.Node, plan *proto.Plan) error {
+func (b *backend) recocileNodeInitialized(executor operator.Executor, e *proto.Cluster, node *proto.Node) error {
 	if len(e.Nodes) != 0 {
 		// node joining a cluster (there should be another which is the seed)
 		node.Spec.AddEnv("CASSANDRA_SEEDS", e.Nodes[0].ID)

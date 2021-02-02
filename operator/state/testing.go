@@ -46,7 +46,11 @@ func TestSuite(t *testing.T, setup setupFn) {
 			Id:   "A",
 			Name: "A",
 			Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-				Replicas: 3,
+				Sets: []*proto.ClusterSpec_Set{
+					{
+						Replicas: 3,
+					},
+				},
 			}),
 		}
 		if err := b.Apply(c0); err != nil {

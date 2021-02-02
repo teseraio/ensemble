@@ -1,4 +1,4 @@
-package cassandra
+package dask
 
 import (
 	"testing"
@@ -14,9 +14,16 @@ func TestBootstrap(t *testing.T) {
 	uuid := srv.Apply(&proto.Component{
 		Name: "A",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-			Backend: "Cassandra",
+			Backend: "Dask",
 			Sets: []*proto.ClusterSpec_Set{
-				{Replicas: 2},
+				{
+					Type:     "scheduler",
+					Replicas: 1,
+				},
+				{
+					Type:     "worker",
+					Replicas: 1,
+				},
 			},
 		}),
 	})

@@ -167,6 +167,9 @@ type XX struct {
 }
 */
 
-func (p *Plan) Add(n *Node) {
+func (p *Plan_Set) Add(n *Node) {
+	if p.AddNodes == nil {
+		p.AddNodes = make([]*Node, 0)
+	}
 	p.AddNodes = append(p.AddNodes, n)
 }

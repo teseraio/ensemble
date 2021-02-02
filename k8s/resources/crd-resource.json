@@ -18,9 +18,6 @@
                             "spec": {
                                 "type": "object",
                                 "properties": {
-                                    "backend": {
-                                        "type": "string"
-                                    },
                                     "cluster": {
                                         "type": "string"
                                     },
@@ -34,7 +31,7 @@
                                         }
                                     }
                                 },
-                                "required": ["backend", "cluster", "resource"]
+                                "required": ["cluster", "resource"]
                             },
                             "status": {
                                 "type": "object",

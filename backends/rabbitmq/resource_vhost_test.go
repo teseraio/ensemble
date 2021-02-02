@@ -14,8 +14,10 @@ func TestVHost(t *testing.T) {
 	uuid1 := srv.Apply(&proto.Component{
 		Name: "A",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-			Backend:  "Rabbitmq",
-			Replicas: 1,
+			Backend: "Rabbitmq",
+			Sets: []*proto.ClusterSpec_Set{
+				{Replicas: 1},
+			},
 		}),
 	})
 

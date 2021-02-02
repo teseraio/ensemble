@@ -27,11 +27,28 @@
                                         },
                                         "required": ["name"]
                                     },
-                                    "replicas": {
-                                        "type": "integer"
+                                    "sets": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "type": {
+                                                    "type": "string"
+                                                },
+                                                "replicas": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "replicas"
+                                            ]
+                                        }
                                     }
                                 },
-                                "required": ["backend", "replicas"]
+                                "required": ["backend"]
                             },
                             "status": {
                                 "type": "object",

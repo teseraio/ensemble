@@ -38,20 +38,20 @@ func Factory() operator.Handler {
 }
 
 // Reconcile implements the Handler interface
-func (b *backend) Reconcile(_ operator.Executor, e *proto.Cluster, node *proto.Node, plan *proto.Plan) error {
+func (b *backend) Reconcile(_ operator.Executor, e *proto.Cluster, node *proto.Node, plan *proto.Context) error {
 	if node.State == proto.Node_INITIALIZED {
-		nodeInitialized(e, node, plan)
+		nodeInitialized(e, node, plan.Plan.Bootstrap, plan.Set)
 	}
 	return nil
 }
 
-func nodeInitialized(e *proto.Cluster, node *proto.Node, plan *proto.Plan) {
+func nodeInitialized(e *proto.Cluster, node *proto.Node, bootstrap bool, plan *proto.Plan_Set) {
 
 	// enable reconfig for the API
 	node.Spec.AddEnv("ZOO_CFG_EXTRA", "reconfigEnabled=true")
 
 	res := []string{}
-	if plan.Bootstrap {
+	if bootstrap {
 		for indxInt, peer := range plan.AddNodes {
 			// do not start the indexes with 0
 			indx := strconv.Itoa(indxInt + 1)
@@ -90,17 +90,18 @@ func nodeInitialized(e *proto.Cluster, node *proto.Node, plan *proto.Plan) {
 }
 
 // EvaluatePlan implements the Handler interface
-func (b *backend) EvaluatePlan(plan *proto.Plan) error {
-	if plan.DelNodesNum != 0 {
-		cc := plan.Cluster.Copy()
+func (b *backend) EvaluatePlan(ctx *proto.Context) error {
+	// there is only one set in the plan since there is only one node type
+	set := ctx.Plan.Sets[0]
+	if set.DelNodesNum != 0 {
+		cc := ctx.Cluster.Copy()
 		sort.Sort(sortedNodes(cc.Nodes))
 
 		delNodes := []string{}
-		for i := 0; i < int(plan.DelNodesNum); i++ {
+		for i := 0; i < int(set.DelNodesNum); i++ {
 			delNodes = append(delNodes, cc.Nodes[i].ID)
 		}
-
-		plan.DelNodes = delNodes
+		set.DelNodes = delNodes
 	}
 	return nil
 }

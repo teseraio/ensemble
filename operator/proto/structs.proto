@@ -67,14 +67,17 @@ message ClusterSpec {
     // version of the backend (RESERVED)
     string version = 3;
 
-    // number of replicas for the cluster
-    int64 replicas = 4;
+    repeated Set sets = 4;
+
+    message Set {
+        string name = 1;
+        int64 replicas = 2;
+        string type = 3;
+    }
 }
 
 // Description of the resource
 message ResourceSpec {
-    string backend = 1;
-    
     // name of the cluster
     string cluster = 2;
 
@@ -141,13 +144,24 @@ message Cluster {
     repeated Node nodes = 4;
 }
 
+message Context {
+    Plan plan = 1;
+    Plan.Set set = 2;
+    Cluster cluster = 3;
+}
+
 message Plan {
     bool Bootstrap = 1;
-    repeated Node AddNodes = 2;
-    int64 DelNodesNum = 3;
-    repeated string DelNodes = 4;
-    repeated string UpdateNodes = 5;
-    Cluster Cluster = 6;
+
+    repeated Set sets = 2;
+
+    message Set {
+        string type = 1; // organized by type of cluster
+        repeated Node AddNodes = 2;
+        int64 DelNodesNum = 3;
+        repeated string DelNodes = 4;
+        repeated string UpdateNodes = 5;
+    }
 }
 
 /*

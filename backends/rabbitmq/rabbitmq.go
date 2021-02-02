@@ -39,9 +39,12 @@ func Factory() operator.Handler {
 }
 
 // EvaluatePlan implements the Handler interface
-func (b *backend) EvaluatePlan(plan *proto.Plan) error {
-	if plan.DelNodesNum != 0 {
-		return b.delNodes(plan)
+func (b *backend) EvaluatePlan(plan *proto.Context) error {
+	if plan.Plan.Sets[0].DelNodesNum != 0 {
+		set := plan.Plan.Sets[0]
+		for _, n := range plan.Cluster.Nodes[:set.DelNodesNum] {
+			set.DelNodes = append(set.DelNodes, n.ID)
+		}
 	}
 	return nil
 }
@@ -51,7 +54,7 @@ func (b *backend) Spec() *operator.Spec {
 	return &operator.Spec{
 		Name: "Rabbitmq",
 		Nodetypes: map[string]operator.Nodetype{
-			"": operator.Nodetype{
+			"": {
 				Image:   "rabbitmq",
 				Version: "latest", // TODO
 				Volumes: []*operator.Volume{},
@@ -72,7 +75,7 @@ func (b *backend) Client(node *proto.Node) (interface{}, error) {
 }
 
 // Reconcile implements the Handler interface
-func (b *backend) Reconcile(executor operator.Executor, e *proto.Cluster, node *proto.Node, plan *proto.Plan) error {
+func (b *backend) Reconcile(executor operator.Executor, e *proto.Cluster, node *proto.Node, plan *proto.Context) error {
 	switch node.State {
 	case proto.Node_INITIALIZED:
 		recocileNodeInitialized(node)
@@ -85,14 +88,6 @@ func (b *backend) Reconcile(executor operator.Executor, e *proto.Cluster, node *
 
 	case proto.Node_TAINTED:
 		return reconcileNodeTainted(executor, node)
-	}
-	return nil
-}
-
-func (b *backend) delNodes(plan *proto.Plan) error {
-	// pick the last elements
-	for _, n := range plan.Cluster.Nodes[:plan.DelNodesNum] {
-		plan.DelNodes = append(plan.DelNodes, n.ID)
 	}
 	return nil
 }

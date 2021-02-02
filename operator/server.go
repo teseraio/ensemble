@@ -108,7 +108,7 @@ func (s *Server) Stop() {
 	close(s.stopCh)
 }
 
-func (s *Server) applyChange(handler Handler, c *proto.Cluster, n *proto.Node, newState proto.Node_NodeState, plan *proto.Plan) (*proto.Cluster, error) {
+func (s *Server) applyChange(handler Handler, c *proto.Cluster, n *proto.Node, newState proto.Node_NodeState, plan *proto.Context) (*proto.Cluster, error) {
 	indx := c.NodeAtIndex(n.ID)
 
 BACK:
@@ -375,25 +375,33 @@ func (s *Server) handleClusterTask(task *proto.ComponentTask) error {
 		return fmt.Errorf("handler not found %s", spec.Backend)
 	}
 
-	plan, err := evaluateCluster(eval, &spec, cluster, handler)
+	ctx, err := evaluateCluster(eval, &spec, cluster, handler)
 	if err != nil {
 		return err
 	}
-	if plan == nil {
+	if ctx == nil {
 		// no more plans to apply for this cluster
 		return nil
 	}
 
-	if plan.DelNodes != nil {
-		if cluster, err = s.deleteNodes(handler, cluster, plan); err != nil {
-			return err
+	for _, subPlan := range ctx.Plan.Sets {
+		ctx := &proto.Context{
+			Plan:    ctx.Plan,
+			Cluster: ctx.Cluster.Copy(),
+			Set:     subPlan,
+		}
+		if subPlan.DelNodes != nil {
+			if cluster, err = s.deleteNodes(handler, cluster, ctx); err != nil {
+				return err
+			}
+		}
+		if subPlan.AddNodes != nil {
+			if cluster, err = s.addNodes(handler, cluster, ctx); err != nil {
+				return err
+			}
 		}
 	}
-	if plan.AddNodes != nil {
-		if cluster, err = s.addNodes(handler, cluster, plan); err != nil {
-			return err
-		}
-	}
+
 	return nil
 }
 
@@ -414,38 +422,57 @@ func (s *Server) handleTask(task *proto.ComponentTask) error {
 	return nil
 }
 
-func (s *Server) deleteNode(handler Handler, e *proto.Cluster, n *proto.Node, plan *proto.Plan) (*proto.Cluster, error) {
+func (s *Server) deleteNode(handler Handler, e *proto.Cluster, n *proto.Node, plan *proto.Context) (*proto.Cluster, error) {
 	return s.applyChange(handler, e, n, proto.Node_TAINTED, plan)
 }
 
-func (s *Server) addNode(handler Handler, e *proto.Cluster, n *proto.Node, plan *proto.Plan) (*proto.Cluster, error) {
+func (s *Server) addNode(handler Handler, e *proto.Cluster, n *proto.Node, plan *proto.Context) (*proto.Cluster, error) {
 	return s.applyChange(handler, e, n, proto.Node_INITIALIZED, plan)
 }
 
 func clusterDiff(c *proto.Cluster, spec *proto.ClusterSpec, eval *proto.Component) (*proto.Plan, error) {
-	oldNum := int64(len(c.Nodes))
-	newNum := spec.Replicas
-
-	// scale down
-	if oldNum > newNum {
-		return &proto.Plan{DelNodesNum: oldNum - newNum}, nil
+	nodesByType := map[string][]*proto.Node{}
+	for _, node := range c.Nodes {
+		if set, ok := nodesByType[node.Nodetype]; ok {
+			set = append(set, node)
+		} else {
+			nodesByType[node.Nodetype] = []*proto.Node{node}
+		}
 	}
 
-	// scale up
-	if oldNum < newNum {
-		plan := &proto.Plan{
-			Bootstrap: oldNum == 0,
-		}
-		for i := int64(0); i < newNum-oldNum; i++ {
-			plan.Add(c.NewNode())
-		}
-		return plan, nil
+	plan := &proto.Plan{}
+	if len(c.Nodes) == 0 {
+		plan.Bootstrap = true
 	}
 
-	return nil, nil
+	// check all the sets
+	for _, set := range spec.Sets {
+		nodes, ok := nodesByType[set.Type]
+		if !ok {
+			nodes = []*proto.Node{}
+		}
+
+		oldNum := int64(len(nodes))
+		newNum := set.Replicas
+
+		step := &proto.Plan_Set{}
+		if oldNum > newNum {
+			// scale down
+			step = &proto.Plan_Set{DelNodesNum: oldNum - newNum}
+		} else if oldNum < newNum {
+			// scale up
+			for i := int64(0); i < newNum-oldNum; i++ {
+				n := c.NewNode()
+				n.Nodetype = set.Type
+				step.Add(n)
+			}
+		}
+		plan.Sets = append(plan.Sets, step)
+	}
+	return plan, nil
 }
 
-func evaluateCluster(eval *proto.Component, spec *proto.ClusterSpec, c *proto.Cluster, handler Handler) (*proto.Plan, error) {
+func evaluateCluster(eval *proto.Component, spec *proto.ClusterSpec, c *proto.Cluster, handler Handler) (*proto.Context, error) {
 	plan, err := clusterDiff(c, spec, eval)
 	if err != nil {
 		return nil, err
@@ -454,21 +481,22 @@ func evaluateCluster(eval *proto.Component, spec *proto.ClusterSpec, c *proto.Cl
 		return nil, nil
 	}
 
-	// make a copy of the cluster
-	plan.Cluster = c.Copy()
-
+	ctx := &proto.Context{
+		Plan:    plan,
+		Cluster: c.Copy(),
+	}
 	// call the handler in case it wants to do something
-	if err := handler.EvaluatePlan(plan); err != nil {
+	if err := handler.EvaluatePlan(ctx); err != nil {
 		return nil, err
 	}
-	return plan, nil
+	return ctx, nil
 }
 
-func (s *Server) deleteNodes(handler Handler, e *proto.Cluster, plan *proto.Plan) (*proto.Cluster, error) {
-	s.logger.Info("Scale down", "num", len(plan.DelNodes))
+func (s *Server) deleteNodes(handler Handler, e *proto.Cluster, plan *proto.Context) (*proto.Cluster, error) {
+	s.logger.Info("Scale down", "num", len(plan.Set.DelNodes))
 
 	var err error
-	for _, nodeID := range plan.DelNodes {
+	for _, nodeID := range plan.Set.DelNodes {
 		indx := e.NodeAtIndex(nodeID)
 		n := e.Nodes[indx]
 
@@ -482,11 +510,11 @@ func (s *Server) deleteNodes(handler Handler, e *proto.Cluster, plan *proto.Plan
 	return e, nil
 }
 
-func (s *Server) addNodes(handler Handler, e *proto.Cluster, plan *proto.Plan) (*proto.Cluster, error) {
-	s.logger.Info("Scale up", "num", len(plan.AddNodes))
+func (s *Server) addNodes(handler Handler, e *proto.Cluster, plan *proto.Context) (*proto.Cluster, error) {
+	s.logger.Info("Scale up", "num", len(plan.Set.AddNodes))
 
 	// write the cluster now
-	for _, n := range plan.AddNodes {
+	for _, n := range plan.Set.AddNodes {
 		ee, err := s.addNode(handler, e, n, plan)
 		if err != nil {
 			return ee, err
