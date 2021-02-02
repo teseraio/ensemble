@@ -144,13 +144,19 @@ message Cluster {
     repeated Node nodes = 4;
 }
 
+message Context {
+    Plan plan = 1;
+    Plan.Set set = 2;
+    Cluster cluster = 3;
+}
+
 message Plan {
     bool Bootstrap = 1;
 
     repeated Set sets = 2;
 
     message Set {
-        string name = 1;
+        string type = 1; // organized by type of cluster
         repeated Node AddNodes = 2;
         int64 DelNodesNum = 3;
         repeated string DelNodes = 4;

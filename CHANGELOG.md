@@ -3,6 +3,8 @@
 
 FEATURES:
 
+- backends: add Dask backend.
+- operator/cluster: introduce group of nodes in the cluster.
 - operator/resource: a resource can include now a Init function to pre-validate the input.
 - operator/resource: you can now add a 'required' tag to any field in the Resource to make it mandatory.
 

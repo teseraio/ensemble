@@ -8,6 +8,10 @@
         "backend": {
             "name": "{{.Backend}}"
         },
-        "replicas": {{.Replicas}}
+        "sets": [
+            {
+                "replicas": {{.Replicas}}
+            }
+        ]
     }
 }

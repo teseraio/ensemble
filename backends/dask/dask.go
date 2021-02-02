@@ -1,4 +1,4 @@
-package spark
+package dask
 
 import (
 	"github.com/teseraio/ensemble/operator"
@@ -14,31 +14,27 @@ func Factory() operator.Handler {
 }
 
 // Reconcile implements the Handler interface
-func (b *backend) Reconcile(_ operator.Executor, e *proto.Cluster, node *proto.Node, plan *proto.Plan) error {
+func (b *backend) Reconcile(_ operator.Executor, e *proto.Cluster, node *proto.Node, plan *proto.Context) error {
 	switch node.State {
 	case proto.Node_INITIALIZED:
 
-		//
-		node.Spec.Cmd = []string{
-			"dask-scheduler",
-		}
-
-		// worker
-		/*
+		if node.Nodetype == "scheduler" {
 			node.Spec.Cmd = []string{
-				"dast-worker",
-				"tcp://scheduler:8786",
+				"dask-scheduler",
 			}
-		*/
+		} else if node.Nodetype == "worker" {
+			// This is always executed after the scheduler
+			node.Spec.Cmd = []string{
+				"dask-worker",
+				"tcp://" + e.Nodes[0].FullName() + ":8786",
+			}
+		}
 	}
 	return nil
 }
 
-// PRIORITY
-// DIFFERENT NODE SETS
-
 // EvaluatePlan implements the Handler interface
-func (b *backend) EvaluatePlan(plan *proto.Plan) error {
+func (b *backend) EvaluatePlan(plan *proto.Context) error {
 	return nil
 }
 
@@ -47,13 +43,13 @@ func (b *backend) Spec() *operator.Spec {
 	return &operator.Spec{
 		Name: "Dask",
 		Nodetypes: map[string]operator.Nodetype{
-			"": {
+			"scheduler": {
 				Image:   "daskdev/dask",
 				Version: "2.30.0",
 				Volumes: []*operator.Volume{},
 				Ports:   []*operator.Port{},
 			},
-			"1": {
+			"worker": {
 				Image:   "daskdev/dask",
 				Version: "2.30.0",
 				Volumes: []*operator.Volume{},

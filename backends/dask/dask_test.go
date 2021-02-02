@@ -1,4 +1,4 @@
-package spark
+package dask
 
 import (
 	"testing"
@@ -7,9 +7,9 @@ import (
 	"github.com/teseraio/ensemble/testutil"
 )
 
-func TestCluster(t *testing.T) {
+func TestBootstrap(t *testing.T) {
 	srv := testutil.TestOperator(t, Factory)
-	// defer srv.Close()
+	defer srv.Close()
 
 	uuid := srv.Apply(&proto.Component{
 		Name: "A",
@@ -17,7 +17,7 @@ func TestCluster(t *testing.T) {
 			Backend: "Dask",
 			Sets: []*proto.ClusterSpec_Set{
 				{
-					Type:     "coordinator",
+					Type:     "scheduler",
 					Replicas: 1,
 				},
 				{

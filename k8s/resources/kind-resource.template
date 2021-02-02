@@ -5,7 +5,6 @@
         "name": "{{.Name}}"
     },
     "spec": {
-        "backend": "{{.Backend}}",
         "cluster": "{{.Cluster}}",
         "resource": "{{.Resource}}"
     }

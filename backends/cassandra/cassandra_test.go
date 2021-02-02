@@ -7,15 +7,17 @@ import (
 	"github.com/teseraio/ensemble/testutil"
 )
 
-func TestCassandraBootstrap(t *testing.T) {
+func TestBootstrap(t *testing.T) {
 	srv := testutil.TestOperator(t, Factory)
 	defer srv.Close()
 
 	uuid := srv.Apply(&proto.Component{
 		Name: "A",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-			Backend:  "Cassandra",
-			Replicas: 2,
+			Backend: "Cassandra",
+			Sets: []*proto.ClusterSpec_Set{
+				{Replicas: 2},
+			},
 		}),
 	})
 

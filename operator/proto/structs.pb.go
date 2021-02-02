@@ -751,6 +751,69 @@ func (x *Cluster) GetNodes() []*Node {
 	return nil
 }
 
+type Context struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Plan    *Plan     `protobuf:"bytes,1,opt,name=plan,proto3" json:"plan,omitempty"`
+	Set     *Plan_Set `protobuf:"bytes,2,opt,name=set,proto3" json:"set,omitempty"`
+	Cluster *Cluster  `protobuf:"bytes,3,opt,name=cluster,proto3" json:"cluster,omitempty"`
+}
+
+func (x *Context) Reset() {
+	*x = Context{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_operator_proto_structs_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Context) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Context) ProtoMessage() {}
+
+func (x *Context) ProtoReflect() protoreflect.Message {
+	mi := &file_operator_proto_structs_proto_msgTypes[7]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Context.ProtoReflect.Descriptor instead.
+func (*Context) Descriptor() ([]byte, []int) {
+	return file_operator_proto_structs_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *Context) GetPlan() *Plan {
+	if x != nil {
+		return x.Plan
+	}
+	return nil
+}
+
+func (x *Context) GetSet() *Plan_Set {
+	if x != nil {
+		return x.Set
+	}
+	return nil
+}
+
+func (x *Context) GetCluster() *Cluster {
+	if x != nil {
+		return x.Cluster
+	}
+	return nil
+}
+
 type Plan struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -763,7 +826,7 @@ type Plan struct {
 func (x *Plan) Reset() {
 	*x = Plan{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_operator_proto_structs_proto_msgTypes[7]
+		mi := &file_operator_proto_structs_proto_msgTypes[8]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -776,7 +839,7 @@ func (x *Plan) String() string {
 func (*Plan) ProtoMessage() {}
 
 func (x *Plan) ProtoReflect() protoreflect.Message {
-	mi := &file_operator_proto_structs_proto_msgTypes[7]
+	mi := &file_operator_proto_structs_proto_msgTypes[8]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -789,7 +852,7 @@ func (x *Plan) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Plan.ProtoReflect.Descriptor instead.
 func (*Plan) Descriptor() ([]byte, []int) {
-	return file_operator_proto_structs_proto_rawDescGZIP(), []int{7}
+	return file_operator_proto_structs_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Plan) GetBootstrap() bool {
@@ -819,7 +882,7 @@ type ClusterSpec_Set struct {
 func (x *ClusterSpec_Set) Reset() {
 	*x = ClusterSpec_Set{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_operator_proto_structs_proto_msgTypes[9]
+		mi := &file_operator_proto_structs_proto_msgTypes[10]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -832,7 +895,7 @@ func (x *ClusterSpec_Set) String() string {
 func (*ClusterSpec_Set) ProtoMessage() {}
 
 func (x *ClusterSpec_Set) ProtoReflect() protoreflect.Message {
-	mi := &file_operator_proto_structs_proto_msgTypes[9]
+	mi := &file_operator_proto_structs_proto_msgTypes[10]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -884,7 +947,7 @@ type Node_NodeSpec struct {
 func (x *Node_NodeSpec) Reset() {
 	*x = Node_NodeSpec{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_operator_proto_structs_proto_msgTypes[11]
+		mi := &file_operator_proto_structs_proto_msgTypes[12]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -897,7 +960,7 @@ func (x *Node_NodeSpec) String() string {
 func (*Node_NodeSpec) ProtoMessage() {}
 
 func (x *Node_NodeSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_operator_proto_structs_proto_msgTypes[11]
+	mi := &file_operator_proto_structs_proto_msgTypes[12]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -961,7 +1024,7 @@ type Node_Mount struct {
 func (x *Node_Mount) Reset() {
 	*x = Node_Mount{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_operator_proto_structs_proto_msgTypes[12]
+		mi := &file_operator_proto_structs_proto_msgTypes[13]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -974,7 +1037,7 @@ func (x *Node_Mount) String() string {
 func (*Node_Mount) ProtoMessage() {}
 
 func (x *Node_Mount) ProtoReflect() protoreflect.Message {
-	mi := &file_operator_proto_structs_proto_msgTypes[12]
+	mi := &file_operator_proto_structs_proto_msgTypes[13]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1016,7 +1079,7 @@ type Plan_Set struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name        string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Type        string   `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"` // organized by type of cluster
 	AddNodes    []*Node  `protobuf:"bytes,2,rep,name=AddNodes,proto3" json:"AddNodes,omitempty"`
 	DelNodesNum int64    `protobuf:"varint,3,opt,name=DelNodesNum,proto3" json:"DelNodesNum,omitempty"`
 	DelNodes    []string `protobuf:"bytes,4,rep,name=DelNodes,proto3" json:"DelNodes,omitempty"`
@@ -1026,7 +1089,7 @@ type Plan_Set struct {
 func (x *Plan_Set) Reset() {
 	*x = Plan_Set{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_operator_proto_structs_proto_msgTypes[15]
+		mi := &file_operator_proto_structs_proto_msgTypes[16]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1039,7 +1102,7 @@ func (x *Plan_Set) String() string {
 func (*Plan_Set) ProtoMessage() {}
 
 func (x *Plan_Set) ProtoReflect() protoreflect.Message {
-	mi := &file_operator_proto_structs_proto_msgTypes[15]
+	mi := &file_operator_proto_structs_proto_msgTypes[16]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1052,12 +1115,12 @@ func (x *Plan_Set) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Plan_Set.ProtoReflect.Descriptor instead.
 func (*Plan_Set) Descriptor() ([]byte, []int) {
-	return file_operator_proto_structs_proto_rawDescGZIP(), []int{7, 0}
+	return file_operator_proto_structs_proto_rawDescGZIP(), []int{8, 0}
 }
 
-func (x *Plan_Set) GetName() string {
+func (x *Plan_Set) GetType() string {
 	if x != nil {
-		return x.Name
+		return x.Type
 	}
 	return ""
 }
@@ -1221,27 +1284,35 @@ var file_operator_proto_structs_proto_rawDesc = []byte{
 	0x01, 0x28, 0x09, 0x52, 0x07, 0x62, 0x61, 0x63, 0x6b, 0x65, 0x6e, 0x64, 0x12, 0x21, 0x0a, 0x05,
 	0x6e, 0x6f, 0x64, 0x65, 0x73, 0x18, 0x04, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x0b, 0x2e, 0x70, 0x72,
 	0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x52, 0x05, 0x6e, 0x6f, 0x64, 0x65, 0x73, 0x22,
-	0xee, 0x01, 0x0a, 0x04, 0x50, 0x6c, 0x61, 0x6e, 0x12, 0x1c, 0x0a, 0x09, 0x42, 0x6f, 0x6f, 0x74,
-	0x73, 0x74, 0x72, 0x61, 0x70, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x09, 0x42, 0x6f, 0x6f,
-	0x74, 0x73, 0x74, 0x72, 0x61, 0x70, 0x12, 0x23, 0x0a, 0x04, 0x73, 0x65, 0x74, 0x73, 0x18, 0x02,
-	0x20, 0x03, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x50, 0x6c, 0x61,
-	0x6e, 0x2e, 0x53, 0x65, 0x74, 0x52, 0x04, 0x73, 0x65, 0x74, 0x73, 0x1a, 0xa2, 0x01, 0x0a, 0x03,
-	0x53, 0x65, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28,
-	0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x27, 0x0a, 0x08, 0x41, 0x64, 0x64, 0x4e, 0x6f,
-	0x64, 0x65, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x0b, 0x2e, 0x70, 0x72, 0x6f, 0x74,
-	0x6f, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x52, 0x08, 0x41, 0x64, 0x64, 0x4e, 0x6f, 0x64, 0x65, 0x73,
-	0x12, 0x20, 0x0a, 0x0b, 0x44, 0x65, 0x6c, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x4e, 0x75, 0x6d, 0x18,
-	0x03, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0b, 0x44, 0x65, 0x6c, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x4e,
-	0x75, 0x6d, 0x12, 0x1a, 0x0a, 0x08, 0x44, 0x65, 0x6c, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x18, 0x04,
-	0x20, 0x03, 0x28, 0x09, 0x52, 0x08, 0x44, 0x65, 0x6c, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x12, 0x20,
-	0x0a, 0x0b, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x18, 0x05, 0x20,
-	0x03, 0x28, 0x09, 0x52, 0x0b, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4e, 0x6f, 0x64, 0x65, 0x73,
-	0x32, 0x3e, 0x0a, 0x0f, 0x45, 0x6e, 0x73, 0x65, 0x6d, 0x62, 0x6c, 0x65, 0x53, 0x65, 0x72, 0x76,
-	0x69, 0x63, 0x65, 0x12, 0x2b, 0x0a, 0x05, 0x41, 0x70, 0x70, 0x6c, 0x79, 0x12, 0x10, 0x2e, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x43, 0x6f, 0x6d, 0x70, 0x6f, 0x6e, 0x65, 0x6e, 0x74, 0x1a, 0x10,
-	0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x43, 0x6f, 0x6d, 0x70, 0x6f, 0x6e, 0x65, 0x6e, 0x74,
-	0x42, 0x11, 0x5a, 0x0f, 0x2f, 0x6f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x6f, 0x72, 0x2f, 0x70, 0x72,
-	0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x77, 0x0a, 0x07, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x12, 0x1f, 0x0a, 0x04, 0x70, 0x6c,
+	0x61, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0b, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x2e, 0x50, 0x6c, 0x61, 0x6e, 0x52, 0x04, 0x70, 0x6c, 0x61, 0x6e, 0x12, 0x21, 0x0a, 0x03, 0x73,
+	0x65, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x2e, 0x50, 0x6c, 0x61, 0x6e, 0x2e, 0x53, 0x65, 0x74, 0x52, 0x03, 0x73, 0x65, 0x74, 0x12, 0x28,
+	0x0a, 0x07, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32,
+	0x0e, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x43, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x52,
+	0x07, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x22, 0xee, 0x01, 0x0a, 0x04, 0x50, 0x6c, 0x61,
+	0x6e, 0x12, 0x1c, 0x0a, 0x09, 0x42, 0x6f, 0x6f, 0x74, 0x73, 0x74, 0x72, 0x61, 0x70, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x08, 0x52, 0x09, 0x42, 0x6f, 0x6f, 0x74, 0x73, 0x74, 0x72, 0x61, 0x70, 0x12,
+	0x23, 0x0a, 0x04, 0x73, 0x65, 0x74, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x0f, 0x2e,
+	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x50, 0x6c, 0x61, 0x6e, 0x2e, 0x53, 0x65, 0x74, 0x52, 0x04,
+	0x73, 0x65, 0x74, 0x73, 0x1a, 0xa2, 0x01, 0x0a, 0x03, 0x53, 0x65, 0x74, 0x12, 0x12, 0x0a, 0x04,
+	0x74, 0x79, 0x70, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x74, 0x79, 0x70, 0x65,
+	0x12, 0x27, 0x0a, 0x08, 0x41, 0x64, 0x64, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x18, 0x02, 0x20, 0x03,
+	0x28, 0x0b, 0x32, 0x0b, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x52,
+	0x08, 0x41, 0x64, 0x64, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x12, 0x20, 0x0a, 0x0b, 0x44, 0x65, 0x6c,
+	0x4e, 0x6f, 0x64, 0x65, 0x73, 0x4e, 0x75, 0x6d, 0x18, 0x03, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0b,
+	0x44, 0x65, 0x6c, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x4e, 0x75, 0x6d, 0x12, 0x1a, 0x0a, 0x08, 0x44,
+	0x65, 0x6c, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x18, 0x04, 0x20, 0x03, 0x28, 0x09, 0x52, 0x08, 0x44,
+	0x65, 0x6c, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x12, 0x20, 0x0a, 0x0b, 0x55, 0x70, 0x64, 0x61, 0x74,
+	0x65, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x18, 0x05, 0x20, 0x03, 0x28, 0x09, 0x52, 0x0b, 0x55, 0x70,
+	0x64, 0x61, 0x74, 0x65, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x32, 0x3e, 0x0a, 0x0f, 0x45, 0x6e, 0x73,
+	0x65, 0x6d, 0x62, 0x6c, 0x65, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x2b, 0x0a, 0x05,
+	0x41, 0x70, 0x70, 0x6c, 0x79, 0x12, 0x10, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x43, 0x6f,
+	0x6d, 0x70, 0x6f, 0x6e, 0x65, 0x6e, 0x74, 0x1a, 0x10, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e,
+	0x43, 0x6f, 0x6d, 0x70, 0x6f, 0x6e, 0x65, 0x6e, 0x74, 0x42, 0x11, 0x5a, 0x0f, 0x2f, 0x6f, 0x70,
+	0x65, 0x72, 0x61, 0x74, 0x6f, 0x72, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -1257,7 +1328,7 @@ func file_operator_proto_structs_proto_rawDescGZIP() []byte {
 }
 
 var file_operator_proto_structs_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_operator_proto_structs_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_operator_proto_structs_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_operator_proto_structs_proto_goTypes = []interface{}{
 	(Component_Status)(0),       // 0: proto.Component.Status
 	(Component_Action)(0),       // 1: proto.Component.Action
@@ -1269,44 +1340,48 @@ var file_operator_proto_structs_proto_goTypes = []interface{}{
 	(*NodeUpdate)(nil),          // 7: proto.NodeUpdate
 	(*Node)(nil),                // 8: proto.Node
 	(*Cluster)(nil),             // 9: proto.Cluster
-	(*Plan)(nil),                // 10: proto.Plan
-	nil,                         // 11: proto.Component.MetadataEntry
-	(*ClusterSpec_Set)(nil),     // 12: proto.ClusterSpec.Set
-	nil,                         // 13: proto.Node.KVEntry
-	(*Node_NodeSpec)(nil),       // 14: proto.Node.NodeSpec
-	(*Node_Mount)(nil),          // 15: proto.Node.Mount
-	nil,                         // 16: proto.Node.NodeSpec.EnvEntry
-	nil,                         // 17: proto.Node.NodeSpec.FilesEntry
-	(*Plan_Set)(nil),            // 18: proto.Plan.Set
-	(*any.Any)(nil),             // 19: google.protobuf.Any
-	(*timestamp.Timestamp)(nil), // 20: google.protobuf.Timestamp
+	(*Context)(nil),             // 10: proto.Context
+	(*Plan)(nil),                // 11: proto.Plan
+	nil,                         // 12: proto.Component.MetadataEntry
+	(*ClusterSpec_Set)(nil),     // 13: proto.ClusterSpec.Set
+	nil,                         // 14: proto.Node.KVEntry
+	(*Node_NodeSpec)(nil),       // 15: proto.Node.NodeSpec
+	(*Node_Mount)(nil),          // 16: proto.Node.Mount
+	nil,                         // 17: proto.Node.NodeSpec.EnvEntry
+	nil,                         // 18: proto.Node.NodeSpec.FilesEntry
+	(*Plan_Set)(nil),            // 19: proto.Plan.Set
+	(*any.Any)(nil),             // 20: google.protobuf.Any
+	(*timestamp.Timestamp)(nil), // 21: google.protobuf.Timestamp
 }
 var file_operator_proto_structs_proto_depIdxs = []int32{
 	4,  // 0: proto.ComponentTask.old:type_name -> proto.Component
 	4,  // 1: proto.ComponentTask.new:type_name -> proto.Component
-	19, // 2: proto.Component.spec:type_name -> google.protobuf.Any
+	20, // 2: proto.Component.spec:type_name -> google.protobuf.Any
 	0,  // 3: proto.Component.status:type_name -> proto.Component.Status
 	1,  // 4: proto.Component.action:type_name -> proto.Component.Action
-	20, // 5: proto.Component.Timestamp:type_name -> google.protobuf.Timestamp
-	11, // 6: proto.Component.metadata:type_name -> proto.Component.MetadataEntry
-	12, // 7: proto.ClusterSpec.sets:type_name -> proto.ClusterSpec.Set
+	21, // 5: proto.Component.Timestamp:type_name -> google.protobuf.Timestamp
+	12, // 6: proto.Component.metadata:type_name -> proto.Component.MetadataEntry
+	13, // 7: proto.ClusterSpec.sets:type_name -> proto.ClusterSpec.Set
 	2,  // 8: proto.NodeUpdate.state:type_name -> proto.Node.NodeState
 	2,  // 9: proto.Node.State:type_name -> proto.Node.NodeState
-	14, // 10: proto.Node.Spec:type_name -> proto.Node.NodeSpec
-	13, // 11: proto.Node.KV:type_name -> proto.Node.KVEntry
-	15, // 12: proto.Node.Mounts:type_name -> proto.Node.Mount
+	15, // 10: proto.Node.Spec:type_name -> proto.Node.NodeSpec
+	14, // 11: proto.Node.KV:type_name -> proto.Node.KVEntry
+	16, // 12: proto.Node.Mounts:type_name -> proto.Node.Mount
 	8,  // 13: proto.Cluster.nodes:type_name -> proto.Node
-	18, // 14: proto.Plan.sets:type_name -> proto.Plan.Set
-	16, // 15: proto.Node.NodeSpec.env:type_name -> proto.Node.NodeSpec.EnvEntry
-	17, // 16: proto.Node.NodeSpec.files:type_name -> proto.Node.NodeSpec.FilesEntry
-	8,  // 17: proto.Plan.Set.AddNodes:type_name -> proto.Node
-	4,  // 18: proto.EnsembleService.Apply:input_type -> proto.Component
-	4,  // 19: proto.EnsembleService.Apply:output_type -> proto.Component
-	19, // [19:20] is the sub-list for method output_type
-	18, // [18:19] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	11, // 14: proto.Context.plan:type_name -> proto.Plan
+	19, // 15: proto.Context.set:type_name -> proto.Plan.Set
+	9,  // 16: proto.Context.cluster:type_name -> proto.Cluster
+	19, // 17: proto.Plan.sets:type_name -> proto.Plan.Set
+	17, // 18: proto.Node.NodeSpec.env:type_name -> proto.Node.NodeSpec.EnvEntry
+	18, // 19: proto.Node.NodeSpec.files:type_name -> proto.Node.NodeSpec.FilesEntry
+	8,  // 20: proto.Plan.Set.AddNodes:type_name -> proto.Node
+	4,  // 21: proto.EnsembleService.Apply:input_type -> proto.Component
+	4,  // 22: proto.EnsembleService.Apply:output_type -> proto.Component
+	22, // [22:23] is the sub-list for method output_type
+	21, // [21:22] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_operator_proto_structs_proto_init() }
@@ -1400,6 +1475,18 @@ func file_operator_proto_structs_proto_init() {
 			}
 		}
 		file_operator_proto_structs_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Context); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_operator_proto_structs_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Plan); i {
 			case 0:
 				return &v.state
@@ -1411,7 +1498,7 @@ func file_operator_proto_structs_proto_init() {
 				return nil
 			}
 		}
-		file_operator_proto_structs_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
+		file_operator_proto_structs_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ClusterSpec_Set); i {
 			case 0:
 				return &v.state
@@ -1423,7 +1510,7 @@ func file_operator_proto_structs_proto_init() {
 				return nil
 			}
 		}
-		file_operator_proto_structs_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
+		file_operator_proto_structs_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Node_NodeSpec); i {
 			case 0:
 				return &v.state
@@ -1435,7 +1522,7 @@ func file_operator_proto_structs_proto_init() {
 				return nil
 			}
 		}
-		file_operator_proto_structs_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
+		file_operator_proto_structs_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Node_Mount); i {
 			case 0:
 				return &v.state
@@ -1447,7 +1534,7 @@ func file_operator_proto_structs_proto_init() {
 				return nil
 			}
 		}
-		file_operator_proto_structs_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
+		file_operator_proto_structs_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Plan_Set); i {
 			case 0:
 				return &v.state
@@ -1466,7 +1553,7 @@ func file_operator_proto_structs_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_operator_proto_structs_proto_rawDesc,
 			NumEnums:      3,
-			NumMessages:   16,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

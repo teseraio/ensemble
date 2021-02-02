@@ -8,15 +8,19 @@ import (
 	"github.com/teseraio/ensemble/testutil"
 )
 
-func TestZookeeperBootstrap(t *testing.T) {
+func TestBootstrap(t *testing.T) {
 	srv := testutil.TestOperator(t, Factory)
 	defer srv.Close()
 
 	uuid := srv.Apply(&proto.Component{
 		Name: "A",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-			Backend:  "Zookeeper",
-			Replicas: 3,
+			Backend: "Zookeeper",
+			Sets: []*proto.ClusterSpec_Set{
+				{
+					Replicas: 3,
+				},
+			},
 		}),
 	})
 
@@ -60,15 +64,21 @@ func TestDeleteNodes(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		p := &proto.Plan{
-			Cluster:     c.cluster,
-			DelNodesNum: int64(c.num),
+		ctx := &proto.Context{
+			Plan: &proto.Plan{
+				Sets: []*proto.Plan_Set{
+					{
+						DelNodesNum: int64(c.num),
+					},
+				},
+			},
+			Cluster: c.cluster,
 		}
 		b := &backend{}
-		if err := b.EvaluatePlan(p); err != nil {
+		if err := b.EvaluatePlan(ctx); err != nil {
 			t.Fatal(err)
 		}
-		if !reflect.DeepEqual(c.delete, p.DelNodes) {
+		if !reflect.DeepEqual(c.delete, ctx.Plan.Sets[0].DelNodes) {
 			t.Fatal("bad")
 		}
 	}

@@ -17,14 +17,15 @@ metadata:
 spec:
     backend:
         name: <backend>
-    replicas: <replicas>
+    sets:
+    - replicas: <replicas>
 ```
 
 ### Params:
 
 - name: Name of the cluster.
 - backend: Name of the database. It has to match one of the available builtin implementations.
-- replicas: Number of replicas for the database. 
+- sets: Group of nodes in the cluster with the same characteristics.
 
 In the future, another **config** field will be included to parametrize the nodes in the cluster.
 
@@ -42,7 +43,6 @@ kind: Resource
 metadata:
     name: <name>
 spec:
-    backend: <backend>
     cluster: <cluster>
     resource: <resource>
     params: <params>
@@ -51,7 +51,7 @@ spec:
 ### Params:
 
 - name: Name of the resource.
-- backend: Name of the database.
+- cluster: Name of the cluster.
 - resource: Name of the resource.
 - params: a map of config parameters for the resource.
 

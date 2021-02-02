@@ -66,8 +66,10 @@ func (c *Client) PullImage(ctx context.Context, image string) error {
 	if strings.Contains(image, "/") {
 		canonicalName += image
 	} else {
-		canonicalName += "library"
+		canonicalName += "library/" + image
 	}
+
+	fmt.Println(canonicalName)
 
 	_, _, err := c.client.ImageInspectWithRaw(ctx, canonicalName)
 	if err != nil {
