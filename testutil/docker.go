@@ -20,13 +20,20 @@ import (
 
 var _ operator.Provider = &Client{}
 
+type resource struct {
+	nodeID    string
+	handle    string
+	clusterID string
+}
+
 // Client is a sugarcoat version of the docker client
 type Client struct {
 	client    *client.Client
-	resources []string
+	resources []*resource
 
 	// TODO: Not here
-	volumes map[string]string
+	volumes  map[string]string
+	updateCh chan *operator.NodeUpdate
 }
 
 // NewClient creates a new docker Client
@@ -35,7 +42,13 @@ func NewDockerClient() (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Client{client: cli, resources: []string{}, volumes: map[string]string{}}, nil
+	clt := &Client{
+		client:    cli,
+		resources: []*resource{},
+		volumes:   map[string]string{},
+		updateCh:  make(chan *operator.NodeUpdate),
+	}
+	return clt, nil
 }
 
 func (c *Client) Start() error {
@@ -51,6 +64,10 @@ func (c *Client) Remove(id string) error {
 		return err
 	}
 	return nil
+}
+
+func (c *Client) WatchUpdates() chan *operator.NodeUpdate {
+	return c.updateCh
 }
 
 // PullImage pulls a docker image
@@ -86,11 +103,11 @@ func (c *Client) PullImage(ctx context.Context, image string) error {
 }
 
 func (c *Client) Clean() {
-	for _, id := range c.resources {
-		if err := c.client.ContainerStop(context.Background(), id, nil); err != nil {
+	for _, res := range c.resources {
+		if err := c.client.ContainerStop(context.Background(), res.handle, nil); err != nil {
 			panic(err)
 		}
-		if err := c.client.ContainerRemove(context.Background(), id, types.ContainerRemoveOptions{}); err != nil {
+		if err := c.client.ContainerRemove(context.Background(), res.handle, types.ContainerRemoveOptions{}); err != nil {
 			panic(err)
 		}
 	}
@@ -149,7 +166,7 @@ func (c *Client) Create(ctx context.Context, node *proto.Node) (string, error) {
 	builder := node.Spec
 
 	image := builder.Image + ":" + builder.Version
-	name := node.ID
+	name := node.FullName()
 
 	// Build the volumes
 	binds := []string{}
@@ -199,11 +216,30 @@ func (c *Client) Create(ctx context.Context, node *proto.Node) (string, error) {
 		panic(err)
 	}
 
-	c.resources = append(c.resources, body.ID)
+	c.resources = append(c.resources, &resource{
+		nodeID:    node.ID,
+		handle:    body.ID,
+		clusterID: node.Cluster,
+	})
 	if err := c.client.ContainerStart(ctx, body.ID, types.ContainerStartOptions{}); err != nil {
 		return "", err
 	}
+
+	// watch for updates in the node
+	go func() {
+		c.client.ContainerWait(context.Background(), body.ID)
+		c.updateCh <- &operator.NodeUpdate{ID: node.ID, ClusterID: node.Cluster}
+	}()
 	return body.ID, nil
+}
+
+func (c *Client) Destroy(indx int) {
+	res := c.resources[indx]
+
+	// stop + remove does not work, so just remove with force
+	if err := c.client.ContainerRemove(context.Background(), res.handle, types.ContainerRemoveOptions{Force: true}); err != nil {
+		panic(err)
+	}
 }
 
 func (c *Client) CreateResource(node *proto.Node) (*proto.Node, error) {

@@ -5,6 +5,10 @@ import (
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
+var (
+	seedKey = "seed"
+)
+
 type backend struct {
 }
 
@@ -13,9 +17,35 @@ func Factory() operator.Handler {
 	return &backend{}
 }
 
+func (b *backend) PostHook(*operator.HookCtx) error {
+	return nil
+}
+
 // EvaluatePlan implements the Handler interface
-func (b *backend) EvaluatePlan(ctx *proto.Context) error {
-	if ctx.Plan.Sets[0].DelNodesNum != 0 {
+func (b *backend) EvaluatePlan(ctx *operator.PlanCtx) error {
+	plan := ctx.Plan.Sets[0]
+
+	if len(plan.AddNodes) != 0 {
+		var seed *proto.Node
+		for _, n := range ctx.Cluster.Nodes {
+			if n.Get(seedKey) == "ok" {
+				seed = n
+			}
+		}
+		if seed == nil {
+			seed = plan.AddNodes[0]
+			// take the first node as the seed
+			seed.Set(seedKey, "ok")
+		}
+		for _, n := range plan.AddNodes {
+			if n.Get(seedKey) == "" {
+				// is not the seed node
+				n.Spec.AddEnv("CASSANDRA_SEEDS", seed.ID)
+			}
+		}
+	}
+
+	if plan.DelNodesNum != 0 {
 		set := ctx.Plan.Sets[0]
 		// pick the last elements
 		for _, n := range ctx.Cluster.Nodes[:set.DelNodesNum] {
@@ -30,7 +60,7 @@ func (b *backend) Spec() *operator.Spec {
 	return &operator.Spec{
 		Name: "Cassandra",
 		Nodetypes: map[string]operator.Nodetype{
-			"": operator.Nodetype{
+			"": {
 				Image:   "cassandra",
 				Version: "latest", // TODO
 				Volumes: []*operator.Volume{},
@@ -46,6 +76,7 @@ func (b *backend) Client(node *proto.Node) (interface{}, error) {
 	return nil, nil
 }
 
+/*
 // Reconcile implements the Handler interface
 func (b *backend) Reconcile(executor operator.Executor, e *proto.Cluster, node *proto.Node, ctx *proto.Context) error {
 	switch node.State {
@@ -54,11 +85,7 @@ func (b *backend) Reconcile(executor operator.Executor, e *proto.Cluster, node *
 	}
 	return nil
 }
-
-func (b *backend) delNodes(plan *proto.Plan) error {
-
-	return nil
-}
+*/
 
 func (b *backend) recocileNodeInitialized(executor operator.Executor, e *proto.Cluster, node *proto.Node) error {
 	if len(e.Nodes) != 0 {

@@ -30,6 +30,7 @@ const (
 )
 
 type backend struct {
+	operator.BaseHandler
 }
 
 // Factory is a factory method for the zookeeper backend
@@ -37,71 +38,72 @@ func Factory() operator.Handler {
 	return &backend{}
 }
 
-// Reconcile implements the Handler interface
-func (b *backend) Reconcile(_ operator.Executor, e *proto.Cluster, node *proto.Node, plan *proto.Context) error {
-	if node.State == proto.Node_INITIALIZED {
-		nodeInitialized(e, node, plan.Plan.Bootstrap, plan.Set)
-	}
+func (b *backend) PostHook(*operator.HookCtx) error {
+	// TAINTED: TODO
 	return nil
 }
 
-func nodeInitialized(e *proto.Cluster, node *proto.Node, bootstrap bool, plan *proto.Plan_Set) {
-
-	// enable reconfig for the API
-	node.Spec.AddEnv("ZOO_CFG_EXTRA", "reconfigEnabled=true")
-
-	res := []string{}
-	if bootstrap {
-		for indxInt, peer := range plan.AddNodes {
-			// do not start the indexes with 0
-			indx := strconv.Itoa(indxInt + 1)
-
-			if peer.ID == node.ID {
-				node.Set(keyIndx, indx)
-
-				// nodes are included as participant during bootstrap
-				node.Set(keyRole, roleParticipant)
-
-				res = append(res, fmt.Sprintf("server.%s=0.0.0.0:2888:3888;2181", indx))
-			} else {
-				res = append(res, fmt.Sprintf("server.%s=%s:2888:3888;2181", indx, peer.FullName()))
-			}
-		}
-	} else {
-		// Nodes are joined as observers (TODO. handler to change them to participants)
-		indx := strconv.Itoa(len(e.Nodes) + 1)
-
-		node.Set(keyIndx, indx)
-		node.Set(keyRole, roleObserver)
-
-		// get a subset of the nodes in the cluster and join them as observer
-		for _, n := range e.Nodes {
-			res = append(res, getZkNodeSpec(n))
-		}
-		// add our node as observer
-		res = append(res, getZkNodeSpec(node))
-	}
-
-	//	set the id of the node
-	node.Spec.AddEnv("ZOO_MY_ID", node.Get(keyIndx))
-
-	// set the list of servers
-	node.Spec.AddEnv("ZOO_SERVERS", strings.Join(res, " "))
-}
-
 // EvaluatePlan implements the Handler interface
-func (b *backend) EvaluatePlan(ctx *proto.Context) error {
-	// there is only one set in the plan since there is only one node type
-	set := ctx.Plan.Sets[0]
-	if set.DelNodesNum != 0 {
+func (b *backend) EvaluatePlan(ctx *operator.PlanCtx) error {
+
+	// zookeeper only has one set
+	plan := ctx.Plan.Sets[0]
+
+	if plan.DelNodesNum != 0 {
+		// scale down
+
 		cc := ctx.Cluster.Copy()
 		sort.Sort(sortedNodes(cc.Nodes))
 
 		delNodes := []string{}
-		for i := 0; i < int(set.DelNodesNum); i++ {
+		for i := 0; i < int(plan.DelNodesNum); i++ {
 			delNodes = append(delNodes, cc.Nodes[i].ID)
 		}
-		set.DelNodes = delNodes
+		plan.DelNodes = delNodes
+
+	} else {
+		// scale up
+
+		// start the index in 1
+		ogIndx := len(ctx.Cluster.Nodes) + 1
+
+		// add a sequential index to each node
+		for seqIndx, n := range plan.AddNodes {
+			indx := strconv.Itoa(ogIndx + seqIndx)
+			n.Set(keyIndx, indx)
+			n.Spec.AddEnv("ZOO_MY_ID", indx)
+
+			if ctx.Plan.Bootstrap {
+				// participant
+				n.Set(keyRole, roleParticipant)
+			} else {
+				// observer
+				n.Set(keyRole, roleObserver)
+			}
+		}
+
+		// get the cluster nodes
+		var nodes []*proto.Node
+		if ctx.Plan.Bootstrap {
+			// join as participant
+			nodes = plan.AddNodes
+		} else {
+			// join as observer
+			nodes = ctx.Cluster.Nodes
+		}
+
+		// add the cluster nodes
+		for _, n := range plan.AddNodes {
+			var res []string
+			for _, node := range nodes {
+				res = append(res, getZkNodeSpec(node))
+			}
+			if !ctx.Plan.Bootstrap {
+				// add yourself to the cluster too
+				res = append(res, getZkNodeSpec(n))
+			}
+			n.Spec.AddEnv("ZOO_SERVERS", strings.Join(res, " "))
+		}
 	}
 	return nil
 }
@@ -115,7 +117,7 @@ func (b *backend) Spec() *operator.Spec {
 	return &operator.Spec{
 		Name: "Zookeeper",
 		Nodetypes: map[string]operator.Nodetype{
-			"": operator.Nodetype{
+			"": {
 				Image:   "zookeeper",
 				Version: "3.6",
 				Volumes: []*operator.Volume{},

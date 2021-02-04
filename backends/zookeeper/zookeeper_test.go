@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/testutil"
 )
@@ -64,7 +65,7 @@ func TestDeleteNodes(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		ctx := &proto.Context{
+		ctx := &operator.PlanCtx{
 			Plan: &proto.Plan{
 				Sets: []*proto.Plan_Set{
 					{
