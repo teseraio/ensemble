@@ -11,6 +11,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/mitchellh/mapstructure"
+	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 	"google.golang.org/grpc"
 )
@@ -58,6 +59,11 @@ func (p *Provider) Start() error {
 	clt := proto.NewEnsembleServiceClient(conn)
 	go p.trackCRDs(clt)
 
+	return nil
+}
+
+func (p *Provider) WatchUpdates() chan *operator.NodeUpdate {
+	// TODO
 	return nil
 }
 

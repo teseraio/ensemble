@@ -94,27 +94,38 @@ message NodeUpdate {
 }
 
 message Node {
-    // TODO: Add reference for pair backend,version or soemthign like that??
-
     string ID = 1;
+    
     string Addr = 2;
+
     string Handle = 3;
+    
     string Namespace = 4;
+    
     string Nodeset = 5;
+  
     string Nodetype = 6;
+
     NodeState State = 7;
+
     string Cluster = 8;
+
     NodeSpec Spec = 9;
+
     map<string, string> KV = 10;
+
     repeated Mount Mounts = 11;
 
+    bool ready = 12;
+    
     enum NodeState {
         UNKNOWN = 0;
         INITIALIZED = 1;
         PENDING = 2;
         RUNNING = 3;
         TAINTED = 4;
-        DOWN = 5;
+        FAILED = 5;
+        DOWN = 6;
     }
 
     message NodeSpec {
@@ -142,6 +153,14 @@ message Cluster {
     string backend = 3;
 
     repeated Node nodes = 4;
+
+    Status status = 5;
+    
+    enum Status {
+        UNKNOWN = 0;
+        SCALING = 1;
+        COMPLETE = 2;
+    }
 }
 
 message Context {

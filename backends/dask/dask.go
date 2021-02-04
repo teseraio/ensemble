@@ -1,8 +1,14 @@
 package dask
 
 import (
+	"fmt"
+
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
+)
+
+const (
+	schedulerKey = "scheduler"
 )
 
 type backend struct {
@@ -13,28 +19,43 @@ func Factory() operator.Handler {
 	return &backend{}
 }
 
-// Reconcile implements the Handler interface
-func (b *backend) Reconcile(_ operator.Executor, e *proto.Cluster, node *proto.Node, plan *proto.Context) error {
-	switch node.State {
-	case proto.Node_INITIALIZED:
-
-		if node.Nodetype == "scheduler" {
-			node.Spec.Cmd = []string{
-				"dask-scheduler",
-			}
-		} else if node.Nodetype == "worker" {
-			// This is always executed after the scheduler
-			node.Spec.Cmd = []string{
-				"dask-worker",
-				"tcp://" + e.Nodes[0].FullName() + ":8786",
-			}
-		}
-	}
+func (b *backend) PostHook(*operator.HookCtx) error {
 	return nil
 }
 
 // EvaluatePlan implements the Handler interface
-func (b *backend) EvaluatePlan(plan *proto.Context) error {
+func (b *backend) EvaluatePlan(ctx *operator.PlanCtx) error {
+
+	for _, plan := range ctx.Plan.Sets {
+		if plan.Type == "scheduler" {
+			if len(plan.AddNodes) != 1 {
+				return fmt.Errorf("only one node expected")
+			}
+
+			scheduler := plan.AddNodes[0]
+			scheduler.Set(schedulerKey, "true")
+			scheduler.Spec.Cmd = []string{
+				"dask-scheduler",
+			}
+
+		} else if plan.Type == "worker" {
+			scheduler := ""
+			for _, n := range ctx.Cluster.Nodes {
+				if n.Get(schedulerKey) == "true" {
+					scheduler = n.FullName()
+				}
+			}
+			if scheduler == "" {
+				return fmt.Errorf("scheduler not found")
+			}
+			for _, node := range plan.AddNodes {
+				node.Spec.Cmd = []string{
+					"dask-worker",
+					"tcp://" + scheduler + ":8786",
+				}
+			}
+		}
+	}
 	return nil
 }
 

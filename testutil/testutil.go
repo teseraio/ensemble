@@ -34,14 +34,18 @@ func (t *TestServer) Apply(c *proto.Component) string {
 	return cc.Id
 }
 
+func (t *TestServer) Destroy(i int) {
+	t.docker.Destroy(i)
+}
+
 func (t *TestServer) WaitForTask(id string) {
 	ch := t.state.Wait(id)
 	<-ch
 }
 
 func (t *TestServer) Close() {
-	t.docker.Clean()
 	t.srv.Stop()
+	t.docker.Clean()
 	if err := os.Remove(t.path); err != nil {
 		t.t.Fatal(err)
 	}

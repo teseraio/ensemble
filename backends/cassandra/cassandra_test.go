@@ -9,7 +9,7 @@ import (
 
 func TestBootstrap(t *testing.T) {
 	srv := testutil.TestOperator(t, Factory)
-	defer srv.Close()
+	// defer srv.Close()
 
 	uuid := srv.Apply(&proto.Component{
 		Name: "A",

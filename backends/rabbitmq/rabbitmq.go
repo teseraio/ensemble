@@ -8,6 +8,10 @@ import (
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
+var (
+	masterKey = "master"
+)
+
 const (
 	enabledPlugins = "[rabbitmq_management,rabbitmq_management_agent,rabbitmq_shovel]."
 )

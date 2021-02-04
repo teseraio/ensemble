@@ -43,6 +43,15 @@ func (c *Cluster) AddNode(n *Node) {
 	c.Nodes = append(c.Nodes, n)
 }
 
+func (c *Cluster) NodeByID(ID string) (*Node, bool) {
+	for _, n := range c.Nodes {
+		if n.ID == ID {
+			return n, true
+		}
+	}
+	return nil, false
+}
+
 func (c *Cluster) NodeAtIndex(ID string) int {
 	for indx, n := range c.Nodes {
 		if n.ID == ID {
