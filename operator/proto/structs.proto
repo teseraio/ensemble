@@ -74,6 +74,7 @@ message ClusterSpec {
         int64 replicas = 2;
         string type = 3;
         map<string, string> config = 4;
+        map<string, string> resources = 5;
     }
 }
 
@@ -119,6 +120,8 @@ message Node {
 
     bool ready = 12;
     
+    Resources resources = 13;
+    
     enum NodeState {
         UNKNOWN = 0;
         INITIALIZED = 1;
@@ -127,6 +130,10 @@ message Node {
         TAINTED = 4;
         FAILED = 5;
         DOWN = 6;
+    }
+
+    message Resources {
+        map<string, string> spec = 1;
     }
 
     message NodeSpec {

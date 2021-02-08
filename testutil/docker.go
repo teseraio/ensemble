@@ -14,6 +14,7 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/client"
+	"github.com/mitchellh/mapstructure"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 )
@@ -85,8 +86,6 @@ func (c *Client) PullImage(ctx context.Context, image string) error {
 	} else {
 		canonicalName += "library/" + image
 	}
-
-	fmt.Println(canonicalName)
 
 	_, _, err := c.client.ImageInspectWithRaw(ctx, canonicalName)
 	if err != nil {
@@ -205,6 +204,18 @@ func (c *Client) Create(ctx context.Context, node *proto.Node) (string, error) {
 		Binds: binds,
 	}
 
+	// decode computational resources
+	resConfig := c.Resources().(*Resource)
+	if err := mapstructure.WeakDecode(node.Resources.Spec, &resConfig); err != nil {
+		return "", err
+	}
+	if resConfig != nil {
+		hostConfig.Resources = container.Resources{
+			CPUShares: int64(resConfig.CPUShares),
+			CPUCount:  int64(resConfig.CPUCount),
+		}
+	}
+
 	netConfig := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
 			"net1": {},
@@ -240,6 +251,15 @@ func (c *Client) Destroy(indx int) {
 	if err := c.client.ContainerRemove(context.Background(), res.handle, types.ContainerRemoveOptions{Force: true}); err != nil {
 		panic(err)
 	}
+}
+
+type Resource struct {
+	CPUShares uint64 `mapstructure:"cpuShares"`
+	CPUCount  uint64 `mapstructure:"cpuCount"`
+}
+
+func (c *Client) Resources() interface{} {
+	return &Resource{}
 }
 
 func (c *Client) CreateResource(node *proto.Node) (*proto.Node, error) {

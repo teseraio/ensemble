@@ -3,6 +3,7 @@
 
 FEATURES:
 
+- operator/cluster: handle resource configuration (cpu, mem...) defined by the Provider for nodes in the cluster.
 - operator/cluster: handle configuration for nodes in the cluster.
 
 ## 0.1.2 (February 8, 2021)
