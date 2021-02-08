@@ -503,6 +503,27 @@ func clusterDiff(c *proto.Cluster, spec *proto.ClusterSpec, eval *proto.Componen
 	return plan, nil
 }
 
+func validateResources(output interface{}, input map[string]string) error {
+	val := reflect.New(reflect.TypeOf(output)).Elem().Interface()
+	var md mapstructure.Metadata
+	config := &mapstructure.DecoderConfig{
+		Metadata:         &md,
+		Result:           &val,
+		WeaklyTypedInput: true,
+	}
+	decoder, err := mapstructure.NewDecoder(config)
+	if err != nil {
+		return err
+	}
+	if err := decoder.Decode(input); err != nil {
+		return err
+	}
+	if len(md.Unused) != 0 {
+		return fmt.Errorf("unused keys %s", strings.Join(md.Unused, ","))
+	}
+	return nil
+}
+
 func (s *Server) evaluateCluster(eval *proto.Component, spec *proto.ClusterSpec, c *proto.Cluster, handler Handler) (*PlanCtx, error) {
 
 	// validate the config for each node
@@ -542,6 +563,16 @@ func (s *Server) evaluateCluster(eval *proto.Component, spec *proto.ClusterSpec,
 		}
 	}
 
+	providerResource := s.Provider.Resources()
+
+	nodeResourcesByType := map[string]map[string]string{}
+	for _, set := range spec.Sets {
+		if err := validateResources(providerResource, set.Resources); err != nil {
+			return nil, fmt.Errorf("failed to validate provider resources: %v", err)
+		}
+		nodeResourcesByType[set.Type] = set.Resources
+	}
+
 	plan, err := clusterDiff(c, spec, eval)
 	if err != nil {
 		return nil, err
@@ -570,6 +601,9 @@ func (s *Server) evaluateCluster(eval *proto.Component, spec *proto.ClusterSpec,
 			n.State = proto.Node_INITIALIZED
 			n.Spec.Image = typ.Image
 			n.Spec.Version = typ.Version
+			n.Resources = &proto.Node_Resources{
+				Spec: nodeResourcesByType[plan.Type],
+			}
 
 			// store the node in the db
 			if err := s.State.UpsertNode(n); err != nil {

@@ -31,6 +31,10 @@ type Provider interface {
 
 	// Exec executes a shell script
 	Exec(handler string, path string, args ...string) error
+
+	// Resources returns a struct that defines the node resources
+	// that can be configured for this provider
+	Resources() interface{}
 }
 
 // ProviderFactory is a factory method to create factories

@@ -30,9 +30,6 @@ func (b *BaseHandler) PostHook(*HookCtx) error {
 
 // Handler is the interface that needs to be implemented by the backend
 type Handler interface {
-	// Reconcile is called whenever there is an internal state change in the cluster
-	// Reconcile(executor Executor, e *proto.Cluster, node *proto.Node, plan *proto.Context) error
-
 	// EvaluatePlan evaluates and modifies the execution plan
 	EvaluatePlan(*PlanCtx) error
 

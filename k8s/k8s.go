@@ -62,6 +62,13 @@ func (p *Provider) Start() error {
 	return nil
 }
 
+type Resource struct {
+}
+
+func (p *Provider) Resources() interface{} {
+	return &Resource{}
+}
+
 func (p *Provider) WatchUpdates() chan *operator.NodeUpdate {
 	// TODO
 	return nil
