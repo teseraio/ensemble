@@ -1,4 +1,10 @@
 
+## 0.1.3 (Unreleased)
+
+FEATURES:
+
+- operator/cluster: handle configuration for nodes in the cluster.
+
 ## 0.1.2 (February 8, 2021)
 
 FEATURES:
