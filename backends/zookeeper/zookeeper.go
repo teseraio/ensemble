@@ -102,6 +102,15 @@ func (b *backend) EvaluatePlan(ctx *operator.PlanCtx) error {
 				// add yourself to the cluster too
 				res = append(res, getZkNodeSpec(n))
 			}
+
+			// add the configuration
+			config := ctx.NodeTypes[n.Nodetype].Config.(*config)
+
+			if config != nil {
+				if config.TickTime != 0 {
+					n.Spec.AddEnv("ZOO_TICK_TIME", strconv.Itoa(int(config.TickTime)))
+				}
+			}
 			n.Spec.AddEnv("ZOO_SERVERS", strings.Join(res, " "))
 		}
 	}
@@ -110,6 +119,10 @@ func (b *backend) EvaluatePlan(ctx *operator.PlanCtx) error {
 
 func getZkNodeSpec(node *proto.Node) string {
 	return fmt.Sprintf("server.%s=%s:2888:3888:%s;2181", node.Get(keyIndx), node.FullName(), node.Get(keyRole))
+}
+
+type config struct {
+	TickTime uint64 `mapstructure:"tickTime"`
 }
 
 // Spec implements the Handler interface
@@ -122,6 +135,7 @@ func (b *backend) Spec() *operator.Spec {
 				Version: "3.6",
 				Volumes: []*operator.Volume{},
 				Ports:   []*operator.Port{},
+				Config:  &config{},
 			},
 		},
 	}

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	gproto "github.com/golang/protobuf/proto"
+	"github.com/mitchellh/mapstructure"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/teseraio/ensemble/operator/proto"
@@ -503,6 +504,44 @@ func clusterDiff(c *proto.Cluster, spec *proto.ClusterSpec, eval *proto.Componen
 }
 
 func (s *Server) evaluateCluster(eval *proto.Component, spec *proto.ClusterSpec, c *proto.Cluster, handler Handler) (*PlanCtx, error) {
+
+	// validate the config for each node
+	nodeConfig := map[string]*NodeRes{}
+	for _, set := range spec.Sets {
+		spec, ok := handler.Spec().Nodetypes[set.Type]
+		if !ok {
+			return nil, fmt.Errorf("node type not found '%s'", set.Type)
+		}
+		if spec.Config == nil {
+			nodeConfig[set.Type] = &NodeRes{
+				Config: nil,
+			}
+			continue
+		}
+
+		val := reflect.New(reflect.TypeOf(spec.Config)).Elem().Interface()
+
+		var md mapstructure.Metadata
+		config := &mapstructure.DecoderConfig{
+			Metadata:         &md,
+			Result:           &val,
+			WeaklyTypedInput: true,
+		}
+		decoder, err := mapstructure.NewDecoder(config)
+		if err != nil {
+			return nil, err
+		}
+		if err := decoder.Decode(set.Config); err != nil {
+			return nil, err
+		}
+		if len(md.Unused) != 0 {
+			return nil, fmt.Errorf("unused keys %s", strings.Join(md.Unused, ","))
+		}
+		nodeConfig[set.Type] = &NodeRes{
+			Config: val,
+		}
+	}
+
 	plan, err := clusterDiff(c, spec, eval)
 	if err != nil {
 		return nil, err
@@ -512,8 +551,9 @@ func (s *Server) evaluateCluster(eval *proto.Component, spec *proto.ClusterSpec,
 	}
 
 	ctx := &PlanCtx{
-		Plan:    plan,
-		Cluster: c,
+		Plan:      plan,
+		Cluster:   c,
+		NodeTypes: nodeConfig,
 	}
 	// call the handler in case it wants to do something
 	if err := handler.EvaluatePlan(ctx); err != nil {

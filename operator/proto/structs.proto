@@ -73,6 +73,7 @@ message ClusterSpec {
         string name = 1;
         int64 replicas = 2;
         string type = 3;
+        map<string, string> config = 4;
     }
 }
 

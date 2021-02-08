@@ -11,7 +11,7 @@ import (
 
 func TestBootstrap(t *testing.T) {
 	srv := testutil.TestOperator(t, Factory)
-	defer srv.Close()
+	// defer srv.Close()
 
 	uuid := srv.Apply(&proto.Component{
 		Name: "A",
@@ -20,6 +20,9 @@ func TestBootstrap(t *testing.T) {
 			Sets: []*proto.ClusterSpec_Set{
 				{
 					Replicas: 3,
+					Config: map[string]string{
+						"tickTime": "3000",
+					},
 				},
 			},
 		}),

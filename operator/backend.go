@@ -11,9 +11,14 @@ type HookCtx struct {
 	Executor Executor
 }
 
+type NodeRes struct {
+	Config interface{}
+}
+
 type PlanCtx struct {
-	Cluster *proto.Cluster
-	Plan    *proto.Plan
+	Cluster   *proto.Cluster
+	Plan      *proto.Plan
+	NodeTypes map[string]*NodeRes
 }
 
 type BaseHandler struct {
@@ -58,8 +63,8 @@ type Nodetype struct {
 	// Image is the default docker image for the node
 	Image string
 
-	// TODO
-	// Config interface{}
+	// Config is the configuration fields for this node type
+	Config interface{}
 
 	// Version is the default docker image for the node
 	Version string
