@@ -134,6 +134,7 @@ message Node {
 
     message Resources {
         map<string, string> spec = 1;
+        map<string, string> data = 2;
     }
 
     message NodeSpec {

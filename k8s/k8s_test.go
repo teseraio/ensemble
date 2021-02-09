@@ -63,6 +63,12 @@ func TestPodLifecycle(t *testing.T) {
 			Image:   "redis", // TODO: Something better
 			Version: "latest",
 		},
+		Mounts: []*proto.Node_Mount{
+			{
+				Name: "a",
+				Path: "/data",
+			},
+		},
 	}
 
 	if _, err := p.CreateResource(n0); err != nil {
@@ -79,9 +85,4 @@ func isNotFound(err error) bool {
 		return false
 	}
 	return err == errNotFound
-}
-
-func TestOperatorLifecycle(t *testing.T) {
-	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
-	p.Setup()
 }

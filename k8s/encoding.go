@@ -1,19 +1,11 @@
 package k8s
 
 import (
-	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/teseraio/ensemble/operator/proto"
 )
-
-// Pod is a type to create a k8s pod
-type Pod struct {
-	Name     string
-	Ensemble string
-	Builder  *proto.Node_NodeSpec
-}
 
 type volumeMount struct {
 	// Name is the name of the volume in the pod description
@@ -57,31 +49,50 @@ func convertFiles(paths []string) *volumeMount {
 }
 
 // MarshalPod marshals a pod
-func MarshalPod(p *Pod) ([]byte, error) {
-	if p.Ensemble == "" {
-		return nil, fmt.Errorf("ensemble not defined")
+func MarshalPod(node *proto.Node) ([]byte, error) {
+	// all the mount points for the pod
+	type mount struct {
+		Name     string
+		Path     string
+		ReadOnly bool
 	}
+	var volMounts []*mount
+
+	// list of all the volumes in the pod
+	var volumes []interface{}
 
 	obj := map[string]interface{}{
-		"Name":     p.Name,
-		"Image":    p.Builder.Image,
-		"Version":  p.Builder.Version,
-		"Env":      p.Builder.Env,
-		"Files":    p.Builder.Files,
-		"Ensemble": p.Ensemble,
+		"Name":     node.ID,
+		"Image":    node.Spec.Image,
+		"Version":  node.Spec.Version,
+		"Env":      node.Spec.Env,
+		"Files":    node.Spec.Files,
+		"Ensemble": node.Cluster,
 	}
 
-	if len(p.Builder.Files) > 0 {
-		paths := []string{}
-		for k := range p.Builder.Files {
-			paths = append(paths, k)
-		}
-		v := convertFiles(paths)
-		obj["Volume"] = v
+	// add the persistent volumes
+	for _, m := range node.Mounts {
+		volMounts = append(volMounts, &mount{
+			Name:     m.Name,
+			Path:     m.Path,
+			ReadOnly: false,
+		})
+		volumes = append(volumes, map[string]interface{}{
+			"name": m.Name,
+			"persistentVolumeClaim": map[string]interface{}{
+				"claimName": node.ID + "-" + m.Name,
+			},
+		})
 	}
 
-	if len(p.Builder.Cmd) != 0 {
-		obj["Command"] = "'" + strings.Join(p.Builder.Cmd, "', '") + "'"
+	// add mount volumes
+	obj["Volumes"] = volumes
+
+	// add mount points
+	obj["VolumeMounts"] = volMounts
+
+	if len(node.Spec.Cmd) != 0 {
+		obj["Command"] = "'" + strings.Join(node.Spec.Cmd, "', '") + "'"
 	}
 
 	return RunTmpl2("pod", obj)

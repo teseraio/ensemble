@@ -194,19 +194,34 @@ func (p *Provider) CreateResource(node *proto.Node) (*proto.Node, error) {
 	if err := p.createHeadlessService(node.Cluster); err != nil {
 		return nil, err
 	}
+
+	/*
+		// Claim persistent volumes for each of the mount paths
+		for _, mount := range node.Mounts {
+			id := fmt.Sprintf("%s-%s", node.ID, mount.Name)
+
+			raw, err := RunTmpl2("volume-claim", map[string]interface{}{
+				"Name":        id,
+				"StorageName": "standard",
+				"Storage":     "1Gi",
+			})
+			if err != nil {
+				return nil, err
+			}
+			if _, _, err := p.post("/api/v1/namespaces/{namespace}/persistentvolumeclaims", raw); err != nil {
+				return nil, err
+			}
+		}
+	*/
+
+	// Create a config-map for each of the files
 	if len(node.Spec.Files) > 0 {
-		// store all the files under the '-files' prefix
 		if err := p.upsertConfigMap(node.ID+"-files", node.Spec.Files); err != nil {
 			return nil, err
 		}
 	}
 
-	pod := &Pod{
-		Name:     node.ID,
-		Builder:  node.Spec,
-		Ensemble: node.Cluster,
-	}
-	data, err := MarshalPod(pod)
+	data, err := MarshalPod(node)
 	if err != nil {
 		return nil, err
 	}

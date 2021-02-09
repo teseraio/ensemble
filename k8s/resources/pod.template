@@ -25,12 +25,15 @@
 				],
 				{{end}}
 				"volumeMounts": [
-					{{if .Volume}}
+					{{if .VolumeMounts}}
+					{{ $s := separator ", " }}
+					{{ range $elem := .VolumeMounts }}
 					{
-						"name": "{{.Volume.Name}}",
-						"mountPath": "{{.Volume.Path}}",
-						"readOnly": true
+						"name": "{{$elem.Name}}",
+						"mountPath": "{{$elem.Path}}",
+						"readOnly": {{$elem.ReadOnly}}
 					}
+					{{end}}
 					{{end}}
 				],
 				"imagePullPolicy": "Always",
@@ -39,21 +42,12 @@
 			}
 		],
 		"volumes": [
-			{{if .Volume}}
+			{{ $s := separator ", " }}
+			{{ range $elem := .Volumes }}
+			{{ call $s }}
 			{
-				"name": "{{.Volume.Name}}",
-				"configMap": {
-					"name": "{{.Name}}-files",
-					"items": [
-						{{ range $key, $value := .Volume.Items }}
-						{
-							"key": "{{$key}}",
-							"path": "{{$value}}"
-						}
-						{{end}}
-					]
-				}
-			}
+        		{{ mapX $elem }}
+      		}
 			{{end}}
 		]
 	}
