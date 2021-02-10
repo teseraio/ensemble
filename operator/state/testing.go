@@ -53,12 +53,12 @@ func TestSuite(t *testing.T, setup setupFn) {
 				},
 			}),
 		}
-		if err := b.Apply(c0); err != nil {
+		if _, err := b.Apply(c0); err != nil {
 			t.Fatal(err)
 		}
 
 		// send the same task again, the sequence is not updated
-		if err := b.Apply(c0); err != nil {
+		if _, err := b.Apply(c0); err != nil {
 			t.Fatal(err)
 		}
 

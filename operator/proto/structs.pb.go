@@ -248,6 +248,147 @@ func (Cluster_Status) EnumDescriptor() ([]byte, []int) {
 	return file_operator_proto_structs_proto_rawDescGZIP(), []int{6, 0}
 }
 
+type Instance_Status int32
+
+const (
+	Instance_UNKNOWN Instance_Status = 0
+)
+
+// Enum value maps for Instance_Status.
+var (
+	Instance_Status_name = map[int32]string{
+		0: "UNKNOWN",
+	}
+	Instance_Status_value = map[string]int32{
+		"UNKNOWN": 0,
+	}
+)
+
+func (x Instance_Status) Enum() *Instance_Status {
+	p := new(Instance_Status)
+	*p = x
+	return p
+}
+
+func (x Instance_Status) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Instance_Status) Descriptor() protoreflect.EnumDescriptor {
+	return file_operator_proto_structs_proto_enumTypes[4].Descriptor()
+}
+
+func (Instance_Status) Type() protoreflect.EnumType {
+	return &file_operator_proto_structs_proto_enumTypes[4]
+}
+
+func (x Instance_Status) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Instance_Status.Descriptor instead.
+func (Instance_Status) EnumDescriptor() ([]byte, []int) {
+	return file_operator_proto_structs_proto_rawDescGZIP(), []int{10, 0}
+}
+
+type Evaluation_Status int32
+
+const (
+	Evaluation_PENDING   Evaluation_Status = 0
+	Evaluation_COMPLETE  Evaluation_Status = 1
+	Evaluation_FAILED    Evaluation_Status = 2
+	Evaluation_CANCELLED Evaluation_Status = 3
+)
+
+// Enum value maps for Evaluation_Status.
+var (
+	Evaluation_Status_name = map[int32]string{
+		0: "PENDING",
+		1: "COMPLETE",
+		2: "FAILED",
+		3: "CANCELLED",
+	}
+	Evaluation_Status_value = map[string]int32{
+		"PENDING":   0,
+		"COMPLETE":  1,
+		"FAILED":    2,
+		"CANCELLED": 3,
+	}
+)
+
+func (x Evaluation_Status) Enum() *Evaluation_Status {
+	p := new(Evaluation_Status)
+	*p = x
+	return p
+}
+
+func (x Evaluation_Status) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Evaluation_Status) Descriptor() protoreflect.EnumDescriptor {
+	return file_operator_proto_structs_proto_enumTypes[5].Descriptor()
+}
+
+func (Evaluation_Status) Type() protoreflect.EnumType {
+	return &file_operator_proto_structs_proto_enumTypes[5]
+}
+
+func (x Evaluation_Status) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Evaluation_Status.Descriptor instead.
+func (Evaluation_Status) EnumDescriptor() ([]byte, []int) {
+	return file_operator_proto_structs_proto_rawDescGZIP(), []int{11, 0}
+}
+
+type Evaluation_Trigger int32
+
+const (
+	Evaluation_UNKNOWN    Evaluation_Trigger = 0
+	Evaluation_SPECCHANGE Evaluation_Trigger = 1
+)
+
+// Enum value maps for Evaluation_Trigger.
+var (
+	Evaluation_Trigger_name = map[int32]string{
+		0: "UNKNOWN",
+		1: "SPECCHANGE",
+	}
+	Evaluation_Trigger_value = map[string]int32{
+		"UNKNOWN":    0,
+		"SPECCHANGE": 1,
+	}
+)
+
+func (x Evaluation_Trigger) Enum() *Evaluation_Trigger {
+	p := new(Evaluation_Trigger)
+	*p = x
+	return p
+}
+
+func (x Evaluation_Trigger) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Evaluation_Trigger) Descriptor() protoreflect.EnumDescriptor {
+	return file_operator_proto_structs_proto_enumTypes[6].Descriptor()
+}
+
+func (Evaluation_Trigger) Type() protoreflect.EnumType {
+	return &file_operator_proto_structs_proto_enumTypes[6]
+}
+
+func (x Evaluation_Trigger) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Evaluation_Trigger.Descriptor instead.
+func (Evaluation_Trigger) EnumDescriptor() ([]byte, []int) {
+	return file_operator_proto_structs_proto_rawDescGZIP(), []int{11, 1}
+}
+
 type ComponentTask struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -945,6 +1086,274 @@ func (x *Plan) GetSets() []*Plan_Set {
 	return nil
 }
 
+type Deployment struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Id        string      `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Instances []*Instance `protobuf:"bytes,2,rep,name=instances,proto3" json:"instances,omitempty"`
+}
+
+func (x *Deployment) Reset() {
+	*x = Deployment{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_operator_proto_structs_proto_msgTypes[9]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Deployment) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Deployment) ProtoMessage() {}
+
+func (x *Deployment) ProtoReflect() protoreflect.Message {
+	mi := &file_operator_proto_structs_proto_msgTypes[9]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Deployment.ProtoReflect.Descriptor instead.
+func (*Deployment) Descriptor() ([]byte, []int) {
+	return file_operator_proto_structs_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *Deployment) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Deployment) GetInstances() []*Instance {
+	if x != nil {
+		return x.Instances
+	}
+	return nil
+}
+
+type Instance struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	NodeID     string          `protobuf:"bytes,1,opt,name=nodeID,proto3" json:"nodeID,omitempty"`
+	Generation int64           `protobuf:"varint,2,opt,name=generation,proto3" json:"generation,omitempty"`
+	Status     Instance_Status `protobuf:"varint,3,opt,name=status,proto3,enum=proto.Instance_Status" json:"status,omitempty"`
+}
+
+func (x *Instance) Reset() {
+	*x = Instance{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_operator_proto_structs_proto_msgTypes[10]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Instance) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Instance) ProtoMessage() {}
+
+func (x *Instance) ProtoReflect() protoreflect.Message {
+	mi := &file_operator_proto_structs_proto_msgTypes[10]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Instance.ProtoReflect.Descriptor instead.
+func (*Instance) Descriptor() ([]byte, []int) {
+	return file_operator_proto_structs_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *Instance) GetNodeID() string {
+	if x != nil {
+		return x.NodeID
+	}
+	return ""
+}
+
+func (x *Instance) GetGeneration() int64 {
+	if x != nil {
+		return x.Generation
+	}
+	return 0
+}
+
+func (x *Instance) GetStatus() Instance_Status {
+	if x != nil {
+		return x.Status
+	}
+	return Instance_UNKNOWN
+}
+
+type Evaluation struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Id          string             `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Status      Evaluation_Status  `protobuf:"varint,2,opt,name=status,proto3,enum=proto.Evaluation_Status" json:"status,omitempty"`
+	TriggeredBy Evaluation_Trigger `protobuf:"varint,3,opt,name=triggeredBy,proto3,enum=proto.Evaluation_Trigger" json:"triggeredBy,omitempty"`
+	ClusterID   string             `protobuf:"bytes,4,opt,name=clusterID,proto3" json:"clusterID,omitempty"`
+	Generation  int64              `protobuf:"varint,5,opt,name=generation,proto3" json:"generation,omitempty"`
+}
+
+func (x *Evaluation) Reset() {
+	*x = Evaluation{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_operator_proto_structs_proto_msgTypes[11]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Evaluation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Evaluation) ProtoMessage() {}
+
+func (x *Evaluation) ProtoReflect() protoreflect.Message {
+	mi := &file_operator_proto_structs_proto_msgTypes[11]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Evaluation.ProtoReflect.Descriptor instead.
+func (*Evaluation) Descriptor() ([]byte, []int) {
+	return file_operator_proto_structs_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *Evaluation) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Evaluation) GetStatus() Evaluation_Status {
+	if x != nil {
+		return x.Status
+	}
+	return Evaluation_PENDING
+}
+
+func (x *Evaluation) GetTriggeredBy() Evaluation_Trigger {
+	if x != nil {
+		return x.TriggeredBy
+	}
+	return Evaluation_UNKNOWN
+}
+
+func (x *Evaluation) GetClusterID() string {
+	if x != nil {
+		return x.ClusterID
+	}
+	return ""
+}
+
+func (x *Evaluation) GetGeneration() int64 {
+	if x != nil {
+		return x.Generation
+	}
+	return 0
+}
+
+type Event struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	EvalID    string               `protobuf:"bytes,1,opt,name=evalID,proto3" json:"evalID,omitempty"`
+	Message   string               `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Details   map[string]string    `protobuf:"bytes,3,rep,name=details,proto3" json:"details,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Timestamp *timestamp.Timestamp `protobuf:"bytes,4,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+}
+
+func (x *Event) Reset() {
+	*x = Event{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_operator_proto_structs_proto_msgTypes[12]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Event) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Event) ProtoMessage() {}
+
+func (x *Event) ProtoReflect() protoreflect.Message {
+	mi := &file_operator_proto_structs_proto_msgTypes[12]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Event.ProtoReflect.Descriptor instead.
+func (*Event) Descriptor() ([]byte, []int) {
+	return file_operator_proto_structs_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *Event) GetEvalID() string {
+	if x != nil {
+		return x.EvalID
+	}
+	return ""
+}
+
+func (x *Event) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *Event) GetDetails() map[string]string {
+	if x != nil {
+		return x.Details
+	}
+	return nil
+}
+
+func (x *Event) GetTimestamp() *timestamp.Timestamp {
+	if x != nil {
+		return x.Timestamp
+	}
+	return nil
+}
+
 type ClusterSpec_Set struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -960,7 +1369,7 @@ type ClusterSpec_Set struct {
 func (x *ClusterSpec_Set) Reset() {
 	*x = ClusterSpec_Set{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_operator_proto_structs_proto_msgTypes[10]
+		mi := &file_operator_proto_structs_proto_msgTypes[14]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -973,7 +1382,7 @@ func (x *ClusterSpec_Set) String() string {
 func (*ClusterSpec_Set) ProtoMessage() {}
 
 func (x *ClusterSpec_Set) ProtoReflect() protoreflect.Message {
-	mi := &file_operator_proto_structs_proto_msgTypes[10]
+	mi := &file_operator_proto_structs_proto_msgTypes[14]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1035,7 +1444,7 @@ type Node_Resources struct {
 func (x *Node_Resources) Reset() {
 	*x = Node_Resources{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_operator_proto_structs_proto_msgTypes[14]
+		mi := &file_operator_proto_structs_proto_msgTypes[18]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1048,7 +1457,7 @@ func (x *Node_Resources) String() string {
 func (*Node_Resources) ProtoMessage() {}
 
 func (x *Node_Resources) ProtoReflect() protoreflect.Message {
-	mi := &file_operator_proto_structs_proto_msgTypes[14]
+	mi := &file_operator_proto_structs_proto_msgTypes[18]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1086,7 +1495,7 @@ type Node_NodeSpec struct {
 func (x *Node_NodeSpec) Reset() {
 	*x = Node_NodeSpec{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_operator_proto_structs_proto_msgTypes[15]
+		mi := &file_operator_proto_structs_proto_msgTypes[19]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1099,7 +1508,7 @@ func (x *Node_NodeSpec) String() string {
 func (*Node_NodeSpec) ProtoMessage() {}
 
 func (x *Node_NodeSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_operator_proto_structs_proto_msgTypes[15]
+	mi := &file_operator_proto_structs_proto_msgTypes[19]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1163,7 +1572,7 @@ type Node_Mount struct {
 func (x *Node_Mount) Reset() {
 	*x = Node_Mount{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_operator_proto_structs_proto_msgTypes[16]
+		mi := &file_operator_proto_structs_proto_msgTypes[20]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1176,7 +1585,7 @@ func (x *Node_Mount) String() string {
 func (*Node_Mount) ProtoMessage() {}
 
 func (x *Node_Mount) ProtoReflect() protoreflect.Message {
-	mi := &file_operator_proto_structs_proto_msgTypes[16]
+	mi := &file_operator_proto_structs_proto_msgTypes[20]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1228,7 +1637,7 @@ type Plan_Set struct {
 func (x *Plan_Set) Reset() {
 	*x = Plan_Set{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_operator_proto_structs_proto_msgTypes[20]
+		mi := &file_operator_proto_structs_proto_msgTypes[24]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1241,7 +1650,7 @@ func (x *Plan_Set) String() string {
 func (*Plan_Set) ProtoMessage() {}
 
 func (x *Plan_Set) ProtoReflect() protoreflect.Message {
-	mi := &file_operator_proto_structs_proto_msgTypes[20]
+	mi := &file_operator_proto_structs_proto_msgTypes[24]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1480,13 +1889,60 @@ var file_operator_proto_structs_proto_rawDesc = []byte{
 	0x6c, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x18, 0x04, 0x20, 0x03, 0x28, 0x09, 0x52, 0x08, 0x44, 0x65,
 	0x6c, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x12, 0x20, 0x0a, 0x0b, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65,
 	0x4e, 0x6f, 0x64, 0x65, 0x73, 0x18, 0x05, 0x20, 0x03, 0x28, 0x09, 0x52, 0x0b, 0x55, 0x70, 0x64,
-	0x61, 0x74, 0x65, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x32, 0x3e, 0x0a, 0x0f, 0x45, 0x6e, 0x73, 0x65,
-	0x6d, 0x62, 0x6c, 0x65, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x2b, 0x0a, 0x05, 0x41,
-	0x70, 0x70, 0x6c, 0x79, 0x12, 0x10, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x43, 0x6f, 0x6d,
-	0x70, 0x6f, 0x6e, 0x65, 0x6e, 0x74, 0x1a, 0x10, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x43,
-	0x6f, 0x6d, 0x70, 0x6f, 0x6e, 0x65, 0x6e, 0x74, 0x42, 0x11, 0x5a, 0x0f, 0x2f, 0x6f, 0x70, 0x65,
-	0x72, 0x61, 0x74, 0x6f, 0x72, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x33,
+	0x61, 0x74, 0x65, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x22, 0x4b, 0x0a, 0x0a, 0x44, 0x65, 0x70, 0x6c,
+	0x6f, 0x79, 0x6d, 0x65, 0x6e, 0x74, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x12, 0x2d, 0x0a, 0x09, 0x69, 0x6e, 0x73, 0x74, 0x61, 0x6e,
+	0x63, 0x65, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x70, 0x72, 0x6f, 0x74,
+	0x6f, 0x2e, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x52, 0x09, 0x69, 0x6e, 0x73, 0x74,
+	0x61, 0x6e, 0x63, 0x65, 0x73, 0x22, 0x89, 0x01, 0x0a, 0x08, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e,
+	0x63, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x6e, 0x6f, 0x64, 0x65, 0x49, 0x44, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x06, 0x6e, 0x6f, 0x64, 0x65, 0x49, 0x44, 0x12, 0x1e, 0x0a, 0x0a, 0x67, 0x65,
+	0x6e, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0a,
+	0x67, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x2e, 0x0a, 0x06, 0x73, 0x74,
+	0x61, 0x74, 0x75, 0x73, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x16, 0x2e, 0x70, 0x72, 0x6f,
+	0x74, 0x6f, 0x2e, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x2e, 0x53, 0x74, 0x61, 0x74,
+	0x75, 0x73, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x22, 0x15, 0x0a, 0x06, 0x53, 0x74,
+	0x61, 0x74, 0x75, 0x73, 0x12, 0x0b, 0x0a, 0x07, 0x55, 0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x10,
+	0x00, 0x22, 0xb1, 0x02, 0x0a, 0x0a, 0x45, 0x76, 0x61, 0x6c, 0x75, 0x61, 0x74, 0x69, 0x6f, 0x6e,
+	0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64,
+	0x12, 0x30, 0x0a, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0e,
+	0x32, 0x18, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x45, 0x76, 0x61, 0x6c, 0x75, 0x61, 0x74,
+	0x69, 0x6f, 0x6e, 0x2e, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74,
+	0x75, 0x73, 0x12, 0x3b, 0x0a, 0x0b, 0x74, 0x72, 0x69, 0x67, 0x67, 0x65, 0x72, 0x65, 0x64, 0x42,
+	0x79, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x19, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e,
+	0x45, 0x76, 0x61, 0x6c, 0x75, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x2e, 0x54, 0x72, 0x69, 0x67, 0x67,
+	0x65, 0x72, 0x52, 0x0b, 0x74, 0x72, 0x69, 0x67, 0x67, 0x65, 0x72, 0x65, 0x64, 0x42, 0x79, 0x12,
+	0x1c, 0x0a, 0x09, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x44, 0x18, 0x04, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x09, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x49, 0x44, 0x12, 0x1e, 0x0a,
+	0x0a, 0x67, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x05, 0x20, 0x01, 0x28,
+	0x03, 0x52, 0x0a, 0x67, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x22, 0x3e, 0x0a,
+	0x06, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x0b, 0x0a, 0x07, 0x50, 0x45, 0x4e, 0x44, 0x49,
+	0x4e, 0x47, 0x10, 0x00, 0x12, 0x0c, 0x0a, 0x08, 0x43, 0x4f, 0x4d, 0x50, 0x4c, 0x45, 0x54, 0x45,
+	0x10, 0x01, 0x12, 0x0a, 0x0a, 0x06, 0x46, 0x41, 0x49, 0x4c, 0x45, 0x44, 0x10, 0x02, 0x12, 0x0d,
+	0x0a, 0x09, 0x43, 0x41, 0x4e, 0x43, 0x45, 0x4c, 0x4c, 0x45, 0x44, 0x10, 0x03, 0x22, 0x26, 0x0a,
+	0x07, 0x54, 0x72, 0x69, 0x67, 0x67, 0x65, 0x72, 0x12, 0x0b, 0x0a, 0x07, 0x55, 0x4e, 0x4b, 0x4e,
+	0x4f, 0x57, 0x4e, 0x10, 0x00, 0x12, 0x0e, 0x0a, 0x0a, 0x53, 0x50, 0x45, 0x43, 0x43, 0x48, 0x41,
+	0x4e, 0x47, 0x45, 0x10, 0x01, 0x22, 0xe4, 0x01, 0x0a, 0x05, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x12,
+	0x16, 0x0a, 0x06, 0x65, 0x76, 0x61, 0x6c, 0x49, 0x44, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x06, 0x65, 0x76, 0x61, 0x6c, 0x49, 0x44, 0x12, 0x18, 0x0a, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61,
+	0x67, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67,
+	0x65, 0x12, 0x33, 0x0a, 0x07, 0x64, 0x65, 0x74, 0x61, 0x69, 0x6c, 0x73, 0x18, 0x03, 0x20, 0x03,
+	0x28, 0x0b, 0x32, 0x19, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x45, 0x76, 0x65, 0x6e, 0x74,
+	0x2e, 0x44, 0x65, 0x74, 0x61, 0x69, 0x6c, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x07, 0x64,
+	0x65, 0x74, 0x61, 0x69, 0x6c, 0x73, 0x12, 0x38, 0x0a, 0x09, 0x74, 0x69, 0x6d, 0x65, 0x73, 0x74,
+	0x61, 0x6d, 0x70, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67,
+	0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65,
+	0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x09, 0x74, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70,
+	0x1a, 0x3a, 0x0a, 0x0c, 0x44, 0x65, 0x74, 0x61, 0x69, 0x6c, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79,
+	0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b,
+	0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x32, 0x3e, 0x0a, 0x0f,
+	0x45, 0x6e, 0x73, 0x65, 0x6d, 0x62, 0x6c, 0x65, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12,
+	0x2b, 0x0a, 0x05, 0x41, 0x70, 0x70, 0x6c, 0x79, 0x12, 0x10, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x2e, 0x43, 0x6f, 0x6d, 0x70, 0x6f, 0x6e, 0x65, 0x6e, 0x74, 0x1a, 0x10, 0x2e, 0x70, 0x72, 0x6f,
+	0x74, 0x6f, 0x2e, 0x43, 0x6f, 0x6d, 0x70, 0x6f, 0x6e, 0x65, 0x6e, 0x74, 0x42, 0x11, 0x5a, 0x0f,
+	0x2f, 0x6f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x6f, 0x72, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62,
+	0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -1501,71 +1957,85 @@ func file_operator_proto_structs_proto_rawDescGZIP() []byte {
 	return file_operator_proto_structs_proto_rawDescData
 }
 
-var file_operator_proto_structs_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_operator_proto_structs_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_operator_proto_structs_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
+var file_operator_proto_structs_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_operator_proto_structs_proto_goTypes = []interface{}{
 	(Component_Status)(0),       // 0: proto.Component.Status
 	(Component_Action)(0),       // 1: proto.Component.Action
 	(Node_NodeState)(0),         // 2: proto.Node.NodeState
 	(Cluster_Status)(0),         // 3: proto.Cluster.Status
-	(*ComponentTask)(nil),       // 4: proto.ComponentTask
-	(*Component)(nil),           // 5: proto.Component
-	(*ClusterSpec)(nil),         // 6: proto.ClusterSpec
-	(*ResourceSpec)(nil),        // 7: proto.ResourceSpec
-	(*NodeUpdate)(nil),          // 8: proto.NodeUpdate
-	(*Node)(nil),                // 9: proto.Node
-	(*Cluster)(nil),             // 10: proto.Cluster
-	(*Context)(nil),             // 11: proto.Context
-	(*Plan)(nil),                // 12: proto.Plan
-	nil,                         // 13: proto.Component.MetadataEntry
-	(*ClusterSpec_Set)(nil),     // 14: proto.ClusterSpec.Set
-	nil,                         // 15: proto.ClusterSpec.Set.ConfigEntry
-	nil,                         // 16: proto.ClusterSpec.Set.ResourcesEntry
-	nil,                         // 17: proto.Node.KVEntry
-	(*Node_Resources)(nil),      // 18: proto.Node.Resources
-	(*Node_NodeSpec)(nil),       // 19: proto.Node.NodeSpec
-	(*Node_Mount)(nil),          // 20: proto.Node.Mount
-	nil,                         // 21: proto.Node.Resources.SpecEntry
-	nil,                         // 22: proto.Node.NodeSpec.EnvEntry
-	nil,                         // 23: proto.Node.NodeSpec.FilesEntry
-	(*Plan_Set)(nil),            // 24: proto.Plan.Set
-	(*any.Any)(nil),             // 25: google.protobuf.Any
-	(*timestamp.Timestamp)(nil), // 26: google.protobuf.Timestamp
+	(Instance_Status)(0),        // 4: proto.Instance.Status
+	(Evaluation_Status)(0),      // 5: proto.Evaluation.Status
+	(Evaluation_Trigger)(0),     // 6: proto.Evaluation.Trigger
+	(*ComponentTask)(nil),       // 7: proto.ComponentTask
+	(*Component)(nil),           // 8: proto.Component
+	(*ClusterSpec)(nil),         // 9: proto.ClusterSpec
+	(*ResourceSpec)(nil),        // 10: proto.ResourceSpec
+	(*NodeUpdate)(nil),          // 11: proto.NodeUpdate
+	(*Node)(nil),                // 12: proto.Node
+	(*Cluster)(nil),             // 13: proto.Cluster
+	(*Context)(nil),             // 14: proto.Context
+	(*Plan)(nil),                // 15: proto.Plan
+	(*Deployment)(nil),          // 16: proto.Deployment
+	(*Instance)(nil),            // 17: proto.Instance
+	(*Evaluation)(nil),          // 18: proto.Evaluation
+	(*Event)(nil),               // 19: proto.Event
+	nil,                         // 20: proto.Component.MetadataEntry
+	(*ClusterSpec_Set)(nil),     // 21: proto.ClusterSpec.Set
+	nil,                         // 22: proto.ClusterSpec.Set.ConfigEntry
+	nil,                         // 23: proto.ClusterSpec.Set.ResourcesEntry
+	nil,                         // 24: proto.Node.KVEntry
+	(*Node_Resources)(nil),      // 25: proto.Node.Resources
+	(*Node_NodeSpec)(nil),       // 26: proto.Node.NodeSpec
+	(*Node_Mount)(nil),          // 27: proto.Node.Mount
+	nil,                         // 28: proto.Node.Resources.SpecEntry
+	nil,                         // 29: proto.Node.NodeSpec.EnvEntry
+	nil,                         // 30: proto.Node.NodeSpec.FilesEntry
+	(*Plan_Set)(nil),            // 31: proto.Plan.Set
+	nil,                         // 32: proto.Event.DetailsEntry
+	(*any.Any)(nil),             // 33: google.protobuf.Any
+	(*timestamp.Timestamp)(nil), // 34: google.protobuf.Timestamp
 }
 var file_operator_proto_structs_proto_depIdxs = []int32{
-	5,  // 0: proto.ComponentTask.old:type_name -> proto.Component
-	5,  // 1: proto.ComponentTask.new:type_name -> proto.Component
-	25, // 2: proto.Component.spec:type_name -> google.protobuf.Any
+	8,  // 0: proto.ComponentTask.old:type_name -> proto.Component
+	8,  // 1: proto.ComponentTask.new:type_name -> proto.Component
+	33, // 2: proto.Component.spec:type_name -> google.protobuf.Any
 	0,  // 3: proto.Component.status:type_name -> proto.Component.Status
 	1,  // 4: proto.Component.action:type_name -> proto.Component.Action
-	26, // 5: proto.Component.Timestamp:type_name -> google.protobuf.Timestamp
-	13, // 6: proto.Component.metadata:type_name -> proto.Component.MetadataEntry
-	14, // 7: proto.ClusterSpec.sets:type_name -> proto.ClusterSpec.Set
+	34, // 5: proto.Component.Timestamp:type_name -> google.protobuf.Timestamp
+	20, // 6: proto.Component.metadata:type_name -> proto.Component.MetadataEntry
+	21, // 7: proto.ClusterSpec.sets:type_name -> proto.ClusterSpec.Set
 	2,  // 8: proto.NodeUpdate.state:type_name -> proto.Node.NodeState
 	2,  // 9: proto.Node.State:type_name -> proto.Node.NodeState
-	19, // 10: proto.Node.Spec:type_name -> proto.Node.NodeSpec
-	17, // 11: proto.Node.KV:type_name -> proto.Node.KVEntry
-	20, // 12: proto.Node.Mounts:type_name -> proto.Node.Mount
-	18, // 13: proto.Node.resources:type_name -> proto.Node.Resources
-	9,  // 14: proto.Cluster.nodes:type_name -> proto.Node
+	26, // 10: proto.Node.Spec:type_name -> proto.Node.NodeSpec
+	24, // 11: proto.Node.KV:type_name -> proto.Node.KVEntry
+	27, // 12: proto.Node.Mounts:type_name -> proto.Node.Mount
+	25, // 13: proto.Node.resources:type_name -> proto.Node.Resources
+	12, // 14: proto.Cluster.nodes:type_name -> proto.Node
 	3,  // 15: proto.Cluster.status:type_name -> proto.Cluster.Status
-	12, // 16: proto.Context.plan:type_name -> proto.Plan
-	24, // 17: proto.Context.set:type_name -> proto.Plan.Set
-	10, // 18: proto.Context.cluster:type_name -> proto.Cluster
-	24, // 19: proto.Plan.sets:type_name -> proto.Plan.Set
-	15, // 20: proto.ClusterSpec.Set.config:type_name -> proto.ClusterSpec.Set.ConfigEntry
-	16, // 21: proto.ClusterSpec.Set.resources:type_name -> proto.ClusterSpec.Set.ResourcesEntry
-	21, // 22: proto.Node.Resources.spec:type_name -> proto.Node.Resources.SpecEntry
-	22, // 23: proto.Node.NodeSpec.env:type_name -> proto.Node.NodeSpec.EnvEntry
-	23, // 24: proto.Node.NodeSpec.files:type_name -> proto.Node.NodeSpec.FilesEntry
-	9,  // 25: proto.Plan.Set.AddNodes:type_name -> proto.Node
-	5,  // 26: proto.EnsembleService.Apply:input_type -> proto.Component
-	5,  // 27: proto.EnsembleService.Apply:output_type -> proto.Component
-	27, // [27:28] is the sub-list for method output_type
-	26, // [26:27] is the sub-list for method input_type
-	26, // [26:26] is the sub-list for extension type_name
-	26, // [26:26] is the sub-list for extension extendee
-	0,  // [0:26] is the sub-list for field type_name
+	15, // 16: proto.Context.plan:type_name -> proto.Plan
+	31, // 17: proto.Context.set:type_name -> proto.Plan.Set
+	13, // 18: proto.Context.cluster:type_name -> proto.Cluster
+	31, // 19: proto.Plan.sets:type_name -> proto.Plan.Set
+	17, // 20: proto.Deployment.instances:type_name -> proto.Instance
+	4,  // 21: proto.Instance.status:type_name -> proto.Instance.Status
+	5,  // 22: proto.Evaluation.status:type_name -> proto.Evaluation.Status
+	6,  // 23: proto.Evaluation.triggeredBy:type_name -> proto.Evaluation.Trigger
+	32, // 24: proto.Event.details:type_name -> proto.Event.DetailsEntry
+	34, // 25: proto.Event.timestamp:type_name -> google.protobuf.Timestamp
+	22, // 26: proto.ClusterSpec.Set.config:type_name -> proto.ClusterSpec.Set.ConfigEntry
+	23, // 27: proto.ClusterSpec.Set.resources:type_name -> proto.ClusterSpec.Set.ResourcesEntry
+	28, // 28: proto.Node.Resources.spec:type_name -> proto.Node.Resources.SpecEntry
+	29, // 29: proto.Node.NodeSpec.env:type_name -> proto.Node.NodeSpec.EnvEntry
+	30, // 30: proto.Node.NodeSpec.files:type_name -> proto.Node.NodeSpec.FilesEntry
+	12, // 31: proto.Plan.Set.AddNodes:type_name -> proto.Node
+	8,  // 32: proto.EnsembleService.Apply:input_type -> proto.Component
+	8,  // 33: proto.EnsembleService.Apply:output_type -> proto.Component
+	33, // [33:34] is the sub-list for method output_type
+	32, // [32:33] is the sub-list for method input_type
+	32, // [32:32] is the sub-list for extension type_name
+	32, // [32:32] is the sub-list for extension extendee
+	0,  // [0:32] is the sub-list for field type_name
 }
 
 func init() { file_operator_proto_structs_proto_init() }
@@ -1682,8 +2152,44 @@ func file_operator_proto_structs_proto_init() {
 				return nil
 			}
 		}
+		file_operator_proto_structs_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Deployment); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 		file_operator_proto_structs_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ClusterSpec_Set); i {
+			switch v := v.(*Instance); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_operator_proto_structs_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Evaluation); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_operator_proto_structs_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Event); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1695,6 +2201,18 @@ func file_operator_proto_structs_proto_init() {
 			}
 		}
 		file_operator_proto_structs_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ClusterSpec_Set); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_operator_proto_structs_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Node_Resources); i {
 			case 0:
 				return &v.state
@@ -1706,7 +2224,7 @@ func file_operator_proto_structs_proto_init() {
 				return nil
 			}
 		}
-		file_operator_proto_structs_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
+		file_operator_proto_structs_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Node_NodeSpec); i {
 			case 0:
 				return &v.state
@@ -1718,7 +2236,7 @@ func file_operator_proto_structs_proto_init() {
 				return nil
 			}
 		}
-		file_operator_proto_structs_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
+		file_operator_proto_structs_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Node_Mount); i {
 			case 0:
 				return &v.state
@@ -1730,7 +2248,7 @@ func file_operator_proto_structs_proto_init() {
 				return nil
 			}
 		}
-		file_operator_proto_structs_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
+		file_operator_proto_structs_proto_msgTypes[24].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Plan_Set); i {
 			case 0:
 				return &v.state
@@ -1748,8 +2266,8 @@ func file_operator_proto_structs_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_operator_proto_structs_proto_rawDesc,
-			NumEnums:      4,
-			NumMessages:   21,
+			NumEnums:      7,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

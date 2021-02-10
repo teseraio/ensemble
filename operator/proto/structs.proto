@@ -191,43 +191,54 @@ message Plan {
     }
 }
 
-/*
-message Task {
-    string ID = 1;
-    google.protobuf.Timestamp Timestamp = 6;
-    Evaluation Evaluation = 8;
+message Deployment {
+    string id = 1;
+    
+    repeated Instance instances = 2;
 }
 
-enum EvaluationState {
-    CREATED = 0;
-    UPDATED = 1;
-    DELETED = 2;
+message Instance {
+    string nodeID = 1;
+    
+    int64 generation = 2;
+
+    Status status = 3;
+
+    enum Status {
+        UNKNOWN = 0;
+    }
 }
 
 message Evaluation {
-    int64 Generation = 1;
-    string ResourceVersion = 2;
+    string id = 1;
 
-    // Name of the instance object (either cluster or resource)
-    string Name = 3;
+    Status status = 2;
 
-    // Name of the resource being created (if any)
-    string Resource = 4;
+    Trigger triggeredBy = 3;
 
-    // Name of the cluster (if its a resource)
-    string Cluster = 5;
+    string clusterID = 4;
 
-    // Name of the backend/database
-    string Backend = 6;
+    int64 generation = 5;
 
-    // JSON string of the specification
-    string Spec = 7;
+    enum Status {
+        PENDING   = 0;
+        COMPLETE  = 1;
+        FAILED    = 2;
+        CANCELLED = 3;
+    }
 
-    // JSON string of the status
-    string Status = 8;
-
-    EvaluationState State = 9;
-    string Namespace = 10;
-    bool IsDeleted = 11;
+    enum Trigger {
+        UNKNOWN = 0;
+        SPECCHANGE = 1;
+    }
 }
-*/
+
+message Event {
+    string evalID = 1;
+
+    string message = 2;
+
+    map<string, string> details = 3;
+
+    google.protobuf.Timestamp timestamp = 4;
+}

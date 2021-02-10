@@ -19,7 +19,8 @@ type State interface {
 	UpsertCluster(*proto.Cluster) error
 
 	// Apply changes to a resource
-	Apply(*proto.Component) error
+	Apply(*proto.Component) (int64, error)
+	GetComponent(id string, generation int64) (*proto.Component, *proto.Component, error)
 
 	// Get returns a component
 	Get(name string) (*proto.Component, error)
@@ -35,6 +36,10 @@ type State interface {
 
 	// Close closes the state
 	Close() error
+
+	// Experimental
+	AddEvaluation(eval *proto.Evaluation) error
+	GetTask2(ctx context.Context) (*proto.Evaluation, error)
 }
 
 var (

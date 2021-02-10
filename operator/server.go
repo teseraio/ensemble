@@ -82,7 +82,7 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		return nil, err
 	}
 
-	go s.taskQueue()
+	go s.taskQueue2()
 	return s, nil
 }
 
@@ -102,39 +102,41 @@ func (s *Server) setupWatcher() {
 }
 
 func (s *Server) handleNodeFailure(n *NodeUpdate) error {
-	// load cluster and handler
-	cluster, err := s.State.LoadCluster(n.ClusterID)
-	if err != nil {
-		return err
-	}
-	handler, ok := s.getHandler(cluster.Backend)
-	if !ok {
-		return fmt.Errorf("handler not found %s", cluster.Backend)
-	}
-
-	// set the node as failed
-	node, ok := cluster.NodeByID(n.ID)
-	if !ok {
-		return fmt.Errorf("node not found")
-	}
-
-	// it should be in running state
-	if node.State == proto.Node_TAINTED {
-		s.logger.Info("Node tainted is down", "node", node.ID, "cluster", n.ClusterID)
-
-		// set it as down
-		node.State = proto.Node_DOWN
-	} else if node.State == proto.Node_RUNNING {
-		s.logger.Info("Node failed", "node", node.ID, "cluster", n.ClusterID)
-
-		// try to create the node again
-		if _, err := s.addNode(handler, cluster, node); err != nil {
+	panic("TODO WITH EVALS")
+	/*
+		// load cluster and handler
+		cluster, err := s.State.LoadCluster(n.ClusterID)
+		if err != nil {
 			return err
 		}
-	} else {
-		panic(fmt.Sprintf("State not expected: %s", node.State.String()))
-	}
-	return nil
+		handler, ok := s.getHandler(cluster.Backend)
+		if !ok {
+			return fmt.Errorf("handler not found %s", cluster.Backend)
+		}
+
+		// set the node as failed
+		node, ok := cluster.NodeByID(n.ID)
+		if !ok {
+			return fmt.Errorf("node not found")
+		}
+
+		// it should be in running state
+		if node.State == proto.Node_TAINTED {
+			s.logger.Info("Node tainted is down", "node", node.ID, "cluster", n.ClusterID)
+
+			// set it as down
+			node.State = proto.Node_DOWN
+		} else if node.State == proto.Node_RUNNING {
+			s.logger.Info("Node failed", "node", node.ID, "cluster", n.ClusterID)
+
+			// try to create the node again
+			if _, err := s.addNode(handler, cluster, node); err != nil {
+				return err
+			}
+		} else {
+			panic(fmt.Sprintf("State not expected: %s", node.State.String()))
+		}
+	*/
 }
 
 func (s *Server) setupGRPCServer(addr string) error {
@@ -166,6 +168,27 @@ func (s *Server) Stop() {
 // Exec implements the Activator interface
 func (s *Server) Exec(n *proto.Node, path string, cmd ...string) error {
 	return s.Provider.Exec(n.Handle, path, cmd...)
+}
+
+func (s *Server) taskQueue2() {
+	s.logger.Info("Starting task worker")
+
+	for {
+		eval, err := s.State.GetTask2(context.Background())
+		if err != nil {
+			panic(err)
+		}
+
+		// get the component
+		new, old, err := s.State.GetComponent(eval.ClusterID, eval.Generation)
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Println("-- eval --")
+		fmt.Println(new)
+		fmt.Println(old)
+	}
 }
 
 func (s *Server) taskQueue() {
@@ -450,7 +473,7 @@ func (s *Server) addNode(handler Handler, e *proto.Cluster, n *proto.Node) (*pro
 	return nil, nil
 }
 
-func clusterDiff(c *proto.Cluster, spec *proto.ClusterSpec, eval *proto.Component) (*proto.Plan, error) {
+func clusterDiff(c *proto.Cluster, spec *proto.ClusterSpec) (*proto.Plan, error) {
 	nodesByType := map[string][]*proto.Node{}
 	for _, node := range c.Nodes {
 		if _, ok := nodesByType[node.Nodetype]; ok {
@@ -573,7 +596,7 @@ func (s *Server) evaluateCluster(eval *proto.Component, spec *proto.ClusterSpec,
 		nodeResourcesByType[set.Type] = set.Resources
 	}
 
-	plan, err := clusterDiff(c, spec, eval)
+	plan, err := clusterDiff(c, spec)
 	if err != nil {
 		return nil, err
 	}

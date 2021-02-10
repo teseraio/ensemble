@@ -51,7 +51,7 @@ func TestIndexUpdate(t *testing.T) {
 			Value:   []byte{0x1},
 		},
 	}
-	if err := st.Apply(ca1); err != nil {
+	if _, err := st.Apply(ca1); err != nil {
 		t.Fatal(err)
 	}
 
@@ -64,7 +64,7 @@ func TestIndexUpdate(t *testing.T) {
 			Value:   []byte{0x2},
 		},
 	}
-	if err := st.Apply(ca2); err != nil {
+	if _, err := st.Apply(ca2); err != nil {
 		t.Fatal(err)
 	}
 
