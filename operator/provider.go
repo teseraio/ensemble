@@ -21,10 +21,10 @@ type Provider interface {
 	Start() error
 
 	// CreateResource creates the computational resource
-	CreateResource(*proto.Node) (*proto.Node, error)
+	CreateResource(*proto.Instance) (*proto.Instance, error)
 
 	// DeleteResource deletes the computational resource
-	DeleteResource(*proto.Node) (*proto.Node, error)
+	DeleteResource(*proto.Instance) (*proto.Instance, error)
 
 	// WatchUpdates watches for updates from nodes
 	WatchUpdates() chan *NodeUpdate

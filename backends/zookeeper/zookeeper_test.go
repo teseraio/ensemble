@@ -1,17 +1,15 @@
 package zookeeper
 
 import (
-	"reflect"
 	"testing"
 
-	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/testutil"
 )
 
 func TestBootstrap(t *testing.T) {
 	srv := testutil.TestOperator(t, Factory)
-	defer srv.Close()
+	// defer srv.Close()
 
 	uuid := srv.Apply(&proto.Component{
 		Name: "A",
@@ -34,6 +32,7 @@ func TestBootstrap(t *testing.T) {
 	srv.WaitForTask(uuid)
 }
 
+/*
 func TestDeleteNodes(t *testing.T) {
 	cases := []struct {
 		cluster *proto.Cluster
@@ -90,3 +89,4 @@ func TestDeleteNodes(t *testing.T) {
 		}
 	}
 }
+*/

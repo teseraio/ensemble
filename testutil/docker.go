@@ -14,7 +14,6 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/client"
-	"github.com/mitchellh/mapstructure"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 )
@@ -159,7 +158,7 @@ func (c *Client) execImpl(ctx context.Context, id string, execCmd []string) erro
 }
 
 // Create creates a docker container
-func (c *Client) Create(ctx context.Context, node *proto.Node) (string, error) {
+func (c *Client) Create(ctx context.Context, node *proto.Instance) (string, error) {
 	// We will use the 'net1' network interface for dns resolving
 
 	builder := node.Spec
@@ -204,17 +203,19 @@ func (c *Client) Create(ctx context.Context, node *proto.Node) (string, error) {
 		Binds: binds,
 	}
 
-	// decode computational resources
-	resConfig := c.Resources().(*Resource)
-	if err := mapstructure.WeakDecode(node.Resources.Spec, &resConfig); err != nil {
-		return "", err
-	}
-	if resConfig != nil {
-		hostConfig.Resources = container.Resources{
-			CPUShares: int64(resConfig.CPUShares),
-			CPUCount:  int64(resConfig.CPUCount),
+	/*
+		// decode computational resources
+		resConfig := c.Resources().(*Resource)
+		if err := mapstructure.WeakDecode(node.Resources.Spec, &resConfig); err != nil {
+			return "", err
 		}
-	}
+		if resConfig != nil {
+			hostConfig.Resources = container.Resources{
+				CPUShares: int64(resConfig.CPUShares),
+				CPUCount:  int64(resConfig.CPUCount),
+			}
+		}
+	*/
 
 	netConfig := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
@@ -262,7 +263,7 @@ func (c *Client) Resources() interface{} {
 	return &Resource{}
 }
 
-func (c *Client) CreateResource(node *proto.Node) (*proto.Node, error) {
+func (c *Client) CreateResource(node *proto.Instance) (*proto.Instance, error) {
 	id, err := c.Create(context.TODO(), node)
 	if err != nil {
 		return nil, err
@@ -271,8 +272,14 @@ func (c *Client) CreateResource(node *proto.Node) (*proto.Node, error) {
 	ip := c.GetIP(id)
 
 	nn := node.Copy()
-	nn.Addr = ip
-	nn.Handle = id
+
+	fmt.Println("_ FORGOT _")
+	fmt.Println(ip)
+
+	/*
+		nn.Addr = ip
+		nn.Handle = id
+	*/
 
 	return nn, nil
 }
@@ -284,8 +291,9 @@ func (c *Client) Exec(handler string, path string, args ...string) error {
 	return c.execImpl(context.Background(), handler, execCmd)
 }
 
-func (c *Client) DeleteResource(node *proto.Node) (*proto.Node, error) {
-	if err := c.Remove(node.Handle); err != nil {
+func (c *Client) DeleteResource(node *proto.Instance) (*proto.Instance, error) {
+	panic("TODO")
+	if err := c.Remove("node.Handle"); err != nil {
 		return nil, err
 	}
 	return node, nil

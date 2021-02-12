@@ -16,8 +16,8 @@ import (
 )
 
 var (
-	clustersBucket = []byte("clusters")
-
+	clustersBucket    = []byte("clusters")
+	deploymentsBucket = []byte("deployments")
 	evaluationsBucket = []byte("evaluations")
 
 	// versioned indexes
@@ -84,6 +84,7 @@ func (b *BoltDB) initialize() error {
 	buckets := [][]byte{
 		clustersBucket,
 		evaluationsBucket,
+		deploymentsBucket,
 	}
 	err := b.db.Update(func(tx *bolt.Tx) error {
 		for _, i := range append(buckets, indexes...) {
@@ -380,7 +381,75 @@ func (b *BoltDB) Finalize(id string) error {
 	return nil
 }
 
-func (b *BoltDB) LoadCluster(id string) (*proto.Cluster, error) {
+func (b *BoltDB) LoadDeployment(id string) (*proto.Deployment, error) {
+	tx, err := b.db.Begin(false)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	depsBkt := tx.Bucket(deploymentsBucket)
+
+	// find the sub-bucket for the cluster
+	depBkt := depsBkt.Bucket([]byte(id))
+	if depBkt == nil {
+		return &proto.Deployment{Id: id, Instances: []*proto.Instance{}}, nil
+	}
+
+	// load the cluster meta
+	c := &proto.Deployment{
+		Instances: []*proto.Instance{},
+	}
+	if err := dbGet(depBkt, metaKey, c); err != nil {
+		if err == errNotFound {
+			return nil, fmt.Errorf("meta key not found")
+		}
+		return nil, err
+	}
+
+	// load the nodes under node-<id>
+	nodeCursor := depBkt.Cursor()
+	for k, _ := nodeCursor.First(); k != nil; k, _ = nodeCursor.Next() {
+		if !strings.HasPrefix(string(k), "node-") {
+			continue
+		}
+		n := &proto.Instance{}
+		if err := dbGet(depBkt, k, n); err != nil {
+			return nil, err
+		}
+		c.Instances = append(c.Instances, n)
+	}
+	return c, nil
+}
+
+// UpsertNode implements the BoltDB interface
+func (b *BoltDB) UpsertNode(n *proto.Instance) error {
+	tx, err := b.db.Begin(true)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	depsBkt := tx.Bucket(deploymentsBucket)
+
+	// find the sub-bucket for the cluster
+	depBkt := depsBkt.Bucket([]byte(n.Cluster))
+	if depBkt == nil {
+		return state.ErrClusterNotFound
+	}
+
+	// upsert under node-<id>
+	id := "node-" + n.ID
+	if err := dbPut(depBkt, []byte(id), n); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (b *BoltDB) GetCluster(name string) (*proto.Cluster, error) {
 	tx, err := b.db.Begin(false)
 	if err != nil {
 		return nil, err
@@ -389,63 +458,14 @@ func (b *BoltDB) LoadCluster(id string) (*proto.Cluster, error) {
 
 	clustersBkt := tx.Bucket(clustersBucket)
 
-	// find the sub-bucket for the cluster
-	clusterBkt := clustersBkt.Bucket([]byte(id))
-	if clusterBkt == nil {
-		return nil, state.ErrClusterNotFound
-	}
-
-	// load the cluster meta
-	c := &proto.Cluster{
-		Nodes: []*proto.Node{},
-	}
-	if err := dbGet(clusterBkt, metaKey, c); err != nil {
+	c := proto.Cluster{}
+	if err := dbGet(clustersBkt, []byte(name), &c); err != nil {
 		if err == errNotFound {
-			return nil, fmt.Errorf("meta key not found")
+			return nil, state.ErrClusterNotFound
 		}
 		return nil, err
 	}
-
-	// load the nodes under node-<id>
-	nodeCursor := clusterBkt.Cursor()
-	for k, _ := nodeCursor.First(); k != nil; k, _ = nodeCursor.Next() {
-		if !strings.HasPrefix(string(k), "node-") {
-			continue
-		}
-		n := &proto.Node{}
-		if err := dbGet(clusterBkt, k, n); err != nil {
-			return nil, err
-		}
-		c.Nodes = append(c.Nodes, n)
-	}
-	return c, nil
-}
-
-// UpsertNode implements the BoltDB interface
-func (b *BoltDB) UpsertNode(n *proto.Node) error {
-	tx, err := b.db.Begin(true)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	clustersBkt := tx.Bucket(clustersBucket)
-
-	// find the sub-bucket for the cluster
-	clusterBkt := clustersBkt.Bucket([]byte(n.Cluster))
-	if clusterBkt == nil {
-		return state.ErrClusterNotFound
-	}
-
-	// upsert under node-<id>
-	id := "node-" + n.ID
-	if err := dbPut(clusterBkt, []byte(id), n); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	return nil
+	return &c, nil
 }
 
 // UpsertCluster implements the BoltDB interface
@@ -457,21 +477,7 @@ func (b *BoltDB) UpsertCluster(c *proto.Cluster) error {
 	defer tx.Rollback()
 
 	clustersBkt := tx.Bucket(clustersBucket)
-
-	// find the sub-bucket for the cluster
-	clusterBkt := clustersBkt.Bucket([]byte(c.Name))
-	if clusterBkt == nil {
-		// cluster does not exists, create it
-		clusterBkt, err = clustersBkt.CreateBucket([]byte(c.Name))
-		if err != nil {
-			return err
-		}
-	}
-
-	c = c.Copy()
-	c.Nodes = nil // we do not store the nodes here
-
-	if err := dbPut(clusterBkt, metaKey, c); err != nil {
+	if err := dbPut(clustersBkt, []byte(c.Name), c); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {

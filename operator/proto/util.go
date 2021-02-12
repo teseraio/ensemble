@@ -3,7 +3,6 @@ package proto
 import (
 	"bytes"
 	"encoding/json"
-	"reflect"
 	"strings"
 
 	"github.com/google/uuid"
@@ -22,24 +21,35 @@ func Equal(p0, p1 proto.Message) bool {
 	return bytes.Equal(m0, m1)
 }
 
+/*
 func (c *Cluster) Size() int {
 	return len(c.Nodes)
 }
+*/
 
-func (c *Cluster) NewNode() *Node {
-	return &Node{
-		ID:      uuid.New().String(),
-		State:   Node_UNKNOWN,
+func (c *Cluster) LookupGroup(name string) *Group {
+	for _, g := range c.Groups {
+		if g.Nodeset == name {
+			return g
+		}
+	}
+	return nil
+}
+
+func (c *Cluster) NewInstance() *Instance {
+	return &Instance{
+		ID: uuid.New().String(),
+		//State:   Node_UNKNOWN,
 		Cluster: c.Name,
-		Spec:    &Node_NodeSpec{},
 	}
 }
 
+/*
 func (c *Cluster) DelNodeAtIndx(i int) {
 	c.Nodes = append(c.Nodes[:i], c.Nodes[i+1:]...)
 }
 
-func (c *Cluster) AddNode(n *Node) {
+func (c *Cluster) AddNode(n *Instance) {
 	c.Nodes = append(c.Nodes, n)
 }
 
@@ -60,40 +70,44 @@ func (c *Cluster) NodeAtIndex(ID string) int {
 	}
 	return -1
 }
+*/
 
 func (c *Cluster) Copy() *Cluster {
 	return proto.Clone(c).(*Cluster)
 }
 
+/*
 func (m *Node_Mount) Copy() *Node_Mount {
 	return proto.Clone(m).(*Node_Mount)
 }
+*/
 
-func (n *Node) FullName() string {
+func (n *Instance) FullName() string {
 	if n.Cluster != "" {
 		return n.ID + "." + n.Cluster
 	}
 	return n.ID
 }
 
-func (n *Node) Get(k string) string {
+func (n *Instance) Get(k string) string {
 	v, _ := n.GetOk(k)
 	return v
 }
 
-func (n *Node) GetOk(k string) (string, bool) {
+func (n *Instance) GetOk(k string) (string, bool) {
 	v, ok := n.KV[k]
 	return v, ok
 }
 
-func (n *Node) Set(k, v string) {
+func (n *Instance) Set(k, v string) {
 	if n.KV == nil {
 		n.KV = map[string]string{}
 	}
 	n.KV[k] = v
 }
 
-func (n *Node) Equal(nn *Node) bool {
+/*
+func (n *Instance) Equal(nn *Instance) bool {
 	// check the state
 	if n.State != nn.State {
 		return false
@@ -116,28 +130,29 @@ func (n *Node) Equal(nn *Node) bool {
 	}
 	return true
 }
+*/
 
 // TODO: Use protobuf for this
-func (n *Node) Unmarshal(src []byte) error {
+func (n *Instance) Unmarshal(src []byte) error {
 	return json.Unmarshal(src, &n)
 }
 
-func (n *Node) Marshal() ([]byte, error) {
+func (n *Instance) Marshal() ([]byte, error) {
 	return json.Marshal(n)
 }
 
-func (n *Node) Copy() *Node {
-	return proto.Clone(n).(*Node)
+func (n *Instance) Copy() *Instance {
+	return proto.Clone(n).(*Instance)
 }
 
-func (b *Node_NodeSpec) AddFile(path string, content string) {
+func (b *NodeSpec) AddFile(path string, content string) {
 	if b.Files == nil {
 		b.Files = map[string]string{}
 	}
 	b.Files[path] = content
 }
 
-func (b *Node_NodeSpec) AddEnvList(l []string) {
+func (b *NodeSpec) AddEnvList(l []string) {
 	for _, i := range l {
 		indx := strings.Index(i, "=")
 		if indx == -1 {
@@ -147,21 +162,21 @@ func (b *Node_NodeSpec) AddEnvList(l []string) {
 	}
 }
 
-func (b *Node_NodeSpec) AddEnvMap(m map[string]string) {
+func (b *NodeSpec) AddEnvMap(m map[string]string) {
 	for k, v := range m {
 		b.AddEnv(k, v)
 	}
 }
 
-func (b *Node_NodeSpec) AddEnv(k, v string) {
+func (b *NodeSpec) AddEnv(k, v string) {
 	if b.Env == nil {
 		b.Env = map[string]string{}
 	}
 	b.Env[k] = v
 }
 
-func (b *Node_NodeSpec) Copy() *Node_NodeSpec {
-	return proto.Clone(b).(*Node_NodeSpec)
+func (b *NodeSpec) Copy() *NodeSpec {
+	return proto.Clone(b).(*NodeSpec)
 }
 
 /*
@@ -176,9 +191,11 @@ type XX struct {
 }
 */
 
-func (p *Plan_Set) Add(n *Node) {
+/*
+func (p *Plan_Set) Add(n *Instance) {
 	if p.AddNodes == nil {
 		p.AddNodes = make([]*Node, 0)
 	}
 	p.AddNodes = append(p.AddNodes, n)
 }
+*/

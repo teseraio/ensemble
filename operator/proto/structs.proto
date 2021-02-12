@@ -92,78 +92,28 @@ message ResourceSpec {
 
 message NodeUpdate {
     string id = 1;
-    Node.NodeState state = 2;
+    string state = 2;
 }
 
-message Node {
-    string ID = 1;
-    
-    string Addr = 2;
+/* Describes the internal cluster object expected */
 
-    string Handle = 3;
-    
-    string Namespace = 4;
-    
-    string Nodeset = 5;
-  
-    string Nodetype = 6;
-
-    NodeState State = 7;
-
-    string Cluster = 8;
-
-    NodeSpec Spec = 9;
-
-    map<string, string> KV = 10;
-
-    repeated Mount Mounts = 11;
-
-    bool ready = 12;
-    
-    Resources resources = 13;
-    
-    enum NodeState {
-        UNKNOWN = 0;
-        INITIALIZED = 1;
-        PENDING = 2;
-        RUNNING = 3;
-        TAINTED = 4;
-        FAILED = 5;
-        DOWN = 6;
-    }
-
-    message Resources {
-        map<string, string> spec = 1;
-    }
-
-    message NodeSpec {
-        map<string, string> env = 1;
-        map<string, string> files = 2;
-        string image = 3;
-        string version = 4;
-        repeated string cmd = 5;
-    }
-    
-    message Mount {
-        string id = 1;
-        string name = 2;
-        string path = 3;
-    }
-}
-
-// Instance of a cluster
 message Cluster {
-    // name of the cluster
     string name = 1;
 
     string namespace = 2;
 
     string backend = 3;
 
-    repeated Node nodes = 4;
+    repeated Group groups = 4;
 
     Status status = 5;
     
+    string deployment = 6;
+
+    int64 generation = 7;
+
+    bool stop = 8;
+
     enum Status {
         UNKNOWN = 0;
         SCALING = 1;
@@ -171,43 +121,125 @@ message Cluster {
     }
 }
 
+message Group {
+    int64 count = 2;
+    
+    Status status = 4;
+
+    string nodetype = 10;
+
+    string nodeset = 20;
+
+    int64 revision = 40;
+
+    google.protobuf.Any resources = 5;
+
+    google.protobuf.Any config = 6;
+
+    repeated Mount mounts = 7;
+
+    message Mount {
+
+    }
+
+    enum Status {
+        UNKNOWN = 0;
+        UPDATE = 1;
+    }
+}
+
+// This is not important to keep on the Instance stored since we can rebuild this at any
+// time because the function Initialize is deterministic??
+// This represents all the things required to Create the resource
+message NodeSpec {
+    // PROVISIONAL
+    string image = 30;
+    string version = 31;
+
+    map<string, string> env = 1;
+    map<string, string> files = 2;
+    repeated string cmd = 5;
+}
+
 message Context {
     Plan plan = 1;
-    Plan.Set set = 2;
     Cluster cluster = 3;
 }
 
 message Plan {
-    bool Bootstrap = 1;
+    bool delete = 1;
 
-    repeated Set sets = 2;
+    repeated Step steps = 2;
 
-    message Set {
-        string type = 1; // organized by type of cluster
-        repeated Node AddNodes = 2;
-        int64 DelNodesNum = 3;
-        repeated string DelNodes = 4;
-        repeated string UpdateNodes = 5;
+    message Step {
+        string group = 1;
+
+        oneof action {
+            ActionDelete actionDelete = 2;
+            ActionScaleUp  actionScaleUp = 3;
+            ActionScaleDown actionScaleDown = 4;
+        }
+
+        message ActionDelete {
+        }
+
+        message ActionScaleUp {
+            int64 numNodes = 1;
+        }
+
+        message ActionScaleDown {
+            int64 numNodes = 1;
+        }
     }
 }
+
+/* Deployment describes the current state of the cluster */
 
 message Deployment {
     string id = 1;
-    
+
     repeated Instance instances = 2;
 }
 
+// represents a POD
 message Instance {
-    string nodeID = 1;
+    string ID = 1;
     
+    string Namespace = 4;
+    
+    string Cluster = 3;
+
+    string group = 5;
+    
+    int64 revision = 6;
+
+    int64 index = 7;
+
+    map<string, string> KV = 10;
+
+    // PROVISIONAL
+    NodeSpec spec = 11;
+
+    /*
+    string Nodetype = 6; // is this required?
+
+    GroupSpec groupSpec = 8; // is this required?
+
+    NodeSpec spec = 9;
+
+    map<string, string> KV = 10;
+
     int64 generation = 2;
 
-    Status status = 3;
-
-    enum Status {
-        UNKNOWN = 0;
+    message NodeSpec {
+        map<string, string> env = 1;
+        map<string, string> files = 2;
+        repeated string cmd = 5;
     }
+    */
 }
+
+/* Evaluation is used to trigger a new reconcile evaluation */
 
 message Evaluation {
     string id = 1;
@@ -219,6 +251,8 @@ message Evaluation {
     string clusterID = 4;
 
     int64 generation = 5;
+
+    Plan plan = 6;
 
     enum Status {
         PENDING   = 0;

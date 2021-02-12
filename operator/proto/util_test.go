@@ -1,10 +1,6 @@
 package proto
 
-import (
-	"reflect"
-	"testing"
-)
-
+/*
 func TestNodeSpec(t *testing.T) {
 	out := map[string]string{
 		"A": "B",
@@ -40,3 +36,4 @@ func TestNodeSpec(t *testing.T) {
 		t.Fatal("bad")
 	}
 }
+*/
