@@ -1,8 +1,6 @@
 package operator
 
 import (
-	"fmt"
-
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
@@ -11,7 +9,20 @@ import (
 type allocReconciler struct {
 	c      *proto.Cluster
 	nodes  []*proto.Instance
-	result *proto.Plan
+	result *reconcileResult
+}
+
+type reconcileResult struct {
+	name string
+
+	// whether this group is being removed
+	delete bool
+
+	// scale up nodes
+	add *proto.Instance
+
+	// scale down nodes
+	del *proto.Instance
 }
 
 func (a *allocReconciler) createAllocMatrix() map[string][]*proto.Instance {
@@ -32,31 +43,30 @@ func (a *allocReconciler) createAllocMatrix() map[string][]*proto.Instance {
 }
 
 func (a *allocReconciler) reconcile() {
-	a.result = &proto.Plan{
-		Steps: []*proto.Plan_Step{},
-	}
 	allocMatrix := a.createAllocMatrix()
 
 	if a.c.Stop {
 		// the cluster has been removed, remove all the instances
-		a.result.Delete = true
+		a.result.delete = true
 		return
 	}
 
 	for group, instances := range allocMatrix {
-		a.reconcileGroup(group, instances)
+		res := a.reconcileGroup(group, instances)
+		a.result = res
 	}
 }
 
-func (a *allocReconciler) reconcileGroup(group string, instances []*proto.Instance) {
+func (a *allocReconciler) reconcileGroup(group string, instances []*proto.Instance) (reconcile *reconcileResult) {
 	grp := a.c.LookupGroup(group)
 	if grp == nil {
 		// the group was removed, remove all the instances
-		a.result.Steps = append(a.result.Steps, &proto.Plan_Step{
-			Group:  group,
-			Action: &proto.Plan_Step_ActionDelete_{},
-		})
+		reconcile.delete = true
 		return
+	}
+
+	reconcile = &reconcileResult{
+		name: group,
 	}
 
 	numInstances := int64(len(instances))
@@ -64,24 +74,10 @@ func (a *allocReconciler) reconcileGroup(group string, instances []*proto.Instan
 	if isScale {
 		if grp.Count < numInstances {
 			// scale down
-			a.result.Steps = append(a.result.Steps, &proto.Plan_Step{
-				Group: group,
-				Action: &proto.Plan_Step_ActionScaleDown_{
-					ActionScaleDown: &proto.Plan_Step_ActionScaleDown{
-						NumNodes: numInstances - grp.Count,
-					},
-				},
-			})
+			a.result.add = &proto.Instance{}
 		} else {
 			// scale up
-			a.result.Steps = append(a.result.Steps, &proto.Plan_Step{
-				Group: group,
-				Action: &proto.Plan_Step_ActionScaleUp_{
-					ActionScaleUp: &proto.Plan_Step_ActionScaleUp{
-						NumNodes: grp.Count - numInstances,
-					},
-				},
-			})
+			reconcile.scaleUp = grp.Count - numInstances
 		}
 	}
 
@@ -89,7 +85,8 @@ func (a *allocReconciler) reconcileGroup(group string, instances []*proto.Instan
 	curRevision := grp.Revision
 	for _, inst := range instances {
 		if inst.Revision < curRevision {
-			fmt.Println("- update -")
+			reconcile.updateNodes = append(reconcile.updateNodes, inst)
 		}
 	}
+	return
 }

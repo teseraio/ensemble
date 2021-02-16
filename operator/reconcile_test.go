@@ -12,7 +12,7 @@ func TestReconcile(t *testing.T) {
 		c: &proto.Cluster{
 			Groups: []*proto.Group{
 				{
-					Count:    2,
+					Count:    3,
 					Nodeset:  "a",
 					Revision: 5,
 				},

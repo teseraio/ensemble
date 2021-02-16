@@ -435,7 +435,10 @@ func (b *BoltDB) UpsertNode(n *proto.Instance) error {
 	// find the sub-bucket for the cluster
 	depBkt := depsBkt.Bucket([]byte(n.Cluster))
 	if depBkt == nil {
-		return state.ErrClusterNotFound
+		// create hte bucket, later on we add an step to do this
+		if depBkt, err = depsBkt.CreateBucket([]byte(n.Cluster)); err != nil {
+			return err
+		}
 	}
 
 	// upsert under node-<id>

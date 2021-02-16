@@ -235,81 +235,60 @@ func (s *Server) taskQueue2() {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println("- dep -")
-		fmt.Println(dep)
+
+		fmt.Println("cc")
+		fmt.Println(c.Name)
 
 		rr := allocReconciler{
-			c: c,
+			c:     c,
+			nodes: dep.Instances,
 		}
 		rr.reconcile()
 
-		fmt.Println("-- res --")
-		fmt.Println(c)
-		fmt.Println(dep)
 		fmt.Println(rr.result)
 
-		eval.Plan = rr.result
-		s.process(c, dep, eval)
-	}
-}
+		res := rr.result
+		if res.delete {
+			panic("X")
+		}
 
-func (s *Server) process(cluster *proto.Cluster, dep *proto.Deployment, eval *proto.Evaluation) {
-	fmt.Println("- eval -")
-	fmt.Println(eval)
-
-	handler, ok := s.getHandler("Zookeeper")
-	if !ok {
-		panic("bad")
-	}
-
-	// 1.we should be able to create all the node specs here right now on the same reconcile step?
-	// 2. after that we have to execute the instance reconciler.
-
-	for _, step := range eval.Plan.Steps {
-		fmt.Println("- step -")
-		fmt.Println(step)
-
-		cc := cluster.Copy()
-		grp := cc.LookupGroup(step.Group)
-
-		typ := handler.Spec().Nodetypes[grp.Nodetype]
-
-		nodes := []*proto.Instance{}
-
-		switch obj := step.Action.(type) {
-		case *proto.Plan_Step_ActionScaleUp_:
+		fmt.Println(res.scaleUp)
+		if res.scaleUp > 0 {
 			// scale up
-			for i := int64(0); i < obj.ActionScaleUp.NumNodes; i++ {
-				node := cc.NewInstance()
-				nodes = append(nodes, node)
+			for i := int64(0); i < res.scaleUp; i++ {
+				ii := c.NewInstance()
+				ii.Status = proto.Instance_PENDING
+
+				fmt.Println("/ create node /")
+				fmt.Println(ii)
+				fmt.Println(ii.Cluster)
+
+				ii.Spec = &proto.NodeSpec{
+					Image:   "zookeeper",
+					Version: "3.6",
+				}
+				if ii, err = s.Provider.CreateResource(ii); err != nil {
+					panic(err)
+				}
+				// add to the cluster
+				if err := s.State.UpsertNode(ii); err != nil {
+					panic(err)
+				}
 			}
-		case *proto.Plan_Step_ActionScaleDown_:
-			// scale down
-			panic("TODO")
-		case *proto.Plan_Step_ActionDelete_:
-			panic("TODO")
+		}
+		if res.scaleDown > 0 {
+			// remove node
 		}
 
-		// EvaluatePlan first and that will setup all the kv values
-		handler.EvaluatePlan(nodes)
+		/*
+			fmt.Println("-- res --")
+			fmt.Println(c)
+			fmt.Println(dep)
+			fmt.Println(rr.result)
 
-		// handler.A(cc, nodes)
-		for _, n := range nodes {
-			spec, err := handler.Initialize(grp, nodes, n)
-			if err != nil {
-				panic(err)
-			}
+			eval.Plan = rr.result
+		*/
 
-			spec.Image = typ.Image
-			spec.Version = typ.Version
-
-			fmt.Println("- spec -")
-			fmt.Println(spec)
-		}
-
-		// after this, you have this nodes that have changed the state
-		// upsert the instances and do stuff with them if necessary in another reconciler.
-		// BUT, we have to do this serialized? not in every case.
 	}
 }
 

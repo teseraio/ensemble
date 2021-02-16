@@ -220,6 +220,12 @@ message Instance {
     // PROVISIONAL
     NodeSpec spec = 11;
 
+    Status status = 12;
+
+    enum Status {
+        PENDING = 0;
+    }
+
     /*
     string Nodetype = 6; // is this required?
 
