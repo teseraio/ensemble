@@ -11,9 +11,9 @@ func TestApply(t *testing.T) {
 	c := &proto.Component{
 		Id: "A",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-			Sets: []*proto.ClusterSpec_Set{
+			Groups: []*proto.ClusterSpec_Group{
 				{
-					Replicas: 3,
+					Count: 3,
 				},
 			},
 		}),

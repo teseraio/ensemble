@@ -9,6 +9,7 @@ type NodeUpdate struct {
 	// id of the node that has failed
 	ID        string
 	ClusterID string
+	IP        string
 }
 
 // Provider is the entity that holds the state of the infrastructure. Both
@@ -27,7 +28,7 @@ type Provider interface {
 	DeleteResource(*proto.Instance) (*proto.Instance, error)
 
 	// WatchUpdates watches for updates from nodes
-	WatchUpdates() chan *NodeUpdate
+	WatchUpdates() chan *proto.InstanceUpdate
 
 	// Exec executes a shell script
 	Exec(handler string, path string, args ...string) error

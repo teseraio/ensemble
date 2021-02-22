@@ -32,11 +32,13 @@ type Handler interface {
 	// EvaluatePlan evaluates and modifies the execution plan
 	EvaluatePlan(n []*proto.Instance) error
 
+	EvaluateConfig(spec *proto.NodeSpec, config map[string]string) error
+
 	Initialize(grp *proto.Group, n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error)
 	// A(clr *proto.Cluster, n []*proto.Node) error
 
 	// PostHook is executed when a node changes the state
-	PostHook(*HookCtx) error
+	// PostHook(*HookCtx) error
 
 	// Spec returns the specification for the cluster
 	Spec() *Spec

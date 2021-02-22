@@ -34,6 +34,7 @@ type State interface {
 
 	UpsertNode(n *proto.Instance) error
 	LoadDeployment(id string) (*proto.Deployment, error)
+	LoadInstance(cluster, id string) (*proto.Instance, error)
 
 	// Finalize notifies when a component has been reconciled
 	// TODO: Good for for an Evaluation

@@ -9,6 +9,11 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const (
+	InstanceDesiredRunning = "running"
+	InstanceDesiredStopped = "stopped"
+)
+
 func Equal(p0, p1 proto.Message) bool {
 	m0, err := proto.Marshal(p0)
 	if err != nil {
@@ -26,6 +31,14 @@ func (c *Cluster) Size() int {
 	return len(c.Nodes)
 }
 */
+func (c *ClusterSpec) LookupGroup(name string) *ClusterSpec_Group {
+	for _, g := range c.Groups {
+		if g.Name == name {
+			return g
+		}
+	}
+	return nil
+}
 
 func (c *Cluster) LookupGroup(name string) *Group {
 	for _, g := range c.Groups {
@@ -84,9 +97,9 @@ func (m *Node_Mount) Copy() *Node_Mount {
 
 func (n *Instance) FullName() string {
 	if n.Cluster != "" {
-		return n.ID + "." + n.Cluster
+		return n.Name + "." + n.Cluster
 	}
-	return n.ID
+	return n.Name
 }
 
 func (n *Instance) Get(k string) string {

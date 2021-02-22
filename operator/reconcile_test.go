@@ -1,36 +1,32 @@
 package operator
 
-import (
-	"fmt"
-	"testing"
-
-	"github.com/teseraio/ensemble/operator/proto"
-)
-
+/*
 func TestReconcile(t *testing.T) {
 	a := &allocReconciler{
-		c: &proto.Cluster{
-			Groups: []*proto.Group{
+		c: &proto.ClusterSpec{
+			Sets: []*proto.ClusterSpec_Set{
 				{
-					Count:    3,
-					Nodeset:  "a",
-					Revision: 5,
+					Name:     "a",
+					Replicas: 3,
 				},
 			},
 		},
-		nodes: []*proto.Instance{
-			{
-				ID:       "a",
-				Group:    "a",
-				Revision: 4,
-			},
-			{
-				ID:       "b",
-				Group:    "a",
-				Revision: 4,
+		dep: &proto.Deployment{
+			Instances: []*proto.Instance{
+				{
+					ID:       "a",
+					Group:    "a",
+					Revision: 4,
+				},
+				{
+					ID:       "b",
+					Group:    "a",
+					Revision: 4,
+				},
 			},
 		},
 	}
 	a.reconcile()
 	fmt.Println(a.result)
 }
+*/

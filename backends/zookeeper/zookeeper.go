@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 )
@@ -12,7 +13,7 @@ import (
 const (
 	// keyIndx is the key to store the index node
 	// in the cluster
-	keyIndx = "Indx"
+	// keyIndx = "Indx"
 
 	// keyRole is the key to store the role of the
 	// node in the ensemble (observer, participant)
@@ -40,29 +41,49 @@ func (b *backend) PostHook(*operator.HookCtx) error {
 	return nil
 }
 
+func (b *backend) EvaluateConfig(spec *proto.NodeSpec, cc map[string]string) error {
+	spec.Image = "zookeeper"
+	spec.Version = "3.6"
+
+	// this should be pretty deterministic
+	var c *config
+	if err := mapstructure.WeakDecode(cc, &c); err != nil {
+		return err
+	}
+	if c != nil {
+		if c.TickTime != 0 {
+			spec.AddEnv("ZOO_TICK_TIME", strconv.Itoa(int(c.TickTime)))
+		}
+	}
+	return nil
+}
+
 func (b *backend) Initialize(clr *proto.Group, nodes []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
-	spec := &proto.NodeSpec{}
+	target.Spec = &proto.NodeSpec{}
 
 	// Id of the instance
-	spec.AddEnv("ZOO_MY_ID", target.Get(keyIndx))
+	target.Spec.AddEnv("ZOO_MY_ID", strconv.Itoa(int(target.Index)))
 
 	// list of the zookeeper instances
 	res := []string{}
 	for _, node := range nodes {
 		res = append(res, getZkNodeSpec(node))
 	}
-	spec.AddEnv("ZOO_SERVERS", strings.Join(res, " "))
+	target.Spec.AddEnv("ZOO_SERVERS", strings.Join(res, " "))
 
-	return spec, nil
+	fmt.Println(target.Spec)
+
+	return nil, nil
 }
 
 // EvaluatePlan implements the Handler interface
 func (b *backend) EvaluatePlan(n []*proto.Instance) error {
 	// set the index of each node
-	for indx, nn := range n {
-		nn.Set(keyIndx, strconv.Itoa(indx))
-	}
-
+	/*
+		for indx, nn := range n {
+			nn.Set(keyIndx, strconv.Itoa(indx))
+		}
+	*/
 	/*
 		switch obj := ctx.Plan.Action.(type) {
 		case *proto.Plan_Step_ActionScale_:
@@ -159,7 +180,7 @@ func (b *backend) evaluatePlanScaleDown(ctx *operator.PlanCtx, action *proto.Pla
 //}
 
 func getZkNodeSpec(node *proto.Instance) string {
-	return fmt.Sprintf("server.%s=%s:2888:3888;2181", node.Get(keyIndx), node.FullName())
+	return fmt.Sprintf("server.%d=%s:2888:3888;2181", node.Index, node.FullName())
 }
 
 type config struct {

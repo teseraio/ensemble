@@ -67,15 +67,39 @@ message ClusterSpec {
     // version of the backend (RESERVED)
     string version = 3;
 
-    repeated Set sets = 4;
+    repeated Group groups = 4;
 
-    message Set {
+    message Group {
         string name = 1;
-        int64 replicas = 2;
+        int64 count = 2;
         string type = 3;
         map<string, string> config = 4;
         map<string, string> resources = 5;
     }
+
+    int64 generation = 5;
+}
+
+// Description of the cluster
+message ClusterSpec2 {
+    // name of the backend
+    string backend = 2;
+
+    // version of the backend (RESERVED)
+    string version = 3;
+
+    Group group = 4;
+
+    message Group {
+        string name = 1;
+        int64 count = 2;
+        string type = 3;
+        map<string, string> config = 4;
+        map<string, string> resources = 5;
+        int64 revision = 6;
+    }
+
+    int64 revision = 5;
 }
 
 // Description of the resource
@@ -199,12 +223,45 @@ message Deployment {
     string id = 1;
 
     repeated Instance instances = 2;
+
+    map<string, GroupState> groups = 3;
+
+    message GroupState {
+        int64 desired = 1; // not necessary
+        int64 update = 2;
+    }
+}
+
+message InstanceUpdate {
+    string ID = 1;
+
+    string Cluster = 2;
+
+    oneof event {
+        ConfDone conf = 3;
+        StatusChange status = 4;
+    }
+
+    message StatusChange {
+        Status status = 1;
+
+        enum Status {
+            FAILED = 0;
+        }
+    }
+
+    message ConfDone {
+        string ip = 1;
+        string handler = 2;
+    }
 }
 
 // represents a POD
 message Instance {
     string ID = 1;
     
+    string Name = 2;
+
     string Namespace = 4;
     
     string Cluster = 3;
@@ -224,8 +281,27 @@ message Instance {
 
     enum Status {
         PENDING = 0;
+        FAILED = 1;
+        OUT = 2;
+        RUNNING = 3;
+        TAINTED = 4;
     }
 
+    string desired = 13;
+
+    bool canary = 14;
+
+    bool healthy = 15;
+    
+    int64 count = 22;
+
+    string ip = 23;
+    
+    // previous instance if this is replacing another one
+    string prev = 24;
+
+    string handler = 25;
+    
     /*
     string Nodetype = 6; // is this required?
 
@@ -270,6 +346,7 @@ message Evaluation {
     enum Trigger {
         UNKNOWN = 0;
         SPECCHANGE = 1;
+        NODECHANGE = 2;
     }
 }
 

@@ -48,9 +48,9 @@ func TestSuite(t *testing.T, setup setupFn) {
 			Id:   "A",
 			Name: "A",
 			Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-				Sets: []*proto.ClusterSpec_Set{
+				Groups: []*proto.ClusterSpec_Group{
 					{
-						Replicas: 3,
+						Count: 3,
 					},
 				},
 			}),

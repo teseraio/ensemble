@@ -12,6 +12,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/operator/state"
 	"github.com/teseraio/ensemble/schema"
@@ -46,6 +47,7 @@ type Server struct {
 	stopCh     chan struct{}
 
 	service proto.EnsembleServiceServer
+	dep     *Deployment
 }
 
 // NewServer starts an instance of the operator server
@@ -91,9 +93,7 @@ func (s *Server) setupWatcher() {
 	for {
 		select {
 		case op := <-watchCh:
-			if err := s.handleNodeFailure(op); err != nil {
-				s.logger.Error("failed to handle node failure: %v", err)
-			}
+			s.dep.notifyUpdate(op)
 
 		case <-s.stopCh:
 			return
@@ -102,7 +102,32 @@ func (s *Server) setupWatcher() {
 }
 
 func (s *Server) handleNodeFailure(n *NodeUpdate) error {
-	panic("TODO WITH EVALS")
+	s.logger.Debug("failed node", "cluster", n.ClusterID, "node", n.ID)
+
+	// change the status of the instance
+	instance, err := s.State.LoadInstance(n.ClusterID, n.ID)
+	if err != nil {
+		panic(err)
+	}
+	instance.Status = proto.Instance_FAILED
+	if err := s.State.UpsertNode(instance); err != nil {
+		panic(err)
+	}
+
+	// create an evaluation
+	eval := &proto.Evaluation{
+		Id:          uuid.UUID(),
+		Status:      proto.Evaluation_PENDING,
+		TriggeredBy: proto.Evaluation_NODECHANGE,
+		ClusterID:   n.ClusterID,
+		Generation:  1,
+	}
+	if err := s.State.AddEvaluation(eval); err != nil {
+		panic(err)
+	}
+
+	return nil
+
 	/*
 		// load cluster and handler
 		cluster, err := s.State.LoadCluster(n.ClusterID)
@@ -173,6 +198,12 @@ func (s *Server) Exec(n *proto.Instance, path string, cmd ...string) error {
 func (s *Server) taskQueue2() {
 	s.logger.Info("Starting task worker")
 
+	d := &Deployment{p: s.Provider, state: s.State, s: s}
+	d.setup()
+	go d.run()
+
+	s.dep = d
+
 	for {
 		eval, err := s.State.GetTask2(context.Background())
 		if err != nil {
@@ -185,50 +216,60 @@ func (s *Server) taskQueue2() {
 			panic(err)
 		}
 
-		/*
-			handler, ok := s.getHandler("Zookeeper")
-			if !ok {
-				panic("bad")
-			}
-		*/
+		handler, ok := s.getHandler("Zookeeper")
+		if !ok {
+			panic("bad")
+		}
 
-		fmt.Println("-- eval --")
+		fmt.Println("##### EVAL #####")
 		fmt.Println(new)
 
 		var spec proto.ClusterSpec
 		if err := gproto.Unmarshal(new.Spec.Value, &spec); err != nil {
 			panic(err)
 		}
+		spec.Generation = new.Sequence
 
-		fmt.Println("- spec -")
-		fmt.Println(spec)
-
-		// get cluster
-		c, err := s.State.GetCluster(eval.ClusterID)
-		if err != nil {
-			if err == state.ErrClusterNotFound {
-				c = &proto.Cluster{
-					Name:    eval.ClusterID,
-					Backend: spec.Backend,
+		/*
+			// get cluster
+			c, err := s.State.GetCluster(eval.ClusterID)
+			if err != nil {
+				if err == state.ErrClusterNotFound {
+					c = &proto.Cluster{
+						Name:    eval.ClusterID,
+						Backend: spec.Backend,
+					}
+				} else {
+					panic(err)
 				}
-			} else {
+			}
+
+			fmt.Println("-- c --")
+			fmt.Println(c)
+		*/
+
+		/*
+			rawConfig, err := json.Marshal(spec.Sets[0].Config)
+			if err != nil {
 				panic(err)
 			}
-		}
-
-		fmt.Println("-- c --")
-		fmt.Println(c)
-
-		c = &proto.Cluster{
-			Name: eval.ClusterID,
-			Groups: []*proto.Group{
-				{
-					Count: 3,
+			c := &proto.Cluster{
+				Name:       eval.ClusterID,
+				Generation: new.Sequence,
+				Groups: []*proto.Group{
+					{
+						Count: spec.Sets[0].Replicas,
+						Config: &any.Any{
+							Value: rawConfig,
+						},
+					},
 				},
-			},
-		}
+			}
+		*/
 
 		// convert clusterSpec to clusterObject
+
+		d.spec = &spec
 
 		// load current deployment
 		dep, err := s.State.LoadDeployment(eval.ClusterID)
@@ -236,12 +277,19 @@ func (s *Server) taskQueue2() {
 			panic(err)
 		}
 
+		fmt.Println("-- deployment --")
+		fmt.Println(dep)
+
 		fmt.Println("cc")
-		fmt.Println(c.Name)
+		fmt.Println(eval.ClusterID)
+
+		s.dep.dep = dep
 
 		rr := allocReconciler{
-			c:     c,
-			nodes: dep.Instances,
+			name:       eval.ClusterID,
+			c:          &spec,
+			dep:        s.dep.dep,
+			reconciler: handler,
 		}
 		rr.reconcile()
 
@@ -252,33 +300,46 @@ func (s *Server) taskQueue2() {
 			panic("X")
 		}
 
-		fmt.Println(res.scaleUp)
-		if res.scaleUp > 0 {
-			// scale up
-			for i := int64(0); i < res.scaleUp; i++ {
-				ii := c.NewInstance()
-				ii.Status = proto.Instance_PENDING
+		d.getResult(res)
 
-				fmt.Println("/ create node /")
-				fmt.Println(ii)
-				fmt.Println(ii.Cluster)
+		/*
+			for _, add := range res.add {
+				d.Update(add)
+			}
+			for _, add := range res.update {
+				d.Update(add)
+			}
+		*/
 
-				ii.Spec = &proto.NodeSpec{
-					Image:   "zookeeper",
-					Version: "3.6",
-				}
-				if ii, err = s.Provider.CreateResource(ii); err != nil {
-					panic(err)
-				}
-				// add to the cluster
-				if err := s.State.UpsertNode(ii); err != nil {
-					panic(err)
+		/*
+			fmt.Println(res.scaleUp)
+			if res.scaleUp > 0 {
+				// scale up
+				for i := int64(0); i < res.scaleUp; i++ {
+					ii := c.NewInstance()
+					ii.Status = proto.Instance_PENDING
+
+					fmt.Println("/ create node /")
+					fmt.Println(ii)
+					fmt.Println(ii.Cluster)
+
+					ii.Spec = &proto.NodeSpec{
+						Image:   "zookeeper",
+						Version: "3.6",
+					}
+					if ii, err = s.Provider.CreateResource(ii); err != nil {
+						panic(err)
+					}
+					// add to the cluster
+					if err := s.State.UpsertNode(ii); err != nil {
+						panic(err)
+					}
 				}
 			}
-		}
-		if res.scaleDown > 0 {
-			// remove node
-		}
+			if res.scaleDown > 0 {
+				// remove node
+			}
+		*/
 
 		/*
 			fmt.Println("-- res --")
@@ -666,7 +727,7 @@ func (s *Server) evaluateCluster(eval *proto.Component, spec *proto.ClusterSpec,
 
 	// validate the config for each node
 	nodeConfig := map[string]*NodeRes{}
-	for _, set := range spec.Sets {
+	for _, set := range spec.Groups {
 		spec, ok := handler.Spec().Nodetypes[set.Type]
 		if !ok {
 			return nil, fmt.Errorf("node type not found '%s'", set.Type)
@@ -704,7 +765,7 @@ func (s *Server) evaluateCluster(eval *proto.Component, spec *proto.ClusterSpec,
 	providerResource := s.Provider.Resources()
 
 	nodeResourcesByType := map[string]map[string]string{}
-	for _, set := range spec.Sets {
+	for _, set := range spec.Groups {
 		if err := validateResources(providerResource, set.Resources); err != nil {
 			return nil, fmt.Errorf("failed to validate provider resources: %v", err)
 		}

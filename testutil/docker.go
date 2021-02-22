@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/docker/docker/api/types"
@@ -31,9 +32,11 @@ type Client struct {
 	client    *client.Client
 	resources []*resource
 
+	workCh chan *proto.Instance
+
 	// TODO: Not here
 	volumes  map[string]string
-	updateCh chan *operator.NodeUpdate
+	updateCh chan *proto.InstanceUpdate
 }
 
 // NewClient creates a new docker Client
@@ -46,8 +49,10 @@ func NewDockerClient() (*Client, error) {
 		client:    cli,
 		resources: []*resource{},
 		volumes:   map[string]string{},
-		updateCh:  make(chan *operator.NodeUpdate),
+		updateCh:  make(chan *proto.InstanceUpdate),
+		workCh:    make(chan *proto.Instance, 5),
 	}
+	go clt.run()
 	return clt, nil
 }
 
@@ -63,10 +68,14 @@ func (c *Client) Remove(id string) error {
 	if err := c.client.ContainerStop(context.Background(), id, nil); err != nil {
 		return err
 	}
+	// we need to do this as well because we need to reuse the name for rolling updates
+	if err := c.client.ContainerRemove(context.Background(), id, types.ContainerRemoveOptions{}); err != nil {
+		panic(err)
+	}
 	return nil
 }
 
-func (c *Client) WatchUpdates() chan *operator.NodeUpdate {
+func (c *Client) WatchUpdates() chan *proto.InstanceUpdate {
 	return c.updateCh
 }
 
@@ -127,6 +136,18 @@ func createIfNotExists(path string) error {
 	return err
 }
 
+func (c *Client) run() {
+	worker := func(id string) {
+		for instance := range c.workCh {
+			c.createImpl(context.Background(), instance)
+		}
+	}
+	numWorkers := 2
+	for i := 0; i < numWorkers; i++ {
+		go worker(strconv.Itoa(i))
+	}
+}
+
 func (c *Client) execImpl(ctx context.Context, id string, execCmd []string) error {
 	ec := types.ExecConfig{
 		User:         "",
@@ -158,7 +179,8 @@ func (c *Client) execImpl(ctx context.Context, id string, execCmd []string) erro
 }
 
 // Create creates a docker container
-func (c *Client) Create(ctx context.Context, node *proto.Instance) (string, error) {
+func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, error) {
+	fmt.Println("CREATE")
 	// We will use the 'net1' network interface for dns resolving
 
 	builder := node.Spec
@@ -240,8 +262,29 @@ func (c *Client) Create(ctx context.Context, node *proto.Instance) (string, erro
 	// watch for updates in the node
 	go func() {
 		c.client.ContainerWait(context.Background(), body.ID)
-		c.updateCh <- &operator.NodeUpdate{ID: node.ID, ClusterID: node.Cluster}
+
+		c.updateCh <- &proto.InstanceUpdate{
+			ID:      node.ID,
+			Cluster: node.Cluster,
+			Event: &proto.InstanceUpdate_Status{
+				Status: &proto.InstanceUpdate_StatusChange{
+					Status: proto.InstanceUpdate_StatusChange_FAILED,
+				},
+			},
+		}
 	}()
+
+	ip := c.GetIP(body.ID)
+	c.updateCh <- &proto.InstanceUpdate{
+		ID:      node.ID,
+		Cluster: node.Cluster,
+		Event: &proto.InstanceUpdate_Conf{
+			Conf: &proto.InstanceUpdate_ConfDone{
+				Ip:      ip,
+				Handler: body.ID,
+			},
+		},
+	}
 	return body.ID, nil
 }
 
@@ -264,24 +307,10 @@ func (c *Client) Resources() interface{} {
 }
 
 func (c *Client) CreateResource(node *proto.Instance) (*proto.Instance, error) {
-	id, err := c.Create(context.TODO(), node)
-	if err != nil {
-		return nil, err
-	}
 
-	ip := c.GetIP(id)
+	c.workCh <- node
 
-	nn := node.Copy()
-
-	fmt.Println("_ FORGOT _")
-	fmt.Println(ip)
-
-	/*
-		nn.Addr = ip
-		nn.Handle = id
-	*/
-
-	return nn, nil
+	return nil, nil
 }
 
 func (c *Client) Exec(handler string, path string, args ...string) error {
@@ -292,8 +321,7 @@ func (c *Client) Exec(handler string, path string, args ...string) error {
 }
 
 func (c *Client) DeleteResource(node *proto.Instance) (*proto.Instance, error) {
-	panic("TODO")
-	if err := c.Remove("node.Handle"); err != nil {
+	if err := c.Remove(node.Handler); err != nil {
 		return nil, err
 	}
 	return node, nil

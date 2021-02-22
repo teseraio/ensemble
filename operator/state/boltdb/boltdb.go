@@ -381,6 +381,29 @@ func (b *BoltDB) Finalize(id string) error {
 	return nil
 }
 
+func (b *BoltDB) LoadInstance(cluster, id string) (*proto.Instance, error) {
+	tx, err := b.db.Begin(false)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	depsBkt := tx.Bucket(deploymentsBucket)
+
+	// find the sub-bucket for the cluster
+	depBkt := depsBkt.Bucket([]byte(cluster))
+	if depBkt == nil {
+		return nil, fmt.Errorf("bad")
+	}
+
+	nodeID := "node-" + id
+	instance := proto.Instance{}
+	if err := dbGet(depBkt, []byte(nodeID), &instance); err != nil {
+		return nil, err
+	}
+	return &instance, nil
+}
+
 func (b *BoltDB) LoadDeployment(id string) (*proto.Deployment, error) {
 	tx, err := b.db.Begin(false)
 	if err != nil {
@@ -400,12 +423,14 @@ func (b *BoltDB) LoadDeployment(id string) (*proto.Deployment, error) {
 	c := &proto.Deployment{
 		Instances: []*proto.Instance{},
 	}
-	if err := dbGet(depBkt, metaKey, c); err != nil {
-		if err == errNotFound {
-			return nil, fmt.Errorf("meta key not found")
+	/*
+		if err := dbGet(depBkt, metaKey, c); err != nil {
+			if err == errNotFound {
+				return nil, fmt.Errorf("meta key not found")
+			}
+			return nil, err
 		}
-		return nil, err
-	}
+	*/
 
 	// load the nodes under node-<id>
 	nodeCursor := depBkt.Cursor()
@@ -417,7 +442,9 @@ func (b *BoltDB) LoadDeployment(id string) (*proto.Deployment, error) {
 		if err := dbGet(depBkt, k, n); err != nil {
 			return nil, err
 		}
-		c.Instances = append(c.Instances, n)
+		if n.Status != proto.Instance_OUT {
+			c.Instances = append(c.Instances, n)
+		}
 	}
 	return c, nil
 }
