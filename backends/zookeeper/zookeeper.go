@@ -59,8 +59,6 @@ func (b *backend) EvaluateConfig(spec *proto.NodeSpec, cc map[string]string) err
 }
 
 func (b *backend) Initialize(clr *proto.Group, nodes []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
-	target.Spec = &proto.NodeSpec{}
-
 	// Id of the instance
 	target.Spec.AddEnv("ZOO_MY_ID", strconv.Itoa(int(target.Index)))
 
@@ -70,8 +68,6 @@ func (b *backend) Initialize(clr *proto.Group, nodes []*proto.Instance, target *
 		res = append(res, getZkNodeSpec(node))
 	}
 	target.Spec.AddEnv("ZOO_SERVERS", strings.Join(res, " "))
-
-	fmt.Println(target.Spec)
 
 	return nil, nil
 }
@@ -198,6 +194,23 @@ func (b *backend) Spec() *operator.Spec {
 				Volumes: []*operator.Volume{},
 				Ports:   []*operator.Port{},
 				Config:  &config{},
+			},
+		},
+		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec2_Group){
+			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec2_Group) {
+				fmt.Println("X")
+				spec.Image = "zookeeper"
+				spec.Version = "3.6"
+
+				var c *config
+				if err := mapstructure.WeakDecode(grp.Config, &c); err != nil {
+					panic(err)
+				}
+				if c != nil {
+					if c.TickTime != 0 {
+						spec.AddEnv("ZOO_TICK_TIME", strconv.Itoa(int(c.TickTime)))
+					}
+				}
 			},
 		},
 	}

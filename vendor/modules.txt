@@ -51,15 +51,13 @@ github.com/docker/spdystream
 github.com/docker/spdystream/spdy
 # github.com/fatih/color v1.7.0
 github.com/fatih/color
-# github.com/go-zookeeper/zk v1.0.2
-## explicit
-github.com/go-zookeeper/zk
 # github.com/golang/protobuf v1.4.3
 ## explicit
 github.com/golang/protobuf/proto
 github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
+github.com/golang/protobuf/ptypes/empty
 github.com/golang/protobuf/ptypes/timestamp
 # github.com/google/gops v0.3.12
 ## explicit
@@ -209,6 +207,7 @@ google.golang.org/protobuf/runtime/protoiface
 google.golang.org/protobuf/runtime/protoimpl
 google.golang.org/protobuf/types/known/anypb
 google.golang.org/protobuf/types/known/durationpb
+google.golang.org/protobuf/types/known/emptypb
 google.golang.org/protobuf/types/known/timestamppb
 # gopkg.in/yaml.v2 v2.3.0
 ## explicit

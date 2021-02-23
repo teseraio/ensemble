@@ -57,6 +57,7 @@ type Spec struct {
 	Name      string
 	Nodetypes map[string]Nodetype
 	Resources []Resource
+	Handlers  map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec2_Group)
 }
 
 // Nodetype is a type of node for the Backend

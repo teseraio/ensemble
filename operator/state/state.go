@@ -32,6 +32,7 @@ type State interface {
 	// LoadCluster loads a cluster from memory
 	// LoadCluster(id string) (*proto.Cluster, error)
 
+	UpdateDeployment(d *proto.Deployment) error
 	UpsertNode(n *proto.Instance) error
 	LoadDeployment(id string) (*proto.Deployment, error)
 	LoadInstance(cluster, id string) (*proto.Instance, error)

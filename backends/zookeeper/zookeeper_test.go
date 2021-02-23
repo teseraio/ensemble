@@ -1,6 +1,7 @@
 package zookeeper
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -14,11 +15,12 @@ func TestBootstrap(t *testing.T) {
 
 	srv.Apply(&proto.Component{
 		Name: "A",
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec2{
 			Backend: "Zookeeper",
-			Sets: []*proto.ClusterSpec_Set{
+			Groups: []*proto.ClusterSpec2_Group{
 				{
-					Replicas: 3,
+					Count:    3,
+					Revision: 1,
 				},
 			},
 		}),
@@ -28,13 +30,16 @@ func TestBootstrap(t *testing.T) {
 
 	time.Sleep(3 * time.Second)
 
+	fmt.Printf("\n\n\nSTART REVISION\n\n\n")
+
 	srv.Apply(&proto.Component{
 		Name: "A",
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec2{
 			Backend: "Zookeeper",
-			Sets: []*proto.ClusterSpec_Set{
+			Groups: []*proto.ClusterSpec2_Group{
 				{
-					Replicas: 3,
+					Count:    3,
+					Revision: 2,
 					Config: map[string]string{
 						"tickTime": "3000",
 					},
@@ -44,6 +49,10 @@ func TestBootstrap(t *testing.T) {
 	})
 
 	time.Sleep(3 * time.Second)
+
+	//srv.Destroy(0)
+
+	//time.Sleep(3 * time.Second)
 }
 
 /*

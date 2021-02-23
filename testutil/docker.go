@@ -15,6 +15,7 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/client"
+	"github.com/mitchellh/mapstructure"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 )
@@ -25,12 +26,13 @@ type resource struct {
 	nodeID    string
 	handle    string
 	clusterID string
+	instance  *proto.Instance
 }
 
 // Client is a sugarcoat version of the docker client
 type Client struct {
 	client    *client.Client
-	resources []*resource
+	resources map[string]*resource
 
 	workCh chan *proto.Instance
 
@@ -47,7 +49,7 @@ func NewDockerClient() (*Client, error) {
 	}
 	clt := &Client{
 		client:    cli,
-		resources: []*resource{},
+		resources: map[string]*resource{},
 		volumes:   map[string]string{},
 		updateCh:  make(chan *proto.InstanceUpdate),
 		workCh:    make(chan *proto.Instance, 5),
@@ -139,7 +141,9 @@ func createIfNotExists(path string) error {
 func (c *Client) run() {
 	worker := func(id string) {
 		for instance := range c.workCh {
-			c.createImpl(context.Background(), instance)
+			if _, err := c.createImpl(context.Background(), instance); err != nil {
+				panic(err)
+			}
 		}
 	}
 	numWorkers := 2
@@ -178,6 +182,20 @@ func (c *Client) execImpl(ctx context.Context, id string, execCmd []string) erro
 	return nil
 }
 
+func (c *Client) removeByName(n string) error {
+	fmt.Println("_ REMOVE CANARY _")
+
+	for name, i := range c.resources {
+		if i.instance.FullName() == n {
+			if err := c.Remove(i.handle); err != nil {
+				return err
+			}
+			delete(c.resources, name)
+		}
+	}
+	return nil
+}
+
 // Create creates a docker container
 func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, error) {
 	fmt.Println("CREATE")
@@ -187,6 +205,13 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 
 	image := builder.Image + ":" + builder.Version
 	name := node.FullName()
+
+	if node.Canary {
+		// we need to remove the container name first
+		if err := c.removeByName(name); err != nil {
+			return "", err
+		}
+	}
 
 	// Build the volumes
 	binds := []string{}
@@ -225,19 +250,17 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 		Binds: binds,
 	}
 
-	/*
-		// decode computational resources
-		resConfig := c.Resources().(*Resource)
-		if err := mapstructure.WeakDecode(node.Resources.Spec, &resConfig); err != nil {
-			return "", err
+	// decode computational resources
+	resConfig := c.Resources().(*Resource)
+	if err := mapstructure.WeakDecode(node.Group.Resources, &resConfig); err != nil {
+		return "", err
+	}
+	if resConfig != nil {
+		hostConfig.Resources = container.Resources{
+			CPUShares: int64(resConfig.CPUShares),
+			CPUCount:  int64(resConfig.CPUCount),
 		}
-		if resConfig != nil {
-			hostConfig.Resources = container.Resources{
-				CPUShares: int64(resConfig.CPUShares),
-				CPUCount:  int64(resConfig.CPUCount),
-			}
-		}
-	*/
+	}
 
 	netConfig := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
@@ -250,11 +273,12 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 		panic(err)
 	}
 
-	c.resources = append(c.resources, &resource{
+	c.resources[node.ID] = &resource{
 		nodeID:    node.ID,
 		handle:    body.ID,
 		clusterID: node.Cluster,
-	})
+		instance:  node,
+	}
 	if err := c.client.ContainerStart(ctx, body.ID, types.ContainerStartOptions{}); err != nil {
 		return "", err
 	}
@@ -289,12 +313,14 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 }
 
 func (c *Client) Destroy(indx int) {
-	res := c.resources[indx]
+	/*
+		res := c.resources[indx]
 
-	// stop + remove does not work, so just remove with force
-	if err := c.client.ContainerRemove(context.Background(), res.handle, types.ContainerRemoveOptions{Force: true}); err != nil {
-		panic(err)
-	}
+		// stop + remove does not work, so just remove with force
+		if err := c.client.ContainerRemove(context.Background(), res.handle, types.ContainerRemoveOptions{Force: true}); err != nil {
+			panic(err)
+		}
+	*/
 }
 
 type Resource struct {

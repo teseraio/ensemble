@@ -416,6 +416,7 @@ func (b *BoltDB) LoadDeployment(id string) (*proto.Deployment, error) {
 	// find the sub-bucket for the cluster
 	depBkt := depsBkt.Bucket([]byte(id))
 	if depBkt == nil {
+		// cannot create it coz txn is not writtable
 		return &proto.Deployment{Id: id, Instances: []*proto.Instance{}}, nil
 	}
 
@@ -423,14 +424,12 @@ func (b *BoltDB) LoadDeployment(id string) (*proto.Deployment, error) {
 	c := &proto.Deployment{
 		Instances: []*proto.Instance{},
 	}
-	/*
-		if err := dbGet(depBkt, metaKey, c); err != nil {
-			if err == errNotFound {
-				return nil, fmt.Errorf("meta key not found")
-			}
-			return nil, err
+	if err := dbGet(depBkt, metaKey, c); err != nil {
+		if err == errNotFound {
+			return nil, fmt.Errorf("meta key not found")
 		}
-	*/
+		return nil, err
+	}
 
 	// load the nodes under node-<id>
 	nodeCursor := depBkt.Cursor()
@@ -447,6 +446,30 @@ func (b *BoltDB) LoadDeployment(id string) (*proto.Deployment, error) {
 		}
 	}
 	return c, nil
+}
+
+func (b *BoltDB) UpdateDeployment(d *proto.Deployment) error {
+	tx, err := b.db.Begin(true)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	depsBkt := tx.Bucket(deploymentsBucket)
+
+	// find the sub-bucket for the cluster
+	depBkt, _ := depsBkt.CreateBucketIfNotExists([]byte(d.Id))
+
+	dd := d.Copy()
+	dd.Instances = nil
+
+	if err := dbPut(depBkt, metaKey, dd); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // UpsertNode implements the BoltDB interface

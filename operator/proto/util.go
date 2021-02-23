@@ -10,6 +10,11 @@ import (
 )
 
 const (
+	DeploymentDone    = "done"
+	DeploymentRunning = "running"
+)
+
+const (
 	InstanceDesiredRunning = "running"
 	InstanceDesiredStopped = "stopped"
 )
@@ -84,6 +89,10 @@ func (c *Cluster) NodeAtIndex(ID string) int {
 	return -1
 }
 */
+
+func (d *Deployment) Copy() *Deployment {
+	return proto.Clone(d).(*Deployment)
+}
 
 func (c *Cluster) Copy() *Cluster {
 	return proto.Clone(c).(*Cluster)
