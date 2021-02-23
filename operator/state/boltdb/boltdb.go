@@ -44,8 +44,8 @@ func Factory(config map[string]interface{}) (state.State, error) {
 		return nil, err
 	}
 	b := &BoltDB{
-		db:     db,
-		queue:  newTaskQueue(),
+		db: db,
+		// queue:  newTaskQueue(),
 		queue2: newTaskQueue2(),
 	}
 	if err := b.initialize(); err != nil {
@@ -56,8 +56,8 @@ func Factory(config map[string]interface{}) (state.State, error) {
 
 // BoltDB is a boltdb state implementation
 type BoltDB struct {
-	db     *bolt.DB
-	queue  *taskQueue
+	db *bolt.DB
+	// queue  *taskQueue
 	queue2 *taskQueue2
 
 	waitChLock sync.Mutex
@@ -140,7 +140,8 @@ func (b *BoltDB) initialize() error {
 								return err
 							}
 						}
-						b.queue.add(&c, &old)
+						// TODO
+						// b.queue.add(&c, &old)
 						break
 					}
 				}
@@ -219,12 +220,10 @@ func (b *BoltDB) applyImpl(bucket []byte, c *proto.Component) (int64, error) {
 		return 0, err
 	}
 
-	/*
-		// update the index if there is no task for this id
-		if !b.queue.existsByName(c.Name) {
-			b.queue.add(c, &old)
-		}
-	*/
+	// if the old value is completed, create an evaluation
+	if old.Status == proto.Component_APPLIED || old.Status == proto.Component_UNKNOWN {
+		b.queue2.add(evalFromComponent(c))
+	}
 	return c.Sequence, nil
 }
 
@@ -320,19 +319,37 @@ func (b *BoltDB) GetComponent(id string, generation int64) (*proto.Component, *p
 }
 
 func (b *BoltDB) GetTask(ctx context.Context) (*proto.ComponentTask, error) {
-	t := b.queue.pop(ctx)
-	if t == nil {
-		return nil, nil
-	}
-	return t.ComponentTask, nil
+	panic("TODO")
+	/*
+		t := b.queue.pop(ctx)
+		if t == nil {
+			return nil, nil
+		}
+		return t.ComponentTask, nil
+	*/
 }
 
 func seqID(seq int64) []byte {
 	return []byte(fmt.Sprintf("seq-%d", seq))
 }
 
+func evalFromComponent(c *proto.Component) *proto.Evaluation {
+	eval := &proto.Evaluation{
+		Id:          c.Id,
+		Status:      proto.Evaluation_PENDING,
+		TriggeredBy: proto.Evaluation_SPECCHANGE,
+		ClusterID:   c.Name,
+		Generation:  c.Sequence,
+	}
+	return eval
+}
+
+// XXX. Finalize was used to finalize an evaluation when the evaluation was the whole cluster change.
+// Now, an evaluation is a business logic trigger, now, we do not have to finalize evaluations anymore because they are
+// ephemeral. This works because we set the eval id as the component id. Later on remove this.
+
 func (b *BoltDB) Finalize(id string) error {
-	task, ok := b.queue.finalize(id)
+	task, ok := b.queue2.finalize(id)
 	if !ok {
 		return fmt.Errorf("task for id '%s' not found", id)
 	}
@@ -343,7 +360,10 @@ func (b *BoltDB) Finalize(id string) error {
 	}
 	defer tx.Rollback()
 
-	comp := task.New
+	comp, _, err := b.GetComponent(task.Evaluation.ClusterID, task.Evaluation.Generation)
+	if err != nil {
+		panic(err)
+	}
 
 	generalBkt := tx.Bucket(clusterIndex)
 
@@ -363,7 +383,7 @@ func (b *BoltDB) Finalize(id string) error {
 		}
 	} else {
 		// there exists a next component
-		b.queue.add(&nextComp, comp)
+		b.queue2.add(evalFromComponent(&nextComp))
 	}
 
 	if err := tx.Commit(); err != nil {

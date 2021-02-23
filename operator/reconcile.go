@@ -2,6 +2,7 @@ package operator
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
@@ -201,7 +202,7 @@ func (r *reconciler2) computeGroup(grp *proto.ClusterSpec2_Group) bool {
 
 	// destructive updates (TODO: inplace)
 	var destructive allocSet
-	destructive, untainted = computeUpdates(grp, untainted)
+	destructive, untainted = computeUpdates(r.spec, grp, untainted)
 
 	// rolling update
 	updates := allocSet{}
@@ -252,26 +253,42 @@ func (r *reconciler2) computeGroup(grp *proto.ClusterSpec2_Group) bool {
 		}
 	}
 
+	r.done = false
 	if allHealthy {
-		r.done = true
-	} else {
-		r.done = false
+		if len(updates) == 0 && len(place) == 0 {
+			r.done = true
+		}
 	}
 
 	isComplete := len(destructive)+len(place)+len(reschedule) == 0 && !isRolling
 	return isComplete
 }
 
-func computeUpdates(grp *proto.ClusterSpec2_Group, alloc allocSet) (destructive allocSet, untainted allocSet) {
+func computeUpdates(spec *proto.ClusterSpec2, grp *proto.ClusterSpec2_Group, alloc allocSet) (destructive allocSet, untainted allocSet) {
 	untainted = allocSet{}
 	destructive = allocSet{}
 
 	for _, i := range alloc {
-		if i.Group.Revision != grp.Revision {
-			destructive = append(destructive, i)
+		if spec.Sequence != i.Sequence {
+			// check if the changes are destructive
+			if areDiff(grp, i.Group) {
+				destructive = append(destructive, i)
+			} else {
+				untainted = append(untainted, i)
+			}
 		} else {
 			untainted = append(untainted, i)
 		}
 	}
 	return
+}
+
+func areDiff(grp *proto.ClusterSpec2_Group, other *proto.ClusterSpec2_Group) bool {
+	if !reflect.DeepEqual(grp.Config, other.Config) {
+		return true
+	}
+	if !reflect.DeepEqual(grp.Resources, other.Resources) {
+		return true
+	}
+	return false
 }

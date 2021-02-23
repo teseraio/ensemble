@@ -12,20 +12,19 @@ func TestReconcile(t *testing.T) {
 		dep: &proto.Deployment{
 			Instances: []*proto.Instance{
 				{
-					Healthy: true,
-					Group: &proto.ClusterSpec2_Group{
-						Revision: 3,
-					},
+					Healthy:  true,
+					Group:    &proto.ClusterSpec2_Group{},
+					Sequence: 2,
 				},
 			},
 		},
 		spec: &proto.ClusterSpec2{
 			Groups: []*proto.ClusterSpec2_Group{
 				{
-					Count:    5,
-					Revision: 3,
+					Count: 5,
 				},
 			},
+			Sequence: 2,
 		},
 	}
 	r.Compute()

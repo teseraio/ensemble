@@ -110,10 +110,9 @@ message ClusterSpec2 {
         string type = 3;
         map<string, string> config = 4;
         map<string, string> resources = 5;
-        int64 revision = 6;
     }
 
-    int64 revision = 5;
+    int64 sequence = 5;
 }
 
 // Description of the resource
@@ -246,6 +245,10 @@ message Deployment {
     }
 
     string status = 4;
+
+    int64 sequence = 5;
+
+    string compID = 6;
 }
 
 message InstanceUpdate {
@@ -318,6 +321,8 @@ message Instance {
 
     string handler = 25;
     
+    int64 sequence = 26;
+
     /*
     string Nodetype = 6; // is this required?
 

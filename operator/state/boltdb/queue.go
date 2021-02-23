@@ -9,6 +9,8 @@ import (
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
+// TODO: REMOVE
+
 type task struct {
 	*proto.ComponentTask
 

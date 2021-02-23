@@ -2,7 +2,6 @@ package operator
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/teseraio/ensemble/lib/uuid"
@@ -27,23 +26,6 @@ func (s *service) Apply(ctx context.Context, component *proto.Component) (*proto
 		return component, nil
 	}
 
-	fmt.Println("-- seq --")
-	fmt.Println(seq)
-
-	// TODO: Validate and check which type of object it is
-	// Right now only works for clusters
-
-	// create an evaluation
-	eval := &proto.Evaluation{
-		Id:          uuid.UUID(),
-		Status:      proto.Evaluation_PENDING,
-		TriggeredBy: proto.Evaluation_SPECCHANGE,
-		ClusterID:   component.Name,
-		Generation:  seq,
-	}
-	if err := s.s.State.AddEvaluation(eval); err != nil {
-		return nil, err
-	}
 	return component, nil
 }
 

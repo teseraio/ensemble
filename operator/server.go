@@ -48,7 +48,6 @@ type Server struct {
 	stopCh     chan struct{}
 
 	service proto.EnsembleServiceServer
-	// dep     *Deployment
 
 	lock        sync.Mutex
 	deployments map[string]*deploymentWatcher
@@ -141,7 +140,7 @@ func (d *deploymentWatcher) updateStatus(op *proto.InstanceUpdate) {
 		Id:         uuid.UUID(),
 		Status:     proto.Evaluation_PENDING,
 		ClusterID:  op.Cluster,
-		Generation: 1,
+		Generation: 1, // TODO
 	}
 	if err := d.s.State.AddEvaluation(eval); err != nil {
 		panic(err)
@@ -187,35 +186,6 @@ func (s *Server) setupWatcher() {
 		}
 	}
 }
-
-/*
-func (s *Server) handleNodeFailure(n *NodeUpdate) error {
-	s.logger.Debug("failed node", "cluster", n.ClusterID, "node", n.ID)
-
-	// change the status of the instance
-	instance, err := s.State.LoadInstance(n.ClusterID, n.ID)
-	if err != nil {
-		return err
-	}
-	instance.Status = proto.Instance_FAILED
-	if err := s.State.UpsertNode(instance); err != nil {
-		return err
-	}
-
-	// create an evaluation
-	eval := &proto.Evaluation{
-		Id:          uuid.UUID(),
-		Status:      proto.Evaluation_PENDING,
-		TriggeredBy: proto.Evaluation_NODECHANGE,
-		ClusterID:   n.ClusterID,
-		Generation:  1,
-	}
-	if err := s.State.AddEvaluation(eval); err != nil {
-		return err
-	}
-	return nil
-}
-*/
 
 func (s *Server) setupGRPCServer(addr string) error {
 	lis, err := net.Listen("tcp", addr)
@@ -277,12 +247,16 @@ func (s *Server) taskQueue2() {
 			panic(err)
 		}
 		spec.Name = eval.ClusterID
+		spec.Sequence = new.Sequence
 
 		// get the deployment
 		dep, err := s.State.LoadDeployment(eval.ClusterID)
 		if err != nil {
 			panic(err)
 		}
+
+		dep.Sequence = new.Sequence
+		dep.CompID = new.Id
 
 		r := &reconciler2{
 			dep:  dep,
@@ -294,6 +268,7 @@ func (s *Server) taskQueue2() {
 		if r.done {
 			fmt.Println("____ DONE ____")
 			dep.Status = proto.DeploymentDone
+			// notify status
 		} else {
 			fmt.Println("____ RUNNING ____")
 			dep.Status = proto.DeploymentRunning
@@ -355,9 +330,16 @@ func (s *Server) taskQueue2() {
 			// create the instance
 			go depW.Update(i.instance)
 		}
+
+		if r.done {
+			if err := s.State.Finalize(dep.CompID); err != nil {
+				panic(err)
+			}
+		}
 	}
 }
 
+/*
 func (s *Server) taskQueue() {
 	s.logger.Info("Starting task worker")
 
@@ -379,6 +361,7 @@ func (s *Server) taskQueue() {
 		}
 	}
 }
+*/
 
 func (s *Server) getHandler(name string) (Handler, bool) {
 	h, ok := s.handlers[strings.ToLower(name)]

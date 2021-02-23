@@ -26,6 +26,11 @@ type TestServer struct {
 	clt    proto.EnsembleServiceClient
 }
 
+type taskWrap struct {
+	id   string
+	name string
+}
+
 func (t *TestServer) Apply(c *proto.Component) string {
 	cc, err := t.clt.Apply(context.Background(), c)
 	if err != nil {

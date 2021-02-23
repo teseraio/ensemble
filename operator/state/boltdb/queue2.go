@@ -33,18 +33,6 @@ func newTaskQueue2() *taskQueue2 {
 	}
 }
 
-func (t *taskQueue2) existsByName(id string) bool {
-	t.lock.Lock()
-	defer t.lock.Unlock()
-
-	for _, i := range t.items {
-		if i.Id == id {
-			return true
-		}
-	}
-	return false
-}
-
 func (t *taskQueue2) get(id string) (*task2, bool) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
@@ -93,6 +81,7 @@ POP:
 	}
 }
 
+// TODO: REMOVE. Delete the evals on pop
 func (t *taskQueue2) finalize(id string) (*task2, bool) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
