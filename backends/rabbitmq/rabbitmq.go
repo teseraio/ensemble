@@ -35,7 +35,7 @@ cluster_formation.classic_config.nodes.2 = rabbit@A1.A
 cluster_formation.classic_config.nodes.3 = rabbit@A2.A
 */
 
-func (b *backend) Initialize(grp *proto.Group, n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
+func (b *backend) Initialize(n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
 	target.Spec.AddEnv("RABBITMQ_ERLANG_COOKIE", "TODO")
 	target.Spec.AddEnv("RABBITMQ_USE_LONGNAME", "true")
 

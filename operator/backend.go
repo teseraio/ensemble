@@ -6,7 +6,6 @@ import "github.com/teseraio/ensemble/operator/proto"
 type HandlerFactory func() Handler
 
 type HookCtx struct {
-	Cluster  *proto.Cluster
 	Node     *proto.Instance
 	Executor Executor
 }
@@ -25,7 +24,7 @@ type Handler interface {
 
 	//EvaluateConfig(spec *proto.NodeSpec, config map[string]string) error
 
-	Initialize(grp *proto.Group, n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error)
+	Initialize(n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error)
 	// A(clr *proto.Cluster, n []*proto.Node) error
 
 	Ready(t *proto.Instance) bool

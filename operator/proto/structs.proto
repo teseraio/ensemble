@@ -71,6 +71,7 @@ message Component {
     }
 }
 
+/*
 // Description of the cluster
 message ClusterSpec {
     // name of the backend
@@ -91,6 +92,7 @@ message ClusterSpec {
 
     int64 generation = 5;
 }
+*/
 
 // Description of the cluster
 message ClusterSpec2 {
@@ -127,12 +129,11 @@ message ResourceSpec {
     string params = 4;
 }
 
+/*
 message NodeUpdate {
     string id = 1;
     string state = 2;
 }
-
-/* Describes the internal cluster object expected */
 
 message Cluster {
     string name = 1;
@@ -184,6 +185,7 @@ message Group {
         UPDATE = 1;
     }
 }
+*/
 
 // This is not important to keep on the Instance stored since we can rebuild this at any
 // time because the function Initialize is deterministic??
@@ -198,6 +200,7 @@ message NodeSpec {
     repeated string cmd = 5;
 }
 
+/*
 message Context {
     Plan plan = 1;
     Cluster cluster = 3;
@@ -229,6 +232,7 @@ message Plan {
         }
     }
 }
+*/
 
 /* Deployment describes the current state of the cluster */
 

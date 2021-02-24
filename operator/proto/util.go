@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -36,31 +35,6 @@ func (c *Cluster) Size() int {
 	return len(c.Nodes)
 }
 */
-func (c *ClusterSpec) LookupGroup(name string) *ClusterSpec_Group {
-	for _, g := range c.Groups {
-		if g.Name == name {
-			return g
-		}
-	}
-	return nil
-}
-
-func (c *Cluster) LookupGroup(name string) *Group {
-	for _, g := range c.Groups {
-		if g.Nodeset == name {
-			return g
-		}
-	}
-	return nil
-}
-
-func (c *Cluster) NewInstance() *Instance {
-	return &Instance{
-		ID: uuid.New().String(),
-		//State:   Node_UNKNOWN,
-		Cluster: c.Name,
-	}
-}
 
 /*
 func (c *Cluster) DelNodeAtIndx(i int) {
@@ -92,10 +66,6 @@ func (c *Cluster) NodeAtIndex(ID string) int {
 
 func (d *Deployment) Copy() *Deployment {
 	return proto.Clone(d).(*Deployment)
-}
-
-func (c *Cluster) Copy() *Cluster {
-	return proto.Clone(c).(*Cluster)
 }
 
 /*

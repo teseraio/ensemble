@@ -62,7 +62,7 @@ func (b *backend) EvaluateConfig(spec *proto.NodeSpec, cc map[string]string) err
 	return nil
 }
 
-func (b *backend) Initialize(clr *proto.Group, nodes []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
+func (b *backend) Initialize(nodes []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
 	// Id of the instance
 	target.Spec.AddEnv("ZOO_MY_ID", strconv.Itoa(int(target.Index)))
 

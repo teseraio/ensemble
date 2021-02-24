@@ -360,7 +360,7 @@ func (s *Server) taskQueue2() {
 				continue
 			}
 
-			handler.Initialize(nil, nn, i.instance)
+			handler.Initialize(nn, i.instance)
 		}
 
 		// we need to add this values to the db
