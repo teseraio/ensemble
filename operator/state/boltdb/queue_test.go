@@ -1,78 +1,49 @@
 package boltdb
 
 import (
-	"context"
 	"testing"
-	"time"
 
-	"github.com/golang/protobuf/ptypes"
-	"github.com/teseraio/ensemble/lib/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
-func TestTaskQueue(t *testing.T) {
-	tt := newTaskQueue()
+func TestQueueSerializeByClusterID(t *testing.T) {
+	q := newTaskQueue()
 
-	mockTask := func() *proto.Component {
-		timestamp := ptypes.TimestampNow()
-		return &proto.Component{
-			Id:        uuid.UUID(),
-			Timestamp: timestamp,
-		}
-	}
+	q.add("A", &proto.Component{
+		Id:   "id1",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec2{}),
+	})
 
-	t0 := mockTask()
-	t1 := mockTask()
-	t2 := mockTask()
+	q.add("A", &proto.Component{
+		Id:   "id2",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec2{}),
+	})
 
-	tt.add(t0, nil)
-	tt.add(t1, nil)
-	tt.add(t2, nil)
+	q.add("A", &proto.Component{
+		Id:   "id3",
+		Spec: proto.MustMarshalAny(&proto.ResourceSpec{}),
+	})
 
-	ctx := context.Background()
+	assert.Equal(t, q.popImpl().Id, "id1")
+	assert.Nil(t, q.popImpl())
 
-	if t0e := tt.pop(ctx); t0e.New.Id != t0.Id {
-		t.Fatal("bad")
-	}
-	if t1e := tt.pop(ctx); t1e.New.Id != t1.Id {
-		t.Fatal("bad")
-	}
-	if t2e := tt.pop(ctx); t2e.New.Id != t2.Id {
-		t.Fatal("bad")
-	}
+	q.finalize("id1")
 
-	// it blocks if there are no more items till a new one arrives
-	t3 := mockTask()
+	assert.Equal(t, q.popImpl().Id, "id2")
+	assert.Nil(t, q.popImpl())
 
-	taskCh := make(chan *task)
-	go func() {
-		taskCh <- tt.pop(ctx)
-	}()
+	q.add("B", &proto.Component{
+		Id:   "id4",
+		Spec: proto.MustMarshalAny(&proto.ResourceSpec{}),
+	})
 
-	select {
-	case <-taskCh:
-		t.Fatal("bad")
-	case <-time.After(100 * time.Millisecond):
-	}
+	assert.Equal(t, q.popImpl().Id, "id4")
+	assert.Nil(t, q.popImpl())
 
-	tt.add(t3, nil)
+	q.finalize("id2")
+	q.finalize("id4")
 
-	select {
-	case t3e := <-taskCh:
-		if t3e.New.Id != t3.Id {
-			t.Fatal("bad")
-		}
-	case <-time.After(100 * time.Millisecond):
-		t.Fatal("bad")
-	}
-
-	// Once finalized the task is removed
-	if len(tt.heap) != 4 {
-		t.Fatal("bad")
-	}
-	tt.finalize(t0.Id)
-
-	if len(tt.heap) != 3 {
-		t.Fatal("bad")
-	}
+	assert.Equal(t, q.popImpl().Id, "id3")
+	assert.Nil(t, q.popImpl())
 }

@@ -345,6 +345,7 @@ message Instance {
 /* Evaluation is used to trigger a new reconcile evaluation */
 
 message Evaluation {
+    // id of the evaluation
     string id = 1;
 
     Status status = 2;
@@ -353,9 +354,11 @@ message Evaluation {
 
     string clusterID = 4;
 
-    int64 generation = 5;
+    string componentID = 5;
 
-    Plan plan = 6;
+    // int64 generation = 5;
+
+    // Plan plan = 6;
 
     enum Status {
         PENDING   = 0;

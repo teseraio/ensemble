@@ -36,6 +36,10 @@ func Factory() operator.Handler {
 	return &backend{}
 }
 
+func (b *backend) Ready(t *proto.Instance) bool {
+	return false
+}
+
 func (b *backend) PostHook(*operator.HookCtx) error {
 	// TAINTED: TODO
 	return nil

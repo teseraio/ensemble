@@ -16,18 +16,19 @@ type State interface {
 	// UpsertNode(*proto.Node) error
 
 	// UpsertCluster upserts the cluster
-	UpsertCluster(*proto.Cluster) error
-	GetCluster(name string) (*proto.Cluster, error)
+	// UpsertCluster(*proto.Cluster) error
+	// GetCluster(name string) (*proto.Cluster, error)
 
 	// Apply changes to a resource
 	Apply(*proto.Component) (int64, error)
 	GetComponent(id string, generation int64) (*proto.Component, *proto.Component, error)
+	Finalize(id string) error
 
 	// Get returns a component
-	Get(name string) (*proto.Component, error)
+	// Get(name string) (*proto.Component, error)
 
 	// GetTask returns a new task to apply
-	GetTask(ctx context.Context) (*proto.ComponentTask, error)
+	// GetTask(ctx context.Context) (*proto.ComponentTask, error)
 
 	// LoadCluster loads a cluster from memory
 	// LoadCluster(id string) (*proto.Cluster, error)
@@ -37,14 +38,10 @@ type State interface {
 	LoadDeployment(id string) (*proto.Deployment, error)
 	LoadInstance(cluster, id string) (*proto.Instance, error)
 
-	// Finalize notifies when a component has been reconciled
-	// TODO: Good for for an Evaluation
-	Finalize(id string) error
-
 	// Close closes the state
 	Close() error
 
-	// Experimental
+	// Experimental, move to operator off memory
 	AddEvaluation(eval *proto.Evaluation) error
 	GetTask2(ctx context.Context) (*proto.Evaluation, error)
 }

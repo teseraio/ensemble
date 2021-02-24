@@ -19,24 +19,24 @@ func (d *deployment2) reconcile() {
 type reconcilerImpl interface {
 }
 
-type reconciler2 struct {
+type reconciler struct {
 	dep  *proto.Deployment
 	spec *proto.ClusterSpec2
 	res  []*update
 	done bool
 }
 
-func (r *reconciler2) appendUpdate(instance *proto.Instance, status string) {
+func (r *reconciler) appendUpdate(instance *proto.Instance, status string) {
 	r.res = append(r.res, &update{status: status, instance: instance})
 }
 
 type allocSet []*proto.Instance
 
-func (a *allocSet) byGroup(name string) (byGroup allocSet) {
+func (a *allocSet) byGroup(typ string) (byGroup allocSet) {
 	byGroup = allocSet{}
 
 	for _, i := range *a {
-		if i.Group.Name == name {
+		if i.Group.Type == typ {
 			byGroup = append(byGroup, i)
 		}
 	}
@@ -125,7 +125,7 @@ type update struct {
 	instance *proto.Instance
 }
 
-func (r *reconciler2) computeStop(grp *proto.ClusterSpec2_Group, reschedule allocSet, untainted allocSet) (stop allocSet) {
+func (r *reconciler) computeStop(grp *proto.ClusterSpec2_Group, reschedule allocSet, untainted allocSet) (stop allocSet) {
 	stop = allocSet{}
 
 	remove := len(untainted) - int(grp.Count)
@@ -136,7 +136,7 @@ func (r *reconciler2) computeStop(grp *proto.ClusterSpec2_Group, reschedule allo
 	return stop
 }
 
-func (r *reconciler2) computePlacements(grp *proto.ClusterSpec2_Group, untainted, destructive allocSet) (place allocSet) {
+func (r *reconciler) computePlacements(grp *proto.ClusterSpec2_Group, untainted, destructive allocSet) (place allocSet) {
 	place = allocSet{}
 
 	total := len(untainted) + len(destructive)
@@ -147,11 +147,22 @@ func (r *reconciler2) computePlacements(grp *proto.ClusterSpec2_Group, untainted
 	fmt.Println(grp.Count)
 
 	for i := total; i < int(grp.Count); i++ {
+		id := uuid.UUID8()
+
+		var name string
+		if grp.Type != "" {
+			// if the group has a name <name><group><indx>
+			name = fmt.Sprintf("%s_%s_%d", id, grp.Type, i)
+		} else {
+			// if the group does not have a name just <name><indx>
+			name = fmt.Sprintf("%s_%d", id, i)
+		}
+
 		instance := &proto.Instance{
-			ID:      uuid.UUID(),
+			ID:      id,
 			Cluster: r.spec.Name,
 			Index:   int64(i),
-			Name:    fmt.Sprintf("%s%d", r.spec.Name, i),
+			Name:    name,
 			Group:   grp,
 			Spec:    &proto.NodeSpec{},
 		}
@@ -169,7 +180,13 @@ func min(i, j int) int {
 	return j
 }
 
-func (r *reconciler2) Compute() {
+func (r *reconciler) print() {
+	for _, i := range r.res {
+		fmt.Printf("Res: %s %s (%s) (%s)\n", i.status, i.instance.ID, i.instance.Group.Type, i.instance.FullName())
+	}
+}
+
+func (r *reconciler) Compute() {
 	r.res = []*update{}
 
 	for _, grp := range r.spec.Groups {
@@ -179,9 +196,9 @@ func (r *reconciler2) Compute() {
 	}
 }
 
-func (r *reconciler2) computeGroup(grp *proto.ClusterSpec2_Group) bool {
+func (r *reconciler) computeGroup(grp *proto.ClusterSpec2_Group) bool {
 	set := allocSet(r.dep.Instances)
-	set = set.byGroup(grp.Name)
+	set = set.byGroup(grp.Type)
 
 	// detect the stopped nodes (TODO: migrate)
 	reschedule, untainted := set.reschedule()

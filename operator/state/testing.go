@@ -1,9 +1,8 @@
 package state
 
 import (
+	"fmt"
 	"testing"
-
-	"github.com/teseraio/ensemble/operator/proto"
 )
 
 type setupFn func(*testing.T) (State, func())
@@ -13,6 +12,7 @@ func TestSuite(t *testing.T, setup setupFn) {
 	b, closeFn := setup(t)
 	defer closeFn()
 
+	fmt.Println(b)
 	/*
 		t.Run("Upsert cluster", func(t *testing.T) {
 			c0 := &proto.Cluster{
@@ -43,33 +43,35 @@ func TestSuite(t *testing.T, setup setupFn) {
 		})
 	*/
 
-	t.Run("Task get", func(t *testing.T) {
-		c0 := &proto.Component{
-			Id:   "A",
-			Name: "A",
-			Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-				Groups: []*proto.ClusterSpec_Group{
-					{
-						Count: 3,
+	/*
+		t.Run("Task get", func(t *testing.T) {
+			c0 := &proto.Component{
+				Id:   "A",
+				Name: "A",
+				Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+					Groups: []*proto.ClusterSpec_Group{
+						{
+							Count: 3,
+						},
 					},
-				},
-			}),
-		}
-		if _, err := b.Apply(c0); err != nil {
-			t.Fatal(err)
-		}
+				}),
+			}
+			if _, err := b.Apply(c0); err != nil {
+				t.Fatal(err)
+			}
 
-		// send the same task again, the sequence is not updated
-		if _, err := b.Apply(c0); err != nil {
-			t.Fatal(err)
-		}
+			// send the same task again, the sequence is not updated
+			if _, err := b.Apply(c0); err != nil {
+				t.Fatal(err)
+			}
 
-		c00, err := b.Get("A")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if c00.Sequence != 1 {
-			t.Fatal("bad")
-		}
-	})
+			c00, err := b.Get("A")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c00.Sequence != 1 {
+				t.Fatal("bad")
+			}
+		})
+	*/
 }

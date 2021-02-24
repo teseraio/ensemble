@@ -221,3 +221,11 @@ func (p *Plan_Set) Add(n *Instance) {
 	p.AddNodes = append(p.AddNodes, n)
 }
 */
+
+func (r *ClusterSpec2) GetClusterID() string {
+	return r.Name
+}
+
+func (r *ResourceSpec) GetClusterID() string {
+	return r.Cluster
+}

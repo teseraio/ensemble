@@ -1,12 +1,11 @@
 package boltdb
 
 import (
-	"context"
+	"fmt"
 	"os"
 	"testing"
-	"time"
 
-	"github.com/golang/protobuf/ptypes/any"
+	"github.com/stretchr/testify/assert"
 	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/operator/state"
@@ -33,7 +32,7 @@ func TestSuite(t *testing.T) {
 	state.TestSuite(t, setupFn)
 }
 
-func TestIndexUpdate(t *testing.T) {
+func TestBoltdbReindexPending(t *testing.T) {
 	config := map[string]interface{}{
 		"path": "/tmp/db-" + uuid.UUID(),
 	}
@@ -41,55 +40,67 @@ func TestIndexUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	db := st.(*BoltDB)
 
-	ca1 := &proto.Component{
-		Id:     uuid.UUID(),
-		Name:   "Item",
-		Status: proto.Component_PENDING,
-		Spec: &any.Any{
-			TypeUrl: "1",
-			Value:   []byte{0x1},
-		},
+	// append two distinct components
+	st.Apply(&proto.Component{
+		Id:   "id1",
+		Name: "A",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec2{}),
+	})
+	st.Apply(&proto.Component{
+		Id:   "id2",
+		Name: "B",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec2{}),
+	})
+
+	// two values expected in the queue
+	assert.Equal(t, db.queue.popImpl().Component.Id, "id1")
+	assert.Equal(t, db.queue.popImpl().Component.Id, "id2")
+
+	assert.Nil(t, db.Close())
+
+	// reload the database
+	st, err = Factory(config)
+	assert.NoError(t, err)
+
+	fmt.Println(st)
+}
+
+func TestBoltdbFinalizeMultipleResources(t *testing.T) {
+	config := map[string]interface{}{
+		"path": "/tmp/db-" + uuid.UUID(),
 	}
-	if _, err := st.Apply(ca1); err != nil {
+	st, err := Factory(config)
+	if err != nil {
 		t.Fatal(err)
 	}
+	db := st.(*BoltDB)
 
-	ca2 := &proto.Component{
-		Id:     uuid.UUID(),
-		Name:   "Item",
-		Status: proto.Component_PENDING,
-		Spec: &any.Any{
-			TypeUrl: "2",
-			Value:   []byte{0x2},
-		},
-	}
-	if _, err := st.Apply(ca2); err != nil {
-		t.Fatal(err)
-	}
+	rID, _ := db.Apply(&proto.Component{
+		Id:   "id1",
+		Name: "B",
+		Spec: proto.MustMarshalAny(&proto.ResourceSpec{
+			Cluster: "A",
+		}),
+	})
+	assert.Equal(t, rID, int64(1))
 
-	// it must return the first version
-	cb, _ := st.GetTask(context.Background())
-	if cb.New.Spec.TypeUrl != "1" {
-		t.Fatal("bad")
-	}
+	rID2, _ := db.Apply(&proto.Component{
+		Id:   "id2",
+		Name: "B",
+		Spec: proto.MustMarshalAny(&proto.ResourceSpec{
+			Cluster: "A",
+			Params:  "{2}",
+		}),
+	})
+	assert.Equal(t, rID2, int64(2))
 
-	// GetTask should block because task 2 of A only
-	// be indexed after task 1 is done
-	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(time.Second))
-	cb, _ = st.GetTask(ctx)
+	comp := db.queue.popImpl().Component
 
-	if cb != nil {
-		t.Fatal("bad")
-	}
+	assert.Equal(t, comp.Id, "id1")
+	assert.Nil(t, db.queue.popImpl())
 
-	// Finalize the task 1
-	if err := st.Finalize(ca1.Id); err != nil {
-		t.Fatal(err)
-	}
-	// now we can retrieve the task 2
-	cb, _ = st.GetTask(context.Background())
-	if cb.New.Spec.TypeUrl != "2" {
-		t.Fatal("bad")
-	}
+	db.Finalize(comp.Id)
+	assert.Equal(t, db.queue.popImpl().Component.Id, "id2")
 }

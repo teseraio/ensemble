@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	gproto "github.com/golang/protobuf/proto"
 	"github.com/mitchellh/mapstructure"
@@ -100,21 +101,52 @@ type deploymentWatcher struct {
 	ii   map[string]*proto.Instance
 }
 
-func (d *deploymentWatcher) updateStatus(op *proto.InstanceUpdate) {
+func (d *deploymentWatcher) upsertNodeAndEval(i *proto.Instance) {
+	if err := d.s.State.UpsertNode(i); err != nil {
+		panic(err)
+	}
+	eval := &proto.Evaluation{
+		Id:          uuid.UUID(),
+		Status:      proto.Evaluation_PENDING,
+		TriggeredBy: proto.Evaluation_NODECHANGE,
+		ClusterID:   i.Cluster,
+	}
+	if err := d.s.State.AddEvaluation(eval); err != nil {
+		panic(err)
+	}
+}
 
+func (d *deploymentWatcher) readiness(i *proto.Instance) {
+	handler, ok := d.s.getHandler("Rabbitmq")
+	if !ok {
+		panic("bad")
+	}
+
+	c := 0
+	for {
+		fmt.Printf("Ready: %s %d\n", i.FullName(), c)
+		if handler.Ready(i) {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	fmt.Println("_ HEALTHY DONE _")
+	i.Healthy = true
+	d.upsertNodeAndEval(i)
+}
+
+func (d *deploymentWatcher) updateStatus(op *proto.InstanceUpdate) {
 	i, ok := d.ii[op.ID]
 	if !ok {
 		panic("bad")
 	}
 
-	fmt.Println("_ UPDATE STATUS _")
-	fmt.Println(op.Cluster, op.ID, i.Name)
-
 	switch obj := op.Event.(type) {
 	case *proto.InstanceUpdate_Conf:
-		i.Ip = obj.Conf.Handler
+		i.Ip = obj.Conf.Ip
+		i.Handler = obj.Conf.Handler
 		i.Status = proto.Instance_RUNNING
-		i.Healthy = true
 
 	case *proto.InstanceUpdate_Status:
 
@@ -131,19 +163,10 @@ func (d *deploymentWatcher) updateStatus(op *proto.InstanceUpdate) {
 	}
 
 	// update in the db
-	if err := d.s.State.UpsertNode(i); err != nil {
-		panic(err)
-	}
+	d.upsertNodeAndEval(i)
 
-	// create an evaluation
-	eval := &proto.Evaluation{
-		Id:         uuid.UUID(),
-		Status:     proto.Evaluation_PENDING,
-		ClusterID:  op.Cluster,
-		Generation: 1, // TODO
-	}
-	if err := d.s.State.AddEvaluation(eval); err != nil {
-		panic(err)
+	if i.Status == proto.Instance_RUNNING {
+		go d.readiness(i)
 	}
 }
 
@@ -179,7 +202,7 @@ func (s *Server) setupWatcher() {
 		select {
 		case op := <-watchCh:
 			dep := s.getDeployment(op.Cluster)
-			dep.updateStatus(op)
+			go dep.updateStatus(op)
 
 		case <-s.stopCh:
 			return
@@ -228,20 +251,33 @@ func (s *Server) taskQueue2() {
 		}
 
 		// get the component
-		new, _, err := s.State.GetComponent(eval.ClusterID, eval.Generation)
+		new, _, err := s.State.GetComponent(eval.ClusterID, 0)
 		if err != nil {
 			panic(err)
-		}
-
-		handler, ok := s.getHandler("Zookeeper")
-		if !ok {
-			panic("bad")
 		}
 
 		fmt.Println("##### EVAL #####")
 
 		//fmt.Println(new)
 		//fmt.Println(handler)
+
+		switch new.Spec.GetTypeUrl() {
+		case "proto.ResourceSpec":
+			fmt.Println("_XXXX_")
+			var res proto.ResourceSpec
+			if err := gproto.Unmarshal(new.Spec.Value, &res); err != nil {
+				panic(err)
+			}
+			if err := s.handleResourceTask(&res); err != nil {
+				panic(err)
+			}
+			continue
+		}
+
+		handler, ok := s.getHandler("Rabbitmq")
+		if !ok {
+			panic("bad")
+		}
 
 		var spec proto.ClusterSpec2
 		if err := gproto.Unmarshal(new.Spec.Value, &spec); err != nil {
@@ -256,14 +292,19 @@ func (s *Server) taskQueue2() {
 			panic(err)
 		}
 
+		fmt.Println("#############################")
+		fmt.Println(dep)
+		fmt.Println(spec)
+
 		dep.Sequence = new.Sequence
 		dep.CompID = new.Id
 
-		r := &reconciler2{
+		r := &reconciler{
 			dep:  dep,
 			spec: &spec,
 		}
 		r.Compute()
+		r.print()
 
 		// Update the status of the deployment
 		if r.done {
@@ -350,30 +391,6 @@ func (s *Server) taskQueue2() {
 	}
 }
 
-/*
-func (s *Server) taskQueue() {
-	s.logger.Info("Starting task worker")
-
-	for {
-		task, err := s.State.GetTask(context.Background())
-		if err != nil {
-			s.logger.Error("failed to get task", "err", err)
-			continue
-		}
-
-		s.logger.Info("New task", "id", task.New.Id)
-		if err := s.handleTask(task); err != nil {
-			s.logger.Error("failed to handle task", "id", task.New.Id, "err", err)
-		}
-
-		s.logger.Info("Finalize task", "id", task.New.Id)
-		if err := s.State.Finalize(task.New.Id); err != nil {
-			s.logger.Error("Failed to finalize task", "id", task.New.Id, "err", err)
-		}
-	}
-}
-*/
-
 func (s *Server) getHandler(name string) (Handler, bool) {
 	h, ok := s.handlers[strings.ToLower(name)]
 	return h, ok
@@ -416,47 +433,28 @@ func decodeResource(resource Resource, rawParams string) (Resource, map[string]i
 	return resource, params, nil
 }
 
-func (s *Server) handleResourceTask(task *proto.ComponentTask) error {
+func (s *Server) handleResourceTask(spec *proto.ResourceSpec) error {
+	handler, ok := s.getHandler("Rabbitmq")
+	if !ok {
+		panic("bad")
+	}
+	dep, err := s.State.LoadDeployment(spec.Cluster)
+	if err != nil {
+		return err
+	}
+
+	// take any of the nodes in the cluster to connect
+	clt, err := handler.Client(dep.Instances[0])
+	if err != nil {
+		return err
+	}
+
+	resource := handler.Spec().GetResource(spec.Resource)
+	if resource == nil {
+		return fmt.Errorf("resource not found %s", spec.Resource)
+	}
+
 	/*
-		eval := task.New
-
-		var oldSpec proto.ResourceSpec
-		isFirst := task.Old.Name == ""
-		if !isFirst {
-			if err := gproto.Unmarshal(task.Old.Spec.Value, &oldSpec); err != nil {
-				return err
-			}
-		}
-		var spec proto.ResourceSpec
-		if err := gproto.Unmarshal(eval.Spec.Value, &spec); err != nil {
-			return err
-		}
-
-		cluster, err := s.State.LoadCluster(spec.Cluster)
-		if err != nil {
-			return err
-		}
-		handler, ok := s.getHandler(cluster.Backend)
-		if !ok {
-			return fmt.Errorf("handler not found %s", cluster.Backend)
-		}
-
-		// take any of the nodes in the cluster to connect
-		clt, err := handler.Client(cluster.Nodes[0])
-		if err != nil {
-			return err
-		}
-
-		var resource Resource
-		for _, r := range handler.Spec().Resources {
-			if r.GetName() == spec.Resource {
-				resource = r
-			}
-		}
-		if resource == nil {
-			return fmt.Errorf("resource not found %s", spec.Resource)
-		}
-
 		// Check if we have to destroy the current object if a force-new field
 		// has changed
 		if !isFirst {
@@ -475,230 +473,34 @@ func (s *Server) handleResourceTask(task *proto.ComponentTask) error {
 				}
 			}
 		}
+	*/
 
-		resource, params, err := decodeResource(resource, spec.Params)
-		if err != nil {
-			return err
-		}
-		if err := resource.Init(params); err != nil {
-			return err
-		}
+	resource, params, err := decodeResource(resource, spec.Params)
+	if err != nil {
+		return err
+	}
+	if err := resource.Init(params); err != nil {
+		return err
+	}
 
+	fmt.Println("- reconcile -")
+	fmt.Println(resource)
+
+	if err := resource.Reconcile(clt); err != nil {
+		return err
+	}
+
+	/*
 		// check current value for the resource
 		if eval.Action == proto.Component_DELETE {
 			if err := resource.Delete(clt); err != nil {
 				return err
 			}
 		} else {
-			if err := resource.Reconcile(clt); err != nil {
-				return err
-			}
 		}
 	*/
-	return nil
-}
-
-func (s *Server) handleClusterTask(task *proto.ComponentTask) error {
-	/*
-		eval := task.New
-
-		var spec proto.ClusterSpec
-		if err := gproto.Unmarshal(eval.Spec.Value, &spec); err != nil {
-			return err
-		}
-
-		cluster, err := s.State.LoadCluster(eval.Name)
-		if err != nil {
-			if err == state.ErrClusterNotFound {
-				// bootstrap
-				cluster = &proto.Cluster{
-					Name:    eval.Name,
-					Backend: spec.Backend,
-					Nodes:   []*proto.Node{},
-				}
-			} else {
-				return err
-			}
-		}
-		if cluster.Backend != spec.Backend {
-			return fmt.Errorf("trying to use a different backend")
-		}
-
-		// Update the status of the cluster
-		cluster.Status = proto.Cluster_SCALING
-		if err := s.State.UpsertCluster(cluster); err != nil {
-			return err
-		}
-
-		handler, ok := s.getHandler(spec.Backend)
-		if !ok {
-			return fmt.Errorf("handler not found %s", spec.Backend)
-		}
-
-		ctx, err := s.evaluateCluster(eval, &spec, cluster, handler)
-		if err != nil {
-			return err
-		}
-		if ctx == nil {
-			// no more plans to apply for this cluster
-			return nil
-		}
-
-		for _, subPlan := range ctx.Plan.Sets {
-			ctx := &proto.Context{
-				Plan:    ctx.Plan,
-				Cluster: ctx.Cluster.Copy(),
-				Set:     subPlan,
-			}
-			if subPlan.DelNodes != nil {
-				if _, err = s.deleteNodes(handler, cluster, ctx); err != nil {
-					return err
-				}
-			}
-			if subPlan.AddNodes != nil {
-				if _, err = s.addNodes(handler, cluster, ctx); err != nil {
-					return err
-				}
-			}
-		}
-
-		// Set the status to completed
-		cluster.Status = proto.Cluster_COMPLETE
-		if err := s.State.UpsertCluster(cluster); err != nil {
-			return err
-		}
-	*/
-	return nil
-}
-
-func (s *Server) handleTask(task *proto.ComponentTask) error {
-
-	var err error
-	if task.New.Spec.TypeUrl == "ensembleoss.io/proto.ClusterSpec" {
-		err = s.handleClusterTask(task)
-	} else if task.New.Spec.TypeUrl == "ensembleoss.io/proto.ResourceSpec" {
-		err = s.handleResourceTask(task)
-	} else {
-		return fmt.Errorf("type url not found '%s'", task.New.Spec.TypeUrl)
-	}
-	if err != nil {
-		return err
-	}
 
 	return nil
-}
-
-func (s *Server) deleteNode(handler Handler, e *proto.Cluster, n *proto.Instance) (*proto.Cluster, error) {
-	panic("TODO")
-
-	/*
-		// change the state of the node to TAINTED
-		n = n.Copy()
-		n.State = proto.Node_TAINTED
-
-		if err := s.State.UpsertNode(n); err != nil {
-			return nil, err
-		}
-
-		ctx := &HookCtx{
-			Cluster:  e,
-			Node:     n,
-			Executor: s,
-		}
-		if err := handler.PostHook(ctx); err != nil {
-			return nil, err
-		}
-
-		if _, err := s.Provider.DeleteResource(n); err != nil {
-			return nil, err
-		}
-		return nil, nil
-	*/
-}
-
-func (s *Server) addNode(handler Handler, e *proto.Cluster, n *proto.Instance) (*proto.Cluster, error) {
-	panic("TODO")
-
-	/*
-		// create the resource
-		if _, err := s.Provider.CreateResource(n); err != nil {
-			return nil, err
-		}
-
-		n = n.Copy()
-		n.State = proto.Node_RUNNING
-
-		// update the db
-		if err := s.State.UpsertNode(n); err != nil {
-			return nil, err
-		}
-
-		ctx := &HookCtx{
-			Cluster:  e,
-			Node:     n,
-			Executor: s,
-		}
-		if err := handler.PostHook(ctx); err != nil {
-			return nil, err
-		}
-		return nil, nil
-	*/
-}
-
-func clusterDiff(c *proto.Cluster, spec *proto.ClusterSpec) (*proto.Plan, error) {
-	/*
-		nodesByType := map[string][]*proto.Node{}
-		for _, node := range c.Nodes {
-			if _, ok := nodesByType[node.Nodetype]; ok {
-				nodesByType[node.Nodetype] = append(nodesByType[node.Nodetype], node)
-			} else {
-				nodesByType[node.Nodetype] = []*proto.Node{node}
-			}
-		}
-
-		plan := &proto.Plan{}
-		if len(c.Nodes) == 0 {
-			plan.Bootstrap = true
-		}
-
-		// check all the sets
-		for _, set := range spec.Sets {
-			nodes, ok := nodesByType[set.Type]
-			if !ok {
-				nodes = []*proto.Node{}
-			}
-
-			oldNum := int64(len(nodes))
-			newNum := set.Replicas
-
-			step := &proto.Plan_Set{
-				Type: set.Type,
-			}
-			if oldNum > newNum {
-				// scale down
-				if oldNum-newNum < 0 {
-					return nil, fmt.Errorf("cannot scale down to negative")
-				}
-				step = &proto.Plan_Set{DelNodesNum: oldNum - newNum}
-			} else if oldNum < newNum {
-				// scale up
-				for i := int64(0); i < newNum-oldNum; i++ {
-					n := c.NewNode()
-					n.Nodetype = set.Type
-					step.Add(n)
-
-					// add it also to the cluster so that we can query the info better in EvaluatePlan
-					c.Nodes = append(c.Nodes, n)
-				}
-			} else {
-				// bring down the set
-				// TODO
-			}
-			plan.Sets = append(plan.Sets, step)
-		}
-	*/
-	return nil, nil
-	// return plan, nil
 }
 
 func validateResources(output interface{}, input map[string]string) error {
@@ -720,140 +522,4 @@ func validateResources(output interface{}, input map[string]string) error {
 		return fmt.Errorf("unused keys %s", strings.Join(md.Unused, ","))
 	}
 	return nil
-}
-
-/*
-func (s *Server) evaluateCluster(eval *proto.Component, spec *proto.ClusterSpec, c *proto.Cluster, handler Handler) (*PlanCtx, error) {
-
-	// validate the config for each node
-	nodeConfig := map[string]*NodeRes{}
-	for _, set := range spec.Groups {
-		spec, ok := handler.Spec().Nodetypes[set.Type]
-		if !ok {
-			return nil, fmt.Errorf("node type not found '%s'", set.Type)
-		}
-		if spec.Config == nil {
-			nodeConfig[set.Type] = &NodeRes{
-				Config: nil,
-			}
-			continue
-		}
-
-		val := reflect.New(reflect.TypeOf(spec.Config)).Elem().Interface()
-
-		var md mapstructure.Metadata
-		config := &mapstructure.DecoderConfig{
-			Metadata:         &md,
-			Result:           &val,
-			WeaklyTypedInput: true,
-		}
-		decoder, err := mapstructure.NewDecoder(config)
-		if err != nil {
-			return nil, err
-		}
-		if err := decoder.Decode(set.Config); err != nil {
-			return nil, err
-		}
-		if len(md.Unused) != 0 {
-			return nil, fmt.Errorf("unused keys %s", strings.Join(md.Unused, ","))
-		}
-		nodeConfig[set.Type] = &NodeRes{
-			Config: val,
-		}
-	}
-
-	providerResource := s.Provider.Resources()
-
-	nodeResourcesByType := map[string]map[string]string{}
-	for _, set := range spec.Groups {
-		if err := validateResources(providerResource, set.Resources); err != nil {
-			return nil, fmt.Errorf("failed to validate provider resources: %v", err)
-		}
-		nodeResourcesByType[set.Type] = set.Resources
-	}
-
-	plan, err := clusterDiff(c, spec)
-	if err != nil {
-		return nil, err
-	}
-	if plan == nil {
-		return nil, nil
-	}
-
-		ctx := &PlanCtx{
-			Plan:      plan,
-			Cluster:   c,
-			NodeTypes: nodeConfig,
-		}
-		// call the handler in case it wants to do something
-		if err := handler.EvaluatePlan(ctx); err != nil {
-			return nil, err
-		}
-
-
-
-		// add the correct image to each node being created
-		for _, plan := range ctx.Plan.Sets {
-			typ, ok := handler.Spec().Nodetypes[plan.Type]
-			if !ok {
-				return nil, fmt.Errorf("node type not found '%s'", plan.Type)
-			}
-			for _, n := range plan.AddNodes {
-				n.State = proto.Node_INITIALIZED
-				n.Spec.Image = typ.Image
-				n.Spec.Version = typ.Version
-				n.Resources = &proto.Node_Resources{
-					Spec: nodeResourcesByType[plan.Type],
-				}
-
-				// store the node in the db
-				if err := s.State.UpsertNode(n); err != nil {
-					return nil, err
-				}
-			}
-			fmt.Println(typ)
-			panic("TODO")
-		}
-
-	panic("X")
-	// return ctx, nil
-}
-*/
-
-func (s *Server) deleteNodes(handler Handler, e *proto.Cluster, plan *proto.Context) (*proto.Cluster, error) {
-	// s.logger.Info("Scale down", "num", len(plan.Set.DelNodes))
-
-	/*
-		var err error
-		for _, nodeID := range plan.Set.DelNodes {
-			indx := e.NodeAtIndex(nodeID)
-			n := e.Nodes[indx]
-
-			if e, err = s.deleteNode(handler, e, n); err != nil {
-				return nil, err
-			}
-
-			// delete the node from the cluster
-			// e.DelNodeAtIndx(indx)
-		}
-	*/
-
-	return e, nil
-}
-
-func (s *Server) addNodes(handler Handler, e *proto.Cluster, plan *proto.Context) (*proto.Cluster, error) {
-	/*
-		s.logger.Info("Scale up", "num", len(plan.Set.AddNodes))
-
-		// write the cluster now
-		for _, n := range plan.Set.AddNodes {
-			ee, err := s.addNode(handler, e, n)
-			if err != nil {
-				return ee, err
-			}
-			e = ee
-		}
-		return e, nil
-	*/
-	return nil, nil
 }

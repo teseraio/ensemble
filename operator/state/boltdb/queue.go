@@ -9,10 +9,9 @@ import (
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
-// TODO: REMOVE
-
 type task struct {
-	*proto.ComponentTask
+	*proto.Component
+	clusterID string
 
 	// internal fields for the sort heap
 	ready     bool
@@ -25,6 +24,7 @@ type taskQueue struct {
 	lock     sync.Mutex
 	items    map[string]*task
 	updateCh chan struct{}
+	pending  map[string][]*proto.Component
 }
 
 func newTaskQueue() *taskQueue {
@@ -32,19 +32,8 @@ func newTaskQueue() *taskQueue {
 		heap:     taskQueueImpl{},
 		items:    map[string]*task{},
 		updateCh: make(chan struct{}),
+		pending:  map[string][]*proto.Component{},
 	}
-}
-
-func (t *taskQueue) existsByName(name string) bool {
-	t.lock.Lock()
-	defer t.lock.Unlock()
-
-	for _, i := range t.items {
-		if i.New.Name == name {
-			return true
-		}
-	}
-	return false
 }
 
 func (t *taskQueue) get(id string) (*task, bool) {
@@ -55,19 +44,38 @@ func (t *taskQueue) get(id string) (*task, bool) {
 	return tt, ok
 }
 
-func (t *taskQueue) add(new, old *proto.Component) {
-	tt := &task{
-		ComponentTask: &proto.ComponentTask{
-			Old: old,
-			New: new,
-		},
-	}
+func (t *taskQueue) add(clusterID string, c *proto.Component) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	tt.ready = true
+	found := false
+	for _, i := range t.items {
+		if i.clusterID == clusterID {
+			found = true
+			break
+		}
+	}
 
-	t.items[new.Id] = tt
+	if found {
+		// there is already a task for the same cluster, append
+		// this evaluation to the pending map
+		if _, ok := t.pending[clusterID]; !ok {
+			t.pending = map[string][]*proto.Component{}
+		}
+		t.pending[clusterID] = append(t.pending[clusterID], c)
+	} else {
+		t.addImpl(clusterID, c)
+	}
+}
+
+func (t *taskQueue) addImpl(clusterID string, c *proto.Component) {
+	tt := &task{
+		clusterID: clusterID,
+		Component: c,
+		ready:     true,
+	}
+
+	t.items[c.Id] = tt
 	heap.Push(&t.heap, tt)
 
 	select {
@@ -76,11 +84,10 @@ func (t *taskQueue) add(new, old *proto.Component) {
 	}
 }
 
-func (t *taskQueue) pop(ctx context.Context) *task {
-POP:
+func (t *taskQueue) popImpl() *task {
 	t.lock.Lock()
 	if len(t.heap) != 0 && t.heap[0].ready {
-		// pop the first value
+		// pop the first value and remove it from the heap
 		tt := t.heap[0]
 		tt.ready = false
 		heap.Fix(&t.heap, tt.index)
@@ -89,6 +96,15 @@ POP:
 		return tt
 	}
 	t.lock.Unlock()
+	return nil
+}
+
+func (t *taskQueue) pop(ctx context.Context) *task {
+POP:
+	tt := t.popImpl()
+	if tt != nil {
+		return tt
+	}
 
 	select {
 	case <-t.updateCh:
@@ -103,11 +119,27 @@ func (t *taskQueue) finalize(id string) (*task, bool) {
 	defer t.lock.Unlock()
 
 	i, ok := t.items[id]
-	if ok {
-		heap.Remove(&t.heap, i.index)
-		delete(t.items, id)
+	if !ok {
+		return nil, false
 	}
-	return i, ok
+
+	// remove the element from the heap
+	heap.Remove(&t.heap, i.index)
+	delete(t.items, id)
+
+	// check if there is a pending eval
+	pending, ok := t.pending[i.clusterID]
+	if ok {
+		var nextTask *proto.Component
+		nextTask, pending = pending[0], pending[1:]
+		if len(pending) == 0 {
+			delete(t.pending, i.clusterID)
+		} else {
+			t.pending[i.clusterID] = pending
+		}
+		t.addImpl(i.clusterID, nextTask)
+	}
+	return i, true
 }
 
 type taskQueueImpl []*task

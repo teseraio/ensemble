@@ -21,6 +21,10 @@ func (b *backend) PostHook(*operator.HookCtx) error {
 	return nil
 }
 
+func (b *backend) Ready(t *proto.Instance) bool {
+	return true
+}
+
 func (b *backend) Initialize(grp *proto.Group, n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
 
 	if target.Group.Type == "scheduler" {

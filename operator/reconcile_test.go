@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
-func TestReconcile(t *testing.T) {
-	r := &reconciler2{
+func TestReconcileX(t *testing.T) {
+	r := &reconciler{
 		dep: &proto.Deployment{
 			Instances: []*proto.Instance{
 				{
@@ -31,4 +32,35 @@ func TestReconcile(t *testing.T) {
 	for _, i := range r.res {
 		fmt.Println(i.status, i.instance)
 	}
+}
+
+func TestReconcileGroups(t *testing.T) {
+	r := &reconciler{
+		dep: &proto.Deployment{
+			Instances: []*proto.Instance{
+				{
+					ID:      uuid.UUID(),
+					Healthy: false,
+					Group: &proto.ClusterSpec2_Group{
+						Type: "x",
+					},
+				},
+			},
+		},
+		spec: &proto.ClusterSpec2{
+			Name: "cluster",
+			Groups: []*proto.ClusterSpec2_Group{
+				{
+					Type:  "x",
+					Count: 1,
+				},
+				{
+					Type:  "y",
+					Count: 3,
+				},
+			},
+		},
+	}
+	r.Compute()
+	r.print()
 }

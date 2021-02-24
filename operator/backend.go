@@ -28,6 +28,8 @@ type Handler interface {
 	Initialize(grp *proto.Group, n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error)
 	// A(clr *proto.Cluster, n []*proto.Node) error
 
+	Ready(t *proto.Instance) bool
+
 	// PostHook is executed when a node changes the state
 	// PostHook(*HookCtx) error
 
@@ -35,7 +37,7 @@ type Handler interface {
 	Spec() *Spec
 
 	// Client returns a connection with a specific node in the cluster
-	// Client(node *proto.Instance) (interface{}, error)
+	Client(node *proto.Instance) (interface{}, error)
 }
 
 // Executor is the interface required by the backends to execute
@@ -49,6 +51,15 @@ type Spec struct {
 	Nodetypes map[string]Nodetype
 	Resources []Resource
 	Handlers  map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec2_Group)
+}
+
+func (s *Spec) GetResource(name string) (res Resource) {
+	for _, i := range s.Resources {
+		if i.GetName() == name {
+			res = i
+		}
+	}
+	return
 }
 
 // Nodetype is a type of node for the Backend

@@ -1,37 +1,19 @@
 package rabbitmq
 
 import (
+	rabbithole "github.com/michaelklishin/rabbit-hole/v2"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
-var (
-	masterKey = "master"
+const (
+	rabbitmqConf    = "/etc/rabbitmq/rabbitmq.conf"
+	rabbitmqPlugins = "/etc/rabbitmq/enabled_plugins"
 )
 
 const (
-	enabledPlugins = "[rabbitmq_management,rabbitmq_management_agent,rabbitmq_shovel]."
+	enabledPlugins = "[rabbitmq_management,rabbitmq_management_agent]."
 )
-
-const rabbitmqctl = "rabbitmqctl"
-
-/*
-func addNode(executor operator.Executor, node *proto.Node, master string) error {
-	if err := executor.Exec(node, rabbitmqctl, "stop_app"); err != nil {
-		return err
-	}
-	if err := executor.Exec(node, rabbitmqctl, "reset"); err != nil {
-		return err
-	}
-	if err := executor.Exec(node, rabbitmqctl, "join_cluster", master); err != nil {
-		return err
-	}
-	if err := executor.Exec(node, rabbitmqctl, "start_app"); err != nil {
-		return err
-	}
-	return nil
-}
-*/
 
 type backend struct {
 }
@@ -41,21 +23,37 @@ func Factory() operator.Handler {
 	return &backend{}
 }
 
-const rabbitmqConf = "/etc/rabbitmq/rabbitmq.conf"
-
 const rabbitmqConfFile = `
 cluster_formation.peer_discovery_backend = classic_config
 
-cluster_formation.classic_config.nodes.1 = rabbit@A1.A
-cluster_formation.classic_config.nodes.2 = rabbit@A2.A
+loopback_users = none
 `
+
+/*
+cluster_formation.classic_config.nodes.1 = rabbit@A0.A
+cluster_formation.classic_config.nodes.2 = rabbit@A1.A
+cluster_formation.classic_config.nodes.3 = rabbit@A2.A
+*/
 
 func (b *backend) Initialize(grp *proto.Group, n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
 	target.Spec.AddEnv("RABBITMQ_ERLANG_COOKIE", "TODO")
 	target.Spec.AddEnv("RABBITMQ_USE_LONGNAME", "true")
 
 	target.Spec.AddFile(rabbitmqConf, rabbitmqConfFile)
+	target.Spec.AddFile(rabbitmqPlugins, enabledPlugins)
+
 	return nil, nil
+}
+
+func (b *backend) Ready(t *proto.Instance) bool {
+	clt, err := rabbithole.NewClient("http://"+t.Ip+":15672", "guest", "guest")
+	if err != nil {
+		return false
+	}
+	if _, err := clt.Overview(); err != nil {
+		return false
+	}
+	return true
 }
 
 /*
@@ -80,7 +78,9 @@ func (b *backend) Spec() *operator.Spec {
 				Image:   "rabbitmq",
 				Version: "latest", // TODO
 				Volumes: []*operator.Volume{},
-				Ports:   []*operator.Port{},
+				Ports:   []*operator.Port{
+					// http-api 15672
+				},
 			},
 		},
 		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec2_Group){
@@ -97,12 +97,12 @@ func (b *backend) Spec() *operator.Spec {
 	}
 }
 
-/*
 // Client implements the Handler interface
-func (b *backend) Client(node *proto.Node) (interface{}, error) {
-	return rabbithole.NewClient("http://"+node.Addr+":15672", "guest", "guest")
+func (b *backend) Client(node *proto.Instance) (interface{}, error) {
+	return rabbithole.NewClient("http://"+node.Ip+":15672", "guest", "guest")
 }
 
+/*
 // Reconcile implements the Handler interface
 func (b *backend) Reconcile(executor operator.Executor, e *proto.Cluster, node *proto.Node, plan *proto.Context) error {
 	switch node.State {
