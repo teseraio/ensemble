@@ -1,9 +1,6 @@
 package rabbitmq
 
 import (
-	"time"
-
-	rabbithole "github.com/michaelklishin/rabbit-hole/v2"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 )
@@ -18,6 +15,7 @@ const (
 
 const rabbitmqctl = "rabbitmqctl"
 
+/*
 func addNode(executor operator.Executor, node *proto.Node, master string) error {
 	if err := executor.Exec(node, rabbitmqctl, "stop_app"); err != nil {
 		return err
@@ -33,6 +31,7 @@ func addNode(executor operator.Executor, node *proto.Node, master string) error 
 	}
 	return nil
 }
+*/
 
 type backend struct {
 }
@@ -42,6 +41,24 @@ func Factory() operator.Handler {
 	return &backend{}
 }
 
+const rabbitmqConf = "/etc/rabbitmq/rabbitmq.conf"
+
+const rabbitmqConfFile = `
+cluster_formation.peer_discovery_backend = classic_config
+
+cluster_formation.classic_config.nodes.1 = rabbit@A1.A
+cluster_formation.classic_config.nodes.2 = rabbit@A2.A
+`
+
+func (b *backend) Initialize(grp *proto.Group, n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
+	target.Spec.AddEnv("RABBITMQ_ERLANG_COOKIE", "TODO")
+	target.Spec.AddEnv("RABBITMQ_USE_LONGNAME", "true")
+
+	target.Spec.AddFile(rabbitmqConf, rabbitmqConfFile)
+	return nil, nil
+}
+
+/*
 // EvaluatePlan implements the Handler interface
 func (b *backend) EvaluatePlan(plan *proto.Context) error {
 	if plan.Plan.Sets[0].DelNodesNum != 0 {
@@ -52,6 +69,7 @@ func (b *backend) EvaluatePlan(plan *proto.Context) error {
 	}
 	return nil
 }
+*/
 
 // Spec implements the Handler interface
 func (b *backend) Spec() *operator.Spec {
@@ -65,6 +83,12 @@ func (b *backend) Spec() *operator.Spec {
 				Ports:   []*operator.Port{},
 			},
 		},
+		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec2_Group){
+			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec2_Group) {
+				spec.Image = "rabbitmq"
+				spec.Version = "latest"
+			},
+		},
 		Resources: []operator.Resource{
 			&User{},
 			&Exchange{},
@@ -73,6 +97,7 @@ func (b *backend) Spec() *operator.Spec {
 	}
 }
 
+/*
 // Client implements the Handler interface
 func (b *backend) Client(node *proto.Node) (interface{}, error) {
 	return rabbithole.NewClient("http://"+node.Addr+":15672", "guest", "guest")
@@ -131,3 +156,4 @@ func (b *backend) reconcileNodeRunning(executor operator.Executor, e *proto.Clus
 	}
 	return nil
 }
+*/

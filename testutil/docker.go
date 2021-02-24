@@ -198,13 +198,14 @@ func (c *Client) removeByName(n string) error {
 
 // Create creates a docker container
 func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, error) {
-	fmt.Println("CREATE")
 	// We will use the 'net1' network interface for dns resolving
 
 	builder := node.Spec
 
 	image := builder.Image + ":" + builder.Version
 	name := node.FullName()
+
+	fmt.Printf("CREATE: %s\n", name)
 
 	if node.Canary {
 		// we need to remove the container name first

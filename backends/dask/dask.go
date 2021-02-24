@@ -1,8 +1,6 @@
 package dask
 
 import (
-	"fmt"
-
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 )
@@ -23,6 +21,31 @@ func (b *backend) PostHook(*operator.HookCtx) error {
 	return nil
 }
 
+func (b *backend) Initialize(grp *proto.Group, n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
+
+	if target.Group.Type == "scheduler" {
+		// start as a dask-scheduler
+		target.Spec.Cmd = []string{
+			"dask-scheduler",
+		}
+	} else if target.Group.Type == "worker" {
+		// start the workers
+		// find master
+		var schedTarget string
+		for _, m := range n {
+			if m.Group.Type == "scheduler" {
+				schedTarget = m.FullName()
+			}
+		}
+		target.Spec.Cmd = []string{
+			"dask-worker",
+			"tcp://" + schedTarget + ":8786",
+		}
+	}
+	return nil, nil
+}
+
+/*
 // EvaluatePlan implements the Handler interface
 func (b *backend) EvaluatePlan(ctx *operator.PlanCtx) error {
 
@@ -58,6 +81,7 @@ func (b *backend) EvaluatePlan(ctx *operator.PlanCtx) error {
 	}
 	return nil
 }
+*/
 
 // Spec implements the Handler interface
 func (b *backend) Spec() *operator.Spec {
@@ -80,7 +104,9 @@ func (b *backend) Spec() *operator.Spec {
 	}
 }
 
+/*
 // Client implements the Handler interface
 func (b *backend) Client(node *proto.Node) (interface{}, error) {
 	return nil, nil
 }
+*/

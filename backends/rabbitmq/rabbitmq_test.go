@@ -1,4 +1,4 @@
-package dask
+package rabbitmq
 
 import (
 	"testing"
@@ -13,15 +13,10 @@ func TestBootstrap(t *testing.T) {
 
 	uuid := srv.Apply(&proto.Component{
 		Name: "A",
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-			Backend: "Dask",
-			Groups: []*proto.ClusterSpec_Group{
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec2{
+			Backend: "Rabbitmq",
+			Groups: []*proto.ClusterSpec2_Group{
 				{
-					Type:  "scheduler",
-					Count: 1,
-				},
-				{
-					Type:  "worker",
 					Count: 3,
 				},
 			},

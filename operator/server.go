@@ -239,6 +239,7 @@ func (s *Server) taskQueue2() {
 		}
 
 		fmt.Println("##### EVAL #####")
+
 		//fmt.Println(new)
 		//fmt.Println(handler)
 
@@ -299,7 +300,17 @@ func (s *Server) taskQueue2() {
 			instance := i.instance
 
 			// make the backend reconcile
-			handler.Spec().Handlers[instance.Group.Name](instance.Spec, instance.Group)
+			fmt.Println(handler)
+			fmt.Println(instance.Group.Type)
+
+			grpSpec := handler.Spec().Nodetypes[instance.Group.Type]
+			instance.Spec.Image = grpSpec.Image
+			instance.Spec.Version = grpSpec.Version
+
+			hh, ok := handler.Spec().Handlers[instance.Group.Type]
+			if ok {
+				hh(instance.Spec, instance.Group)
+			}
 		}
 
 		// reconcile the init nodes
@@ -711,6 +722,7 @@ func validateResources(output interface{}, input map[string]string) error {
 	return nil
 }
 
+/*
 func (s *Server) evaluateCluster(eval *proto.Component, spec *proto.ClusterSpec, c *proto.Cluster, handler Handler) (*PlanCtx, error) {
 
 	// validate the config for each node
@@ -768,7 +780,6 @@ func (s *Server) evaluateCluster(eval *proto.Component, spec *proto.ClusterSpec,
 		return nil, nil
 	}
 
-	/*
 		ctx := &PlanCtx{
 			Plan:      plan,
 			Cluster:   c,
@@ -778,9 +789,9 @@ func (s *Server) evaluateCluster(eval *proto.Component, spec *proto.ClusterSpec,
 		if err := handler.EvaluatePlan(ctx); err != nil {
 			return nil, err
 		}
-	*/
 
-	/*
+
+
 		// add the correct image to each node being created
 		for _, plan := range ctx.Plan.Sets {
 			typ, ok := handler.Spec().Nodetypes[plan.Type]
@@ -803,10 +814,11 @@ func (s *Server) evaluateCluster(eval *proto.Component, spec *proto.ClusterSpec,
 			fmt.Println(typ)
 			panic("TODO")
 		}
-	*/
+
 	panic("X")
 	// return ctx, nil
 }
+*/
 
 func (s *Server) deleteNodes(handler Handler, e *proto.Cluster, plan *proto.Context) (*proto.Cluster, error) {
 	// s.logger.Info("Scale down", "num", len(plan.Set.DelNodes))

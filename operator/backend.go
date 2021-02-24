@@ -11,15 +11,6 @@ type HookCtx struct {
 	Executor Executor
 }
 
-type NodeRes struct {
-	Config interface{}
-}
-
-type PlanCtx struct {
-	Cluster *proto.Cluster
-	Plan    *proto.Plan_Step
-}
-
 type BaseHandler struct {
 }
 
@@ -30,9 +21,9 @@ func (b *BaseHandler) PostHook(*HookCtx) error {
 // Handler is the interface that needs to be implemented by the backend
 type Handler interface {
 	// EvaluatePlan evaluates and modifies the execution plan
-	EvaluatePlan(n []*proto.Instance) error
+	//EvaluatePlan(n []*proto.Instance) error
 
-	EvaluateConfig(spec *proto.NodeSpec, config map[string]string) error
+	//EvaluateConfig(spec *proto.NodeSpec, config map[string]string) error
 
 	Initialize(grp *proto.Group, n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error)
 	// A(clr *proto.Cluster, n []*proto.Node) error
@@ -44,7 +35,7 @@ type Handler interface {
 	Spec() *Spec
 
 	// Client returns a connection with a specific node in the cluster
-	Client(node *proto.Instance) (interface{}, error)
+	// Client(node *proto.Instance) (interface{}, error)
 }
 
 // Executor is the interface required by the backends to execute
