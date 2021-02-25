@@ -13,9 +13,9 @@ func TestBootstrap(t *testing.T) {
 
 	uuid := srv.Apply(&proto.Component{
 		Name: "A",
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec2{
 			Backend: "Dask",
-			Groups: []*proto.ClusterSpec_Group{
+			Groups: []*proto.ClusterSpec2_Group{
 				{
 					Type:  "scheduler",
 					Count: 1,

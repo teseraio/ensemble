@@ -25,7 +25,7 @@ func (b *backend) Ready(t *proto.Instance) bool {
 	return true
 }
 
-func (b *backend) Initialize(grp *proto.Group, n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
+func (b *backend) Initialize(n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
 
 	if target.Group.Type == "scheduler" {
 		// start as a dask-scheduler
@@ -47,6 +47,11 @@ func (b *backend) Initialize(grp *proto.Group, n []*proto.Instance, target *prot
 		}
 	}
 	return nil, nil
+}
+
+// Client implements the Handler interface
+func (b *backend) Client(node *proto.Instance) (interface{}, error) {
+	panic("X")
 }
 
 /*
