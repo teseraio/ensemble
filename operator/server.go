@@ -48,6 +48,8 @@ type Server struct {
 	grpcServer *grpc.Server
 	stopCh     chan struct{}
 
+	evalQueue *evalQueue
+
 	service proto.EnsembleServiceServer
 
 	lock        sync.Mutex
@@ -64,6 +66,7 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		stopCh:      make(chan struct{}),
 		handlers:    map[string]Handler{},
 		deployments: map[string]*deploymentWatcher{},
+		evalQueue:   newEvalQueue(),
 	}
 
 	for _, factory := range config.HandlerFactories {
@@ -89,7 +92,9 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		return nil, err
 	}
 
-	go s.taskQueue2()
+	go s.taskQueue3()
+	go s.taskQueue4()
+
 	return s, nil
 }
 
@@ -111,9 +116,7 @@ func (d *deploymentWatcher) upsertNodeAndEval(i *proto.Instance) {
 		TriggeredBy: proto.Evaluation_NODECHANGE,
 		ClusterID:   i.Cluster,
 	}
-	if err := d.s.State.AddEvaluation(eval); err != nil {
-		panic(err)
-	}
+	d.s.evalQueue.add(eval)
 }
 
 func (d *deploymentWatcher) readiness(i *proto.Instance) {
@@ -241,6 +244,233 @@ func (s *Server) Exec(n *proto.Instance, path string, cmd ...string) error {
 	return s.Provider.Exec("n.Handle", path, cmd...)
 }
 
+func (s *Server) taskQueue3() {
+	s.logger.Info("Starting task worker 2")
+
+	for {
+		comp := s.State.GetTask(context.Background())
+
+		// get the name of the cluster and load the deployment
+		clusterID, err := proto.ClusterIDFromComponent(comp)
+		if err != nil {
+			panic(err)
+		}
+		dep, err := s.State.LoadDeployment(clusterID)
+		if err != nil {
+			panic(err)
+		}
+
+		switch comp.Spec.TypeUrl {
+		case "proto.ClusterSpec":
+			err = s.handleCluster(dep, comp)
+
+		case "proto.ResourceSpec":
+			err = s.handleResource(dep, comp)
+		}
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func (s *Server) handleResource(dep *proto.Deployment, comp *proto.Component) error {
+	var spec proto.ResourceSpec
+	if err := gproto.Unmarshal(comp.Spec.Value, &spec); err != nil {
+		return err
+	}
+
+	handler, ok := s.getHandler("Rabbitmq")
+	if !ok {
+		panic("bad")
+	}
+	dep, err := s.State.LoadDeployment(spec.Cluster)
+	if err != nil {
+		return err
+	}
+
+	// take any of the nodes in the cluster to connect
+	clt, err := handler.Client(dep.Instances[0])
+	if err != nil {
+		return err
+	}
+
+	resSpec := handler.Spec().GetResource(spec.Resource)
+	if resSpec == nil {
+		return fmt.Errorf("resource not found %s", spec.Resource)
+	}
+	newResource, params, err := decodeResource(resSpec, spec.Params)
+	if err != nil {
+		return err
+	}
+	if err := newResource.Init(params); err != nil {
+		return err
+	}
+
+	if comp.Sequence != 1 {
+		pastComp, err := s.State.GetComponent(comp.Spec.TypeUrl, comp.Name, comp.Sequence-1)
+		if err != nil {
+			return err
+		}
+		var oldSpec proto.ResourceSpec
+		if err := gproto.Unmarshal(pastComp.Spec.Value, &oldSpec); err != nil {
+			return err
+		}
+
+		forceNew, err := isForceNew(resSpec, &spec, &oldSpec)
+		if err != nil {
+			return err
+		}
+		if forceNew {
+			// delete object
+			removeResource, _, err := decodeResource(resSpec, oldSpec.Params)
+			if err != nil {
+				return err
+			}
+			if err := removeResource.Delete(clt); err != nil {
+				return err
+			}
+		}
+	}
+
+	if comp.Action == proto.Component_DELETE {
+		if err := newResource.Delete(clt); err != nil {
+			return err
+		}
+	} else {
+		if err := newResource.Reconcile(clt); err != nil {
+			return err
+		}
+	}
+
+	if err := s.State.Finalize(comp.Id); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Server) handleCluster(dep *proto.Deployment, comp *proto.Component) error {
+	var spec proto.ClusterSpec
+	if err := gproto.Unmarshal(comp.Spec.Value, &spec); err != nil {
+		return err
+	}
+
+	if dep == nil {
+		// new deployment
+		dep = &proto.Deployment{
+			Id: comp.Name,
+		}
+	}
+
+	// this is a change in the spec
+	dep.Status = proto.DeploymentRunning
+	dep.CompID = comp.Id
+	dep.Sequence = comp.Sequence
+
+	if err := s.State.UpdateDeployment(dep); err != nil {
+		return err
+	}
+
+	// create a specChange evaluation
+	s.evalQueue.add(&proto.Evaluation{
+		Id:          uuid.UUID(),
+		Status:      proto.Evaluation_PENDING,
+		TriggeredBy: proto.Evaluation_SPECCHANGE,
+		ClusterID:   dep.Id,
+	})
+	return nil
+}
+
+func (s *Server) taskQueue4() {
+	for {
+		eval := s.evalQueue.pop(context.Background())
+		if eval == nil {
+			return
+		}
+
+		// get the deployment
+		dep, err := s.State.LoadDeployment(eval.ClusterID)
+		if err != nil {
+			panic(err)
+		}
+
+		handler, ok := s.getHandler("Rabbitmq")
+		if !ok {
+			panic("bad")
+		}
+
+		// get the spec for the cluster
+		comp, err := s.State.GetPending(dep.CompID)
+		if err != nil {
+			panic(err)
+		}
+		var spec proto.ClusterSpec
+		if err := gproto.Unmarshal(comp.Spec.Value, &spec); err != nil {
+			panic(err)
+		}
+
+		spec.Name = eval.ClusterID
+		spec.Sequence = dep.Sequence
+
+		r := &reconciler{
+			dep:  dep,
+			spec: &spec,
+		}
+		r.Compute()
+		r.print()
+
+		nn := []*proto.Instance{}
+		for _, ii := range dep.Instances {
+			nn = append(nn, ii)
+		}
+		for _, i := range r.res {
+			nn = append(nn, i.instance)
+
+			instance := i.instance
+
+			grpSpec := handler.Spec().Nodetypes[instance.Group.Type]
+			instance.Spec.Image = grpSpec.Image
+			instance.Spec.Version = grpSpec.Version
+
+			hh, ok := handler.Spec().Handlers[instance.Group.Type]
+			if ok {
+				hh(instance.Spec, instance.Group)
+			}
+		}
+
+		// reconcile the init nodes
+		for _, i := range r.res {
+			handler.Initialize(nn, i.instance)
+		}
+
+		// we need to add this values to the db
+		for _, i := range r.res {
+			if err := s.State.UpsertNode(i.instance); err != nil {
+				panic(err)
+			}
+		}
+
+		depW := s.getDeployment(eval.ClusterID)
+		for _, i := range r.res {
+			// create the instance
+			go depW.Update(i.instance)
+		}
+
+		if r.done {
+			// Update the status of the component and finalize the component
+			dep.Status = proto.DeploymentDone
+			if err := s.State.UpdateDeployment(dep); err != nil {
+				panic(err)
+			}
+			if err := s.State.Finalize(dep.CompID); err != nil {
+				panic(err)
+			}
+		}
+
+		s.evalQueue.finalize(eval.Id)
+	}
+}
+
+/*
 func (s *Server) taskQueue2() {
 	s.logger.Info("Starting task worker")
 
@@ -279,7 +509,7 @@ func (s *Server) taskQueue2() {
 			panic("bad")
 		}
 
-		var spec proto.ClusterSpec2
+		var spec proto.ClusterSpec
 		if err := gproto.Unmarshal(new.Spec.Value, &spec); err != nil {
 			panic(err)
 		}
@@ -390,6 +620,7 @@ func (s *Server) taskQueue2() {
 		}
 	}
 }
+*/
 
 func (s *Server) getHandler(name string) (Handler, bool) {
 	h, ok := s.handlers[strings.ToLower(name)]
@@ -418,6 +649,12 @@ func isForceNew(r Resource, old, new *proto.ResourceSpec) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+func getResourceInstance(resource Resource) Resource {
+	val := reflect.New(reflect.TypeOf(resource)).Elem().Interface()
+	schema.Decode(map[string]interface{}{}, &val) // this id done to create the pointer with a value
+	return val.(Resource)
 }
 
 func decodeResource(resource Resource, rawParams string) (Resource, map[string]interface{}, error) {
@@ -482,9 +719,6 @@ func (s *Server) handleResourceTask(spec *proto.ResourceSpec) error {
 	if err := resource.Init(params); err != nil {
 		return err
 	}
-
-	fmt.Println("- reconcile -")
-	fmt.Println(resource)
 
 	if err := resource.Reconcile(clt); err != nil {
 		return err

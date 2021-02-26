@@ -1,8 +1,10 @@
 package k8s
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/teseraio/ensemble/lib/uuid"
@@ -55,12 +57,12 @@ func TestPodLifecycle(t *testing.T) {
 
 	id := uuid.UUID()
 
-	n0 := &proto.Node{
+	n0 := &proto.Instance{
 		ID:      id,
 		Cluster: "a",
-		State:   proto.Node_RUNNING,
-		Spec: &proto.Node_NodeSpec{
-			Image:   "redis", // TODO: Something better
+		Status:  proto.Instance_RUNNING,
+		Spec: &proto.NodeSpec{
+			Image:   "redis",
 			Version: "latest",
 		},
 	}
@@ -69,8 +71,27 @@ func TestPodLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	var evnt *proto.InstanceUpdate
+
+	// wait for successful event
+	select {
+	case evnt = <-p.watchCh:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timeout")
+	}
+
+	fmt.Println("- evnt -")
+	fmt.Println(evnt)
+
 	if _, err := p.DeleteResource(n0); err != nil {
 		t.Fatal(err)
+	}
+
+	// wait for termination event
+	select {
+	case evnt = <-p.watchCh:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timeout")
 	}
 }
 

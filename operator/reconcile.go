@@ -21,7 +21,7 @@ type reconcilerImpl interface {
 
 type reconciler struct {
 	dep  *proto.Deployment
-	spec *proto.ClusterSpec2
+	spec *proto.ClusterSpec
 	res  []*update
 	done bool
 }
@@ -125,7 +125,7 @@ type update struct {
 	instance *proto.Instance
 }
 
-func (r *reconciler) computeStop(grp *proto.ClusterSpec2_Group, reschedule allocSet, untainted allocSet) (stop allocSet) {
+func (r *reconciler) computeStop(grp *proto.ClusterSpec_Group, reschedule allocSet, untainted allocSet) (stop allocSet) {
 	stop = allocSet{}
 
 	remove := len(untainted) - int(grp.Count)
@@ -136,7 +136,7 @@ func (r *reconciler) computeStop(grp *proto.ClusterSpec2_Group, reschedule alloc
 	return stop
 }
 
-func (r *reconciler) computePlacements(grp *proto.ClusterSpec2_Group, untainted, destructive allocSet) (place allocSet) {
+func (r *reconciler) computePlacements(grp *proto.ClusterSpec_Group, untainted, destructive allocSet) (place allocSet) {
 	place = allocSet{}
 
 	total := len(untainted) + len(destructive)
@@ -196,7 +196,7 @@ func (r *reconciler) Compute() {
 	}
 }
 
-func (r *reconciler) computeGroup(grp *proto.ClusterSpec2_Group) bool {
+func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 	set := allocSet(r.dep.Instances)
 	set = set.byGroup(grp.Type)
 
@@ -212,9 +212,9 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec2_Group) bool {
 	canaries, promoted, untainted = set.canaries()
 
 	// promote healthy canaries and add them to the untainted set
-	for _, i := range promoted {
+	/*for _, i := range promoted {
 		r.appendUpdate(i, "promote")
-	}
+	}*/
 	untainted = untainted.join(promoted)
 
 	// destructive updates (TODO: inplace)
@@ -281,7 +281,7 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec2_Group) bool {
 	return isComplete
 }
 
-func computeUpdates(spec *proto.ClusterSpec2, grp *proto.ClusterSpec2_Group, alloc allocSet) (destructive allocSet, untainted allocSet) {
+func computeUpdates(spec *proto.ClusterSpec, grp *proto.ClusterSpec_Group, alloc allocSet) (destructive allocSet, untainted allocSet) {
 	untainted = allocSet{}
 	destructive = allocSet{}
 
@@ -300,7 +300,7 @@ func computeUpdates(spec *proto.ClusterSpec2, grp *proto.ClusterSpec2_Group, all
 	return
 }
 
-func areDiff(grp *proto.ClusterSpec2_Group, other *proto.ClusterSpec2_Group) bool {
+func areDiff(grp *proto.ClusterSpec_Group, other *proto.ClusterSpec_Group) bool {
 	if !reflect.DeepEqual(grp.Config, other.Config) {
 		return true
 	}

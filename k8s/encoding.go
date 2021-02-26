@@ -12,7 +12,7 @@ import (
 type Pod struct {
 	Name     string
 	Ensemble string
-	Builder  *proto.Node_NodeSpec
+	Builder  *proto.NodeSpec
 }
 
 type volumeMount struct {

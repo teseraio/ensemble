@@ -13,9 +13,9 @@ func TestBootstrap(t *testing.T) {
 
 	uuid := srv.Apply(&proto.Component{
 		Name: "A",
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec2{
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
 			Backend: "Rabbitmq",
-			Groups: []*proto.ClusterSpec2_Group{
+			Groups: []*proto.ClusterSpec_Group{
 				{
 					Count: 3,
 				},

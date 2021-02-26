@@ -116,7 +116,7 @@ func (b *BoltDB) initialize() error {
 					return err
 				}
 				if comp.Status == proto.Component_PENDING {
-					clusterID, err := clusterIDFromComponent(&comp)
+					clusterID, err := proto.ClusterIDFromComponent(&comp)
 					if err != nil {
 						return err
 					}
@@ -175,7 +175,7 @@ func (b *BoltDB) Apply(c *proto.Component) (int64, error) {
 		return 0, err
 	}
 
-	// get sequence number
+	// get sequence number, TODO: this only allows two values stored
 	seq, err := getSeqNumber(componentBucket)
 	if err != nil {
 		return 0, err
@@ -200,103 +200,72 @@ func (b *BoltDB) Apply(c *proto.Component) (int64, error) {
 
 	// update the sequence number in the component
 	c.Sequence = int64(seq) + 1
-	if err := dbPut(seqBkt, seqID(c.Sequence), c); err != nil {
-		return 0, err
+
+	if old.Status != proto.Component_PENDING {
+		// push this component to the pending queue
+		clusterID, err := proto.ClusterIDFromComponent(c)
+		if err != nil {
+			return 0, err
+		}
+		b.queue.add(clusterID, c)
+
+		c.Status = proto.Component_PENDING
+		if err := componentBucket.Put(metaKey, []byte(fmt.Sprintf("%d", c.Sequence))); err != nil {
+			return 0, err
+		}
+	} else {
+		c.Status = proto.Component_QUEUED
 	}
 
-	// update the sequence
-	if err := componentBucket.Put(metaKey, []byte(fmt.Sprintf("%d", c.Sequence))); err != nil {
+	if err := dbPut(seqBkt, seqID(c.Sequence), c); err != nil {
 		return 0, err
 	}
 	if err := tx.Commit(); err != nil {
 		return 0, err
 	}
-
-	if old.Status != proto.Component_PENDING {
-		// decode the clusterID of the component and push it to the queue
-		clusterID, err := clusterIDFromComponent(c)
-		if err != nil {
-			return 0, err
-		}
-		b.queue.add(clusterID, c)
-	}
 	return c.Sequence, nil
 }
 
-func (b *BoltDB) GetComponent(id string, generation int64) (*proto.Component, *proto.Component, error) {
-	tx, err := b.db.Begin(false)
+func (b *BoltDB) GetComponent(namespace string, id string, sequence int64) (*proto.Component, error) {
+	tx, err := b.db.Begin(true)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer tx.Rollback()
 
-	generalBkt := tx.Bucket(clusterIndex)
+	componentsBkt := tx.Bucket(componentsBucket)
+	namespaceBkt := componentsBkt.Bucket([]byte(namespace))
 
-	// find the bucket for the specific id
-	compBkt := generalBkt.Bucket([]byte(id))
-
+	compBkt := namespaceBkt.Bucket([]byte(id))
 	seqBkt := compBkt.Bucket(seqKey)
 
-	// get sequence number
-	seq := 0
-	if raw := compBkt.Get(metaKey); raw != nil {
-		if seq, err = strconv.Atoi(string(raw)); err != nil {
-			return nil, nil, err
-		}
-	}
-	if seq == 0 {
-		// it does not exists
-		return nil, nil, nil
-	}
-
 	// read current object
-	current := proto.Component{}
-	if err := dbGet(seqBkt, seqID(int64(seq)), &current); err != nil {
-		return nil, nil, err
+	comp := proto.Component{}
+	if err := dbGet(seqBkt, seqID(sequence), &comp); err != nil {
+		return nil, err
 	}
 
-	// read old object is seq != 1
-	var old *proto.Component
-	if seq != 1 {
-		cc := proto.Component{}
-		if err := dbGet(seqBkt, seqID(int64(seq-1)), &cc); err != nil {
-			return nil, nil, err
-		}
-		old = &cc
-	}
-
-	return &current, old, nil
+	return &comp, nil
 }
 
 func seqID(seq int64) []byte {
 	return []byte(fmt.Sprintf("seq-%d", seq))
 }
 
-type clusterItem interface {
-	gproto.Message
-	GetClusterID() string
-}
-
-var specs = map[string]clusterItem{
-	"proto.ResourceSpec": &proto.ResourceSpec{},
-}
-
-func clusterIDFromComponent(c *proto.Component) (string, error) {
-	var clusterID string
-	if c.Spec.TypeUrl == "proto.ClusterSpec2" {
-		// the name of the component is the id of the cluster
-		clusterID = c.Name
-	} else {
-		item, ok := specs[c.Spec.TypeUrl]
-		if !ok {
-			return "", fmt.Errorf("bad")
-		}
-		if err := gproto.Unmarshal(c.Spec.Value, item); err != nil {
-			return "", err
-		}
-		clusterID = item.GetClusterID()
+func (b *BoltDB) GetTask(ctx context.Context) *proto.Component {
+	tt := b.queue.pop(ctx)
+	if tt == nil {
+		return nil
 	}
-	return clusterID, nil
+	return tt.Component
+}
+
+func (b *BoltDB) GetPending(id string) (*proto.Component, error) {
+	tt, ok := b.queue.get(id)
+	if !ok {
+		return nil, fmt.Errorf("not found")
+	}
+	return tt.Component, nil
 }
 
 func (b *BoltDB) Finalize(id string) error {
@@ -401,8 +370,7 @@ func (b *BoltDB) LoadDeployment(id string) (*proto.Deployment, error) {
 	// find the sub-bucket for the cluster
 	depBkt := depsBkt.Bucket([]byte(id))
 	if depBkt == nil {
-		// cannot create it coz txn is not writtable
-		return &proto.Deployment{Id: id, Instances: []*proto.Instance{}}, nil
+		return nil, nil
 	}
 
 	// load the cluster meta

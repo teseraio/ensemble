@@ -3,6 +3,7 @@ package proto
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"google.golang.org/protobuf/proto"
@@ -192,10 +193,37 @@ func (p *Plan_Set) Add(n *Instance) {
 }
 */
 
-func (r *ClusterSpec2) GetClusterID() string {
+func (r *ClusterSpec) GetClusterID() string {
 	return r.Name
 }
 
 func (r *ResourceSpec) GetClusterID() string {
 	return r.Cluster
+}
+
+type clusterItem interface {
+	proto.Message
+	GetClusterID() string
+}
+
+var specs = map[string]clusterItem{
+	"proto.ResourceSpec": &ResourceSpec{},
+}
+
+func ClusterIDFromComponent(c *Component) (string, error) {
+	var clusterID string
+	if c.Spec.TypeUrl == "proto.ClusterSpec" {
+		// the name of the component is the id of the cluster
+		clusterID = c.Name
+	} else {
+		item, ok := specs[c.Spec.TypeUrl]
+		if !ok {
+			return "", fmt.Errorf("bad")
+		}
+		if err := proto.Unmarshal(c.Spec.Value, item); err != nil {
+			return "", err
+		}
+		clusterID = item.GetClusterID()
+	}
+	return clusterID, nil
 }

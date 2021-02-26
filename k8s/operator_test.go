@@ -63,9 +63,9 @@ func TestItemDecoding(t *testing.T) {
 				}`,
 			spec: &proto.ClusterSpec{
 				Backend: "a",
-				Sets: []*proto.ClusterSpec_Set{
+				Groups: []*proto.ClusterSpec_Group{
 					{
-						Replicas: 1,
+						Count: 1,
 					},
 				},
 			},

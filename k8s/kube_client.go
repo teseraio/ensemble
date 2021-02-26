@@ -40,7 +40,7 @@ func NewKubeClient(config *Config) *KubeClient {
 
 type WatchEvent struct {
 	Type   string
-	Object *Item
+	Object interface{}
 }
 
 func (c *KubeClient) Get(path string) ([]byte, error) {
@@ -129,6 +129,26 @@ type Item struct {
 	Kind     string
 	Spec     map[string]interface{}
 	Data     map[string]interface{}
+}
+
+func (i *Item) GetMetadata() *Metadata {
+	return i.Metadata
+}
+
+type EventRegarding struct {
+	Kind string
+}
+
+type Event struct {
+	Metadata  *Metadata
+	Reason    string
+	Regarding *EventRegarding
+	Note      string
+	Type      string
+}
+
+func (e *Event) GetMetadata() *Metadata {
+	return e.Metadata
 }
 
 // InCluster returns whether we are running inside a Kubernetes pod

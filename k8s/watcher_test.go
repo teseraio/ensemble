@@ -49,11 +49,12 @@ func TestWatcher(t *testing.T) {
 	}
 
 	store := newStore()
-	newWatcher(store, p.client, "/apis/mock.io/v1/namespaces/default/test1s")
+	newWatcher(store, p.client, "/apis/mock.io/v1/namespaces/default/test1s", &Item{}, true)
 
 	for i := 0; i < 20; i++ {
 		e := store.pop(context.Background())
-		if !contains(ids, e.item.Metadata.Name) {
+		item := e.item.(*Item)
+		if !contains(ids, item.Metadata.Name) {
 			t.Fatal("bad")
 		}
 	}
@@ -64,7 +65,7 @@ func TestWatcher(t *testing.T) {
 	}
 
 	tt := store.pop(context.Background())
-	if tt.item.Metadata.Name != ids[0] {
+	if tt.item.(*Item).Metadata.Name != ids[0] {
 		t.Fatal("bad")
 	}
 }
@@ -107,7 +108,7 @@ func TestWatcherStore(t *testing.T) {
 
 	// B pop first because A was modified
 	e := s.pop(context.Background())
-	if e.item.Metadata.Name != "B" {
+	if e.item.(*Item).Metadata.Name != "B" {
 		t.Fatal("B expected")
 	}
 
@@ -118,10 +119,10 @@ func TestWatcherStore(t *testing.T) {
 
 	// A pops
 	e = s.pop(context.Background())
-	if e.item.Metadata.Name != "A" {
+	if e.item.(*Item).Metadata.Name != "A" {
 		t.Fatal("B expected")
 	}
-	if e.item.Kind != "Update" {
+	if e.item.(*Item).Kind != "Update" {
 		t.Fatal("bad")
 	}
 }

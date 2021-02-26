@@ -83,8 +83,8 @@ func (b *backend) Spec() *operator.Spec {
 				},
 			},
 		},
-		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec2_Group){
-			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec2_Group) {
+		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group){
+			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group) {
 				spec.Image = "rabbitmq"
 				spec.Version = "latest"
 			},

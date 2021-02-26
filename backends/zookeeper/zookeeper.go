@@ -37,7 +37,7 @@ func Factory() operator.Handler {
 }
 
 func (b *backend) Ready(t *proto.Instance) bool {
-	return false
+	return true
 }
 
 func (b *backend) PostHook(*operator.HookCtx) error {
@@ -200,8 +200,8 @@ func (b *backend) Spec() *operator.Spec {
 				Config:  &config{},
 			},
 		},
-		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec2_Group){
-			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec2_Group) {
+		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group){
+			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group) {
 				fmt.Println("X")
 				spec.Image = "zookeeper"
 				spec.Version = "3.6"

@@ -95,7 +95,7 @@ message ClusterSpec {
 */
 
 // Description of the cluster
-message ClusterSpec2 {
+message ClusterSpec {
     string name = 1;
 
     // name of the backend
@@ -289,7 +289,7 @@ message Instance {
     
     string Cluster = 3;
 
-    ClusterSpec2.Group group = 5;
+    ClusterSpec.Group group = 5;
     
     // int64 revision = 6;
 
@@ -358,7 +358,7 @@ message Evaluation {
 
     string clusterID = 4;
 
-    string componentID = 5;
+    // string componentID = 5;
 
     // int64 generation = 5;
 

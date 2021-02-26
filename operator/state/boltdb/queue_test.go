@@ -12,12 +12,12 @@ func TestQueueSerializeByClusterID(t *testing.T) {
 
 	q.add("A", &proto.Component{
 		Id:   "id1",
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec2{}),
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})
 
 	q.add("A", &proto.Component{
 		Id:   "id2",
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec2{}),
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})
 
 	q.add("A", &proto.Component{

@@ -20,12 +20,12 @@ const (
 
 func (p *Provider) trackCRDs(clt proto.EnsembleServiceClient) {
 	store := newStore()
-	newWatcher(store, p.client, clustersURL)
-	newWatcher(store, p.client, resourcesURL)
+	newWatcher(store, p.client, clustersURL, &Item{}, true)
+	newWatcher(store, p.client, resourcesURL, &Item{}, true)
 
 	for {
 		task := store.pop(context.Background())
-		item := task.item
+		item := task.item.(*Item)
 
 		spec, err := decodeItem(item)
 		if err != nil {
@@ -69,17 +69,17 @@ func decodeClusterSpec(item *Item) (*any.Any, error) {
 		return nil, err
 	}
 
-	var sets []*proto.ClusterSpec_Set
+	var sets []*proto.ClusterSpec_Group
 	for _, s := range spec.Sets {
-		sets = append(sets, &proto.ClusterSpec_Set{
-			Name:     s.Name,
-			Replicas: int64(s.Replicas),
-			Type:     s.Type,
+		sets = append(sets, &proto.ClusterSpec_Group{
+			Name:  s.Name,
+			Count: int64(s.Replicas),
+			Type:  s.Type,
 		})
 	}
 	res := proto.MustMarshalAny(&proto.ClusterSpec{
 		Backend: spec.Backend.Name,
-		Sets:    sets,
+		Groups:  sets,
 	})
 	return res, nil
 }

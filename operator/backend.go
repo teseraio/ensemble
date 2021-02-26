@@ -1,6 +1,10 @@
 package operator
 
-import "github.com/teseraio/ensemble/operator/proto"
+import (
+	"fmt"
+
+	"github.com/teseraio/ensemble/operator/proto"
+)
 
 // HandlerFactory is a factory for Handlers
 type HandlerFactory func() Handler
@@ -49,7 +53,7 @@ type Spec struct {
 	Name      string
 	Nodetypes map[string]Nodetype
 	Resources []Resource
-	Handlers  map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec2_Group)
+	Handlers  map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group)
 }
 
 func (s *Spec) GetResource(name string) (res Resource) {
@@ -103,15 +107,11 @@ type Resource interface {
 
 // BaseResource is a resource that can have multiple instances
 type BaseResource struct {
-	ID string `schema:"id"`
-}
-
-// SetID sets the id of the specific resource
-func (b *BaseResource) SetID(id string) {
-	b.ID = id
 }
 
 // Init implements the Resource interface
 func (b *BaseResource) Init(spec map[string]interface{}) error {
 	return nil
 }
+
+var ErrResourceNotFound = fmt.Errorf("resource not found")

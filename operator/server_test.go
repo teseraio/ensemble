@@ -1,11 +1,6 @@
 package operator
 
-import (
-	"testing"
-
-	"github.com/teseraio/ensemble/operator/proto"
-)
-
+/*
 type nullResource struct {
 	BaseResource
 }
@@ -15,6 +10,14 @@ func (n *nullResource) GetName() string {
 }
 
 func (n *nullResource) Delete(conn interface{}) error {
+	return nil
+}
+
+func (n *nullResource) GetID() string {
+	return ""
+}
+
+func (n *nullResource) Get(conn interface{}) error {
 	return nil
 }
 
@@ -61,3 +64,4 @@ func TestForceNew(t *testing.T) {
 		}
 	}
 }
+*/

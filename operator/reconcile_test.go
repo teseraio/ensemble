@@ -14,13 +14,13 @@ func TestReconcileX(t *testing.T) {
 			Instances: []*proto.Instance{
 				{
 					Healthy:  true,
-					Group:    &proto.ClusterSpec2_Group{},
+					Group:    &proto.ClusterSpec_Group{},
 					Sequence: 2,
 				},
 			},
 		},
-		spec: &proto.ClusterSpec2{
-			Groups: []*proto.ClusterSpec2_Group{
+		spec: &proto.ClusterSpec{
+			Groups: []*proto.ClusterSpec_Group{
 				{
 					Count: 5,
 				},
@@ -41,15 +41,15 @@ func TestReconcileGroups(t *testing.T) {
 				{
 					ID:      uuid.UUID(),
 					Healthy: false,
-					Group: &proto.ClusterSpec2_Group{
+					Group: &proto.ClusterSpec_Group{
 						Type: "x",
 					},
 				},
 			},
 		},
-		spec: &proto.ClusterSpec2{
+		spec: &proto.ClusterSpec{
 			Name: "cluster",
-			Groups: []*proto.ClusterSpec2_Group{
+			Groups: []*proto.ClusterSpec_Group{
 				{
 					Type:  "x",
 					Count: 1,

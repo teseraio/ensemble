@@ -31,6 +31,17 @@ func (u *User) Delete(req interface{}) error {
 	return nil
 }
 
+// Get implements the Resource interface
+func (u *User) Get(id string, req interface{}) error {
+	client := req.(*rabbithole.Client)
+
+	u.Username = id
+	if _, err := client.GetUser(id); err != nil {
+		return operator.ErrResourceNotFound
+	}
+	return nil
+}
+
 // Reconcile implements the Resource interface
 func (u *User) Reconcile(req interface{}) error {
 	client := req.(*rabbithole.Client)

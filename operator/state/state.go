@@ -21,8 +21,10 @@ type State interface {
 
 	// Apply changes to a resource
 	Apply(*proto.Component) (int64, error)
-	GetComponent(id string, generation int64) (*proto.Component, *proto.Component, error)
+	GetComponent(namespace, id string, generation int64) (*proto.Component, error)
 	Finalize(id string) error
+	GetPending(id string) (*proto.Component, error)
+	GetTask(ctx context.Context) *proto.Component
 
 	// Get returns a component
 	// Get(name string) (*proto.Component, error)
@@ -42,8 +44,8 @@ type State interface {
 	Close() error
 
 	// Experimental, move to operator off memory
-	AddEvaluation(eval *proto.Evaluation) error
-	GetTask2(ctx context.Context) (*proto.Evaluation, error)
+	//AddEvaluation(eval *proto.Evaluation) error
+	//GetTask2(ctx context.Context) (*proto.Evaluation, error)
 }
 
 var (

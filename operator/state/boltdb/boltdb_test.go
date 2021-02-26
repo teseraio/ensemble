@@ -46,12 +46,12 @@ func TestBoltdbReindexPending(t *testing.T) {
 	st.Apply(&proto.Component{
 		Id:   "id1",
 		Name: "A",
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec2{}),
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})
 	st.Apply(&proto.Component{
 		Id:   "id2",
 		Name: "B",
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec2{}),
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})
 
 	// two values expected in the queue

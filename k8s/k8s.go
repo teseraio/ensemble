@@ -11,7 +11,6 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/mitchellh/mapstructure"
-	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 	"google.golang.org/grpc"
 )
@@ -20,9 +19,10 @@ const crdURL = "/apis/apiextensions.k8s.io/v1/customresourcedefinitions"
 
 // Provider is a Provider implementation for kubernetes.
 type Provider struct {
-	client *KubeClient
-	logger hclog.Logger
-	stopCh chan struct{}
+	client  *KubeClient
+	logger  hclog.Logger
+	stopCh  chan struct{}
+	watchCh chan *proto.InstanceUpdate
 }
 
 // Stop stops the kubernetes provider
@@ -30,22 +30,67 @@ func (p *Provider) Stop() {
 	close(p.stopCh)
 }
 
+var eventsURL = "/apis/events.k8s.io/v1/events"
+
+var podsURL2 = "/api/v1/namespaces/default/pods"
+
+func getIDFromRef(ref string) string {
+	spl := strings.Split(ref, ".")
+	return spl[0]
+}
+
 func (p *Provider) Setup() error {
+	fmt.Println("- setup -")
+
+	go func() {
+		store := newStore()
+		newWatcher(store, p.client, eventsURL, &Event{}, false)
+
+		for {
+			task := store.pop(context.Background())
+			event := task.item.(*Event)
+
+			fmt.Println("-----")
+			fmt.Println(event.Reason)
+			fmt.Println(event)
+
+			if event.Reason == "Started" {
+
+				// query the node and get the ip
+				id := getIDFromRef(event.GetMetadata().Name)
+				ip := p.getPodIP(id)
+
+				p.watchCh <- &proto.InstanceUpdate{
+					ID: id,
+					Event: &proto.InstanceUpdate_Conf{
+						Conf: &proto.InstanceUpdate_ConfDone{
+							Ip: ip,
+						},
+					},
+				}
+			}
+
+			if event.Reason == "Killing" {
+				id := getIDFromRef(event.GetMetadata().Name)
+
+				p.watchCh <- &proto.InstanceUpdate{
+					ID: id,
+					Event: &proto.InstanceUpdate_Status{
+						Status: &proto.InstanceUpdate_StatusChange{
+							Status: proto.InstanceUpdate_StatusChange_FAILED,
+						},
+					},
+				}
+			}
+		}
+	}()
+
 	return nil
 }
 
 func (p *Provider) createCRD(crdDefinition []byte) error {
 	_, _, err := p.post(crdURL, crdDefinition)
 	return err
-}
-
-func (p *Provider) contextWithClose() context.Context {
-	ctx, cancelFn := context.WithCancel(context.Background())
-	go func() {
-		<-p.stopCh
-		cancelFn()
-	}()
-	return ctx
 }
 
 // Start starts the kubernetes provider
@@ -69,40 +114,21 @@ func (p *Provider) Resources() interface{} {
 	return &Resource{}
 }
 
-func (p *Provider) WatchUpdates() chan *operator.NodeUpdate {
-	// TODO
-	return nil
+func (p *Provider) WatchUpdates() chan *proto.InstanceUpdate {
+	return p.watchCh
 }
 
 var emptyDel = []byte("{}")
 
 // DeleteResource implements the Provider interface
-func (p *Provider) DeleteResource(node *proto.Node) (*proto.Node, error) {
+func (p *Provider) DeleteResource(node *proto.Instance) (*proto.Instance, error) {
 	if err := p.delete("/api/v1/namespaces/{namespace}/pods/"+node.ID, emptyDel); err != nil {
 		return nil, err
 	}
-
-	var res struct {
-		Status struct {
-			Phase string
-			PodIP string
-		}
-	}
-	// wait for the pod to be removed
-	for {
-		if _, err := p.get("/api/v1/namespaces/{namespace}/pods/"+node.ID, &res); err != nil {
-			if err == errNotFound {
-				break
-			}
-			return nil, err
-		}
-		p.logger.Debug("Shutting down", "id", node.ID, "status", res.Status.Phase)
-		time.Sleep(1 * time.Second)
-	}
-
 	return node, nil
 }
 
+// Exec implements the Provider interface
 func (p *Provider) Exec(handler string, path string, cmdArgs ...string) error {
 	out, err := p.client.Exec(handler, "main-container", path, cmdArgs...)
 	if err != nil {
@@ -187,8 +213,29 @@ func (p *Provider) createHeadlessService(cluster string) error {
 	return nil
 }
 
+func (p *Provider) getPodIP(id string) string {
+	// wait for the resource to be running
+	var res struct {
+		Status struct {
+			Phase string
+			PodIP string
+		}
+	}
+	for {
+		if _, err := p.get("/api/v1/namespaces/{namespace}/pods/"+id, &res); err != nil {
+			panic(err)
+		}
+		if res.Status.Phase == "Running" {
+			break
+		}
+		p.logger.Trace("create resource pod status", "id", id, "status", res.Status.Phase)
+		time.Sleep(1 * time.Second)
+	}
+	return res.Status.PodIP
+}
+
 // CreateResource implements the Provider interface
-func (p *Provider) CreateResource(node *proto.Node) (*proto.Node, error) {
+func (p *Provider) CreateResource(node *proto.Instance) (*proto.Instance, error) {
 	node = node.Copy()
 
 	if err := p.createHeadlessService(node.Cluster); err != nil {
@@ -200,7 +247,6 @@ func (p *Provider) CreateResource(node *proto.Node) (*proto.Node, error) {
 			return nil, err
 		}
 	}
-
 	pod := &Pod{
 		Name:     node.ID,
 		Builder:  node.Spec,
@@ -215,29 +261,6 @@ func (p *Provider) CreateResource(node *proto.Node) (*proto.Node, error) {
 	if _, _, err = p.post("/api/v1/namespaces/{namespace}/pods", data); err != nil {
 		return nil, err
 	}
-
-	// wait for the resource to be running
-	var res struct {
-		Status struct {
-			Phase string
-			PodIP string
-		}
-	}
-	for {
-		if _, err := p.get("/api/v1/namespaces/{namespace}/pods/"+node.ID, &res); err != nil {
-			return nil, err
-		}
-		if res.Status.Phase == "Running" {
-			break
-		}
-		p.logger.Trace("create resource pod status", "id", node.ID, "status", res.Status.Phase)
-		time.Sleep(1 * time.Second)
-	}
-
-	// for now we use the same id for the handle
-	node.Handle = node.ID
-	node.Addr = res.Status.PodIP
-
 	return node, nil
 }
 
@@ -247,9 +270,10 @@ func K8sFactory(logger hclog.Logger, c map[string]interface{}) (*Provider, error
 		return nil, err
 	}
 	p := &Provider{
-		client: NewKubeClient(config),
-		logger: logger.Named("k8s"),
-		stopCh: make(chan struct{}),
+		client:  NewKubeClient(config),
+		logger:  logger.Named("k8s"),
+		stopCh:  make(chan struct{}),
+		watchCh: make(chan *proto.InstanceUpdate, 5),
 	}
 	return p, nil
 }
