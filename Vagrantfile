@@ -41,6 +41,10 @@ def configureLinuxProvisioners(vmCfg)
 		privileged: true,
 		path: './scripts/vagrant-linux-priv-docker.sh'
 
+	vmCfg.vm.provision "shell",
+		privileged: true,
+		path: './scripts/vagrant-linux-priv-k8s.sh'
+	
 	return vmCfg
 end
 

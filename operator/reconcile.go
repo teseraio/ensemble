@@ -20,10 +20,11 @@ type reconcilerImpl interface {
 }
 
 type reconciler struct {
-	dep  *proto.Deployment
-	spec *proto.ClusterSpec
-	res  []*update
-	done bool
+	delete bool
+	dep    *proto.Deployment
+	spec   *proto.ClusterSpec
+	res    []*update
+	done   bool
 }
 
 func (r *reconciler) appendUpdate(instance *proto.Instance, status string) {
@@ -130,6 +131,7 @@ func (r *reconciler) computeStop(grp *proto.ClusterSpec_Group, reschedule allocS
 
 	remove := len(untainted) - int(grp.Count)
 	for i := remove; i > 0; i-- {
+		// TODO: Remove first non-healthy nodes
 		stop = append(stop, untainted[i])
 	}
 
@@ -141,28 +143,24 @@ func (r *reconciler) computePlacements(grp *proto.ClusterSpec_Group, untainted, 
 
 	total := len(untainted) + len(destructive)
 
-	fmt.Println("- total -")
-	fmt.Println(len(untainted))
-	fmt.Println(total)
-	fmt.Println(grp.Count)
-
 	for i := total; i < int(grp.Count); i++ {
 		id := uuid.UUID8()
 
 		var name string
 		if grp.Type != "" {
-			// if the group has a name <name><group><indx>
-			name = fmt.Sprintf("%s_%s_%d", id, grp.Type, i)
+			// if the group has a name <name>-<group>-<indx>
+			name = fmt.Sprintf("%s-%s-%d", id, grp.Type, i)
 		} else {
-			// if the group does not have a name just <name><indx>
-			name = fmt.Sprintf("%s_%d", id, i)
+			// if the group does not have a name just <name>-<indx>
+			name = fmt.Sprintf("%s", id)
 		}
+		fmt.Println(name)
 
 		instance := &proto.Instance{
 			ID:      id,
 			Cluster: r.spec.Name,
 			Index:   int64(i),
-			Name:    name,
+			Name:    id,
 			Group:   grp,
 			Spec:    &proto.NodeSpec{},
 		}
@@ -186,8 +184,34 @@ func (r *reconciler) print() {
 	}
 }
 
+func (r *reconciler) check(s string) (count int) {
+	for _, i := range r.res {
+		if i.status == s {
+			count++
+		}
+	}
+	return
+}
+
 func (r *reconciler) Compute() {
 	r.res = []*update{}
+
+	if r.delete {
+		// remove all the running instances
+		for _, i := range r.dep.Instances {
+			if i.Status == proto.Instance_RUNNING && i.Desired != "Stop" {
+				ii := i.Copy()
+				ii.Desired = "Stop"
+
+				r.appendUpdate(ii, "stop")
+			}
+		}
+		if len(r.res) == 0 {
+			// delete completed
+			r.done = true
+		}
+		return
+	}
 
 	for _, grp := range r.spec.Groups {
 		if !r.computeGroup(grp) {
@@ -205,6 +229,16 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 
 	// compute stop
 	stop := r.computeStop(grp, reschedule, untainted)
+	if len(stop) != 0 {
+		for _, i := range stop {
+			ii := i.Copy()
+			ii.Desired = "Stop"
+
+			r.appendUpdate(ii, "stop")
+		}
+		return false
+	}
+
 	untainted = untainted.difference(stop)
 
 	// get the pending and promoted canaries from the set

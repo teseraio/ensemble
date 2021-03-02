@@ -89,7 +89,7 @@ func TestOperator(t *testing.T, factory operator.HandlerFactory) *TestServer {
 
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "ensemble",
-		Level: hclog.Info,
+		Level: hclog.Debug,
 	})
 	srv, err := operator.NewServer(logger, config)
 	if err != nil {

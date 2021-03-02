@@ -120,7 +120,12 @@ func (d *deploymentWatcher) upsertNodeAndEval(i *proto.Instance) {
 }
 
 func (d *deploymentWatcher) readiness(i *proto.Instance) {
-	handler, ok := d.s.getHandler("Rabbitmq")
+	dep, err := d.s.State.LoadDeployment(i.Cluster)
+	if err != nil {
+		panic(err)
+	}
+
+	handler, ok := d.s.getHandler(dep.Backend)
 	if !ok {
 		panic("bad")
 	}
@@ -140,6 +145,8 @@ func (d *deploymentWatcher) readiness(i *proto.Instance) {
 }
 
 func (d *deploymentWatcher) updateStatus(op *proto.InstanceUpdate) {
+	d.s.logger.Debug("update instance status", "id", op.ID, "cluster", op.Cluster)
+
 	i, ok := d.ii[op.ID]
 	if !ok {
 		panic("bad")
@@ -147,6 +154,7 @@ func (d *deploymentWatcher) updateStatus(op *proto.InstanceUpdate) {
 
 	switch obj := op.Event.(type) {
 	case *proto.InstanceUpdate_Conf:
+		fmt.Println("_ A _")
 		i.Ip = obj.Conf.Ip
 		i.Handler = obj.Conf.Handler
 		i.Status = proto.Instance_RUNNING
@@ -157,10 +165,11 @@ func (d *deploymentWatcher) updateStatus(op *proto.InstanceUpdate) {
 		fmt.Println(i)
 		fmt.Println(i.Desired)
 
-		if i.Desired == "DOWN" {
+		if i.Desired == "DOWN" || i.Desired == "Stop" {
 			// expected to be down
 			i.Status = proto.Instance_OUT
 			// dont do evaluation now
+			d.upsertNodeAndEval(i)
 			return
 		}
 	}
@@ -174,6 +183,8 @@ func (d *deploymentWatcher) updateStatus(op *proto.InstanceUpdate) {
 }
 
 func (d *deploymentWatcher) Update(instance *proto.Instance) {
+	d.s.logger.Debug("update instance", "id", instance.ID, "name", instance.Name, "cluster", instance.Cluster)
+
 	d.lock.Lock()
 	defer d.lock.Unlock()
 
@@ -182,8 +193,19 @@ func (d *deploymentWatcher) Update(instance *proto.Instance) {
 	//fmt.Println(instance.Canary)
 
 	// do stuff here
-	if _, err := d.s.Provider.CreateResource(instance); err != nil {
-		panic(err)
+	if instance.Desired == "Stop" {
+		fmt.Println("- stop -")
+		fmt.Println(instance.ID)
+
+		if _, err := d.s.Provider.DeleteResource(instance); err != nil {
+			panic(err)
+		}
+		fmt.Println("- done stop -")
+	} else {
+		fmt.Println("- create resource -")
+		if _, err := d.s.Provider.CreateResource(instance); err != nil {
+			panic(err)
+		}
 	}
 
 	d.ii[instance.ID] = instance
@@ -194,6 +216,9 @@ func (s *Server) getDeployment(name string) *deploymentWatcher {
 	defer s.lock.Unlock()
 
 	if _, ok := s.deployments[name]; !ok {
+		fmt.Println("_ CREATE DEPLOYMENT _")
+		fmt.Println(name)
+
 		s.deployments[name] = &deploymentWatcher{s: s, ii: map[string]*proto.Instance{}}
 	}
 	return s.deployments[name]
@@ -245,7 +270,7 @@ func (s *Server) Exec(n *proto.Instance, path string, cmd ...string) error {
 }
 
 func (s *Server) taskQueue3() {
-	s.logger.Info("Starting task worker 2")
+	s.logger.Info("Starting spec change worker")
 
 	for {
 		comp := s.State.GetTask(context.Background())
@@ -278,8 +303,11 @@ func (s *Server) handleResource(dep *proto.Deployment, comp *proto.Component) er
 	if err := gproto.Unmarshal(comp.Spec.Value, &spec); err != nil {
 		return err
 	}
+	if dep == nil {
+		return fmt.Errorf("deployment does not exists")
+	}
 
-	handler, ok := s.getHandler("Rabbitmq")
+	handler, ok := s.getHandler(dep.Backend)
 	if !ok {
 		panic("bad")
 	}
@@ -354,10 +382,17 @@ func (s *Server) handleCluster(dep *proto.Deployment, comp *proto.Component) err
 		return err
 	}
 
+	fmt.Printf("Handle cluster: %s (%d)\n", comp.Id, comp.Sequence)
+
 	if dep == nil {
 		// new deployment
 		dep = &proto.Deployment{
-			Id: comp.Name,
+			Id:      comp.Name,
+			Backend: spec.Backend,
+		}
+	} else {
+		if dep.Backend != spec.Backend {
+			return fmt.Errorf("the backend is not the same")
 		}
 	}
 
@@ -381,11 +416,15 @@ func (s *Server) handleCluster(dep *proto.Deployment, comp *proto.Component) err
 }
 
 func (s *Server) taskQueue4() {
+	s.logger.Info("Starting evaluation worker")
+
 	for {
 		eval := s.evalQueue.pop(context.Background())
 		if eval == nil {
 			return
 		}
+
+		s.logger.Debug("handle eval", "id", eval.Id, "cluster", eval.ClusterID, "trigger", eval.TriggeredBy.String())
 
 		// get the deployment
 		dep, err := s.State.LoadDeployment(eval.ClusterID)
@@ -393,16 +432,20 @@ func (s *Server) taskQueue4() {
 			panic(err)
 		}
 
-		handler, ok := s.getHandler("Rabbitmq")
+		handler, ok := s.getHandler(dep.Backend)
 		if !ok {
 			panic("bad")
 		}
+
+		fmt.Println("-- comp id --")
+		fmt.Println(dep.CompID)
 
 		// get the spec for the cluster
 		comp, err := s.State.GetPending(dep.CompID)
 		if err != nil {
 			panic(err)
 		}
+
 		var spec proto.ClusterSpec
 		if err := gproto.Unmarshal(comp.Spec.Value, &spec); err != nil {
 			panic(err)
@@ -411,35 +454,51 @@ func (s *Server) taskQueue4() {
 		spec.Name = eval.ClusterID
 		spec.Sequence = dep.Sequence
 
+		fmt.Println("- dep -")
+		fmt.Println(dep)
+		fmt.Println("- spec -")
+		fmt.Println(spec)
+
 		r := &reconciler{
-			dep:  dep,
-			spec: &spec,
+			delete: comp.Action == proto.Component_DELETE,
+			dep:    dep,
+			spec:   &spec,
 		}
 		r.Compute()
 		r.print()
 
-		nn := []*proto.Instance{}
-		for _, ii := range dep.Instances {
-			nn = append(nn, ii)
-		}
-		for _, i := range r.res {
-			nn = append(nn, i.instance)
+		fmt.Println("- res -")
+		fmt.Println(r.res)
 
-			instance := i.instance
+		if !r.delete {
+			// this is the initializtion step
 
-			grpSpec := handler.Spec().Nodetypes[instance.Group.Type]
-			instance.Spec.Image = grpSpec.Image
-			instance.Spec.Version = grpSpec.Version
-
-			hh, ok := handler.Spec().Handlers[instance.Group.Type]
-			if ok {
-				hh(instance.Spec, instance.Group)
+			nn := []*proto.Instance{}
+			for _, ii := range dep.Instances {
+				nn = append(nn, ii)
 			}
-		}
+			for _, i := range r.res {
+				nn = append(nn, i.instance)
 
-		// reconcile the init nodes
-		for _, i := range r.res {
-			handler.Initialize(nn, i.instance)
+				instance := i.instance
+
+				grpSpec := handler.Spec().Nodetypes[instance.Group.Type]
+				instance.Spec.Image = grpSpec.Image
+				instance.Spec.Version = grpSpec.Version
+
+				hh, ok := handler.Spec().Handlers[instance.Group.Type]
+				if ok {
+					hh(instance.Spec, instance.Group)
+				}
+			}
+
+			// reconcile the init nodes
+			for _, i := range r.res {
+				handler.Initialize(nn, i.instance)
+
+				fmt.Println("-- spec --")
+				fmt.Println(i.instance.Spec)
+			}
 		}
 
 		// we need to add this values to the db
@@ -456,6 +515,7 @@ func (s *Server) taskQueue4() {
 		}
 
 		if r.done {
+			fmt.Println("___ DONE ___")
 			// Update the status of the component and finalize the component
 			dep.Status = proto.DeploymentDone
 			if err := s.State.UpdateDeployment(dep); err != nil {
@@ -466,161 +526,10 @@ func (s *Server) taskQueue4() {
 			}
 		}
 
+		s.logger.Debug("finalize eval", "id", eval.Id)
 		s.evalQueue.finalize(eval.Id)
 	}
 }
-
-/*
-func (s *Server) taskQueue2() {
-	s.logger.Info("Starting task worker")
-
-	for {
-		eval, err := s.State.GetTask2(context.Background())
-		if err != nil {
-			panic(err)
-		}
-
-		// get the component
-		new, _, err := s.State.GetComponent(eval.ClusterID, 0)
-		if err != nil {
-			panic(err)
-		}
-
-		fmt.Println("##### EVAL #####")
-
-		//fmt.Println(new)
-		//fmt.Println(handler)
-
-		switch new.Spec.GetTypeUrl() {
-		case "proto.ResourceSpec":
-			fmt.Println("_XXXX_")
-			var res proto.ResourceSpec
-			if err := gproto.Unmarshal(new.Spec.Value, &res); err != nil {
-				panic(err)
-			}
-			if err := s.handleResourceTask(&res); err != nil {
-				panic(err)
-			}
-			continue
-		}
-
-		handler, ok := s.getHandler("Rabbitmq")
-		if !ok {
-			panic("bad")
-		}
-
-		var spec proto.ClusterSpec
-		if err := gproto.Unmarshal(new.Spec.Value, &spec); err != nil {
-			panic(err)
-		}
-		spec.Name = eval.ClusterID
-		spec.Sequence = new.Sequence
-
-		// get the deployment
-		dep, err := s.State.LoadDeployment(eval.ClusterID)
-		if err != nil {
-			panic(err)
-		}
-
-		fmt.Println("#############################")
-		fmt.Println(dep)
-		fmt.Println(spec)
-
-		dep.Sequence = new.Sequence
-		dep.CompID = new.Id
-
-		r := &reconciler{
-			dep:  dep,
-			spec: &spec,
-		}
-		r.Compute()
-		r.print()
-
-		// Update the status of the deployment
-		if r.done {
-			fmt.Println("____ DONE ____")
-			dep.Status = proto.DeploymentDone
-			// notify status
-		} else {
-			fmt.Println("____ RUNNING ____")
-			dep.Status = proto.DeploymentRunning
-		}
-		if err := s.State.UpdateDeployment(dep); err != nil {
-			panic(err)
-		}
-
-		fmt.Println("-- reconcile res --")
-		fmt.Println(r.res)
-		for _, i := range r.res {
-			fmt.Println(i.instance, i.status)
-		}
-
-		// for the reconcile
-		nn := []*proto.Instance{}
-		for _, ii := range dep.Instances {
-			nn = append(nn, ii)
-		}
-
-		for _, i := range r.res {
-			if i.status == "promote" {
-				continue
-			}
-
-			nn = append(nn, i.instance)
-
-			instance := i.instance
-
-			// make the backend reconcile
-			fmt.Println(handler)
-			fmt.Println(instance.Group.Type)
-
-			grpSpec := handler.Spec().Nodetypes[instance.Group.Type]
-			instance.Spec.Image = grpSpec.Image
-			instance.Spec.Version = grpSpec.Version
-
-			hh, ok := handler.Spec().Handlers[instance.Group.Type]
-			if ok {
-				hh(instance.Spec, instance.Group)
-			}
-		}
-
-		// reconcile the init nodes
-		for _, i := range r.res {
-			if i.status == "promote" {
-				continue
-			}
-
-			handler.Initialize(nn, i.instance)
-		}
-
-		// we need to add this values to the db
-		for _, i := range r.res {
-			if i.status != "promote" {
-				if err := s.State.UpsertNode(i.instance); err != nil {
-					panic(err)
-				}
-			}
-		}
-
-		//
-		depW := s.getDeployment(eval.ClusterID)
-		for _, i := range r.res {
-			if i.status == "promote" {
-				continue
-			}
-
-			// create the instance
-			go depW.Update(i.instance)
-		}
-
-		if r.done {
-			if err := s.State.Finalize(dep.CompID); err != nil {
-				panic(err)
-			}
-		}
-	}
-}
-*/
 
 func (s *Server) getHandler(name string) (Handler, bool) {
 	h, ok := s.handlers[strings.ToLower(name)]
@@ -668,73 +577,6 @@ func decodeResource(resource Resource, rawParams string) (Resource, map[string]i
 	}
 	resource = val.(Resource)
 	return resource, params, nil
-}
-
-func (s *Server) handleResourceTask(spec *proto.ResourceSpec) error {
-	handler, ok := s.getHandler("Rabbitmq")
-	if !ok {
-		panic("bad")
-	}
-	dep, err := s.State.LoadDeployment(spec.Cluster)
-	if err != nil {
-		return err
-	}
-
-	// take any of the nodes in the cluster to connect
-	clt, err := handler.Client(dep.Instances[0])
-	if err != nil {
-		return err
-	}
-
-	resource := handler.Spec().GetResource(spec.Resource)
-	if resource == nil {
-		return fmt.Errorf("resource not found %s", spec.Resource)
-	}
-
-	/*
-		// Check if we have to destroy the current object if a force-new field
-		// has changed
-		if !isFirst {
-			forceNew, err := isForceNew(resource, &spec, &oldSpec)
-			if err != nil {
-				return err
-			}
-			if forceNew {
-				// delete object
-				removeResource, _, err := decodeResource(resource, oldSpec.Params)
-				if err != nil {
-					return err
-				}
-				if err := removeResource.Delete(clt); err != nil {
-					return err
-				}
-			}
-		}
-	*/
-
-	resource, params, err := decodeResource(resource, spec.Params)
-	if err != nil {
-		return err
-	}
-	if err := resource.Init(params); err != nil {
-		return err
-	}
-
-	if err := resource.Reconcile(clt); err != nil {
-		return err
-	}
-
-	/*
-		// check current value for the resource
-		if eval.Action == proto.Component_DELETE {
-			if err := resource.Delete(clt); err != nil {
-				return err
-			}
-		} else {
-		}
-	*/
-
-	return nil
 }
 
 func validateResources(output interface{}, input map[string]string) error {

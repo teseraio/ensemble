@@ -5,6 +5,7 @@ import (
 	"container/heap"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"reflect"
@@ -95,6 +96,7 @@ func (w *Watcher) listImpl2() string {
 		}
 		result := &ListResponse{}
 		if err := json.Unmarshal(data, &result); err != nil {
+			fmt.Println(path)
 			panic(err)
 		}
 
@@ -104,7 +106,7 @@ func (w *Watcher) listImpl2() string {
 				if err != nil {
 					panic(err)
 				}
-				w.store.add(obj)
+				w.store.add("", obj)
 			}
 		}
 		if result.Metadata.Continue == "" {
@@ -147,12 +149,13 @@ func (w *Watcher) listImpl() {
 		if err != nil {
 			panic(err)
 		}
-		w.store.add(obj)
+		w.store.add(evnt.Type, obj)
 	}
 }
 
-type entry struct {
+type WatchEntry struct {
 	item itemObj
+	typ  string
 
 	// internal fields for the sort heap
 	index     int
@@ -162,19 +165,19 @@ type entry struct {
 type store struct {
 	heapImpl storeHeapImpl
 	lock     sync.Mutex
-	items    map[string]*entry
+	items    map[string]*WatchEntry
 	updateCh chan struct{}
 }
 
 func newStore() *store {
 	return &store{
 		heapImpl: storeHeapImpl{},
-		items:    map[string]*entry{},
+		items:    map[string]*WatchEntry{},
 		updateCh: make(chan struct{}),
 	}
 }
 
-func (s *store) add(i itemObj) {
+func (s *store) add(typ string, i itemObj) {
 	id := i.GetMetadata().Name
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -186,8 +189,9 @@ func (s *store) add(i itemObj) {
 		heap.Fix(&s.heapImpl, ii.index)
 	} else {
 		// push
-		tt := &entry{
+		tt := &WatchEntry{
 			item:      i,
+			typ:       typ,
 			timestamp: time.Now(),
 		}
 		s.items[id] = tt
@@ -200,13 +204,13 @@ func (s *store) add(i itemObj) {
 	}
 }
 
-func (s *store) pop(ctx context.Context) *entry {
+func (s *store) pop(ctx context.Context) *WatchEntry {
 POP:
 	s.lock.Lock()
 
 	if len(s.heapImpl) != 0 {
 		// pop the first value
-		tt := heap.Pop(&s.heapImpl).(*entry)
+		tt := heap.Pop(&s.heapImpl).(*WatchEntry)
 		delete(s.items, tt.item.GetMetadata().Name)
 		s.lock.Unlock()
 		return tt
@@ -221,7 +225,7 @@ POP:
 	}
 }
 
-type storeHeapImpl []*entry
+type storeHeapImpl []*WatchEntry
 
 func (t storeHeapImpl) Len() int { return len(t) }
 
@@ -237,7 +241,7 @@ func (t storeHeapImpl) Swap(i, j int) {
 
 func (t *storeHeapImpl) Push(x interface{}) {
 	n := len(*t)
-	item := x.(*entry)
+	item := x.(*WatchEntry)
 	item.index = n
 	*t = append(*t, item)
 }

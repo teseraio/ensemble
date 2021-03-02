@@ -82,19 +82,19 @@ func contains(i []string, j string) bool {
 func TestWatcherStore(t *testing.T) {
 	s := newStore()
 
-	s.add(&Item{
+	s.add("", &Item{
 		Metadata: &Metadata{
 			Name: "A",
 		},
 	})
 
-	s.add(&Item{
+	s.add("", &Item{
 		Metadata: &Metadata{
 			Name: "B",
 		},
 	})
 
-	s.add(&Item{
+	s.add("", &Item{
 		Metadata: &Metadata{
 			Name: "A",
 		},

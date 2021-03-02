@@ -187,14 +187,20 @@ func (b *BoltDB) Apply(c *proto.Component) (int64, error) {
 		return 0, err
 	}
 
-	// get the current version and check if it has changed
+	// get the current version
 	old := proto.Component{}
 	if seq != 0 {
 		if err := dbGet(seqBkt, seqID(int64(seq)), &old); err != nil {
 			return 0, err
 		}
-		if bytes.Equal(old.Spec.Value, c.Spec.Value) {
-			return 0, nil
+		if c.Action == proto.Component_CREATE {
+			if bytes.Equal(old.Spec.Value, c.Spec.Value) {
+				return 0, nil
+			}
+		}
+	} else {
+		if c.Action == proto.Component_DELETE {
+			return 0, fmt.Errorf("cannot remove non created object")
 		}
 	}
 

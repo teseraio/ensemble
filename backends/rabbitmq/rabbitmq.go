@@ -2,6 +2,7 @@ package rabbitmq
 
 import (
 	rabbithole "github.com/michaelklishin/rabbit-hole/v2"
+	"github.com/teseraio/ensemble/lib/template"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 )
@@ -27,7 +28,12 @@ const rabbitmqConfFile = `
 cluster_formation.peer_discovery_backend = classic_config
 
 loopback_users = none
-`
+
+{{ if .Nodes }}
+{{ range $i, $elem := .Nodes }}
+cluster_formation.classic_config.nodes.{{ $i }} = rabbit@{{ $elem }}
+{{ end }}
+{{ end }}`
 
 /*
 cluster_formation.classic_config.nodes.1 = rabbit@A0.A
@@ -39,9 +45,19 @@ func (b *backend) Initialize(n []*proto.Instance, target *proto.Instance) (*prot
 	target.Spec.AddEnv("RABBITMQ_ERLANG_COOKIE", "TODO")
 	target.Spec.AddEnv("RABBITMQ_USE_LONGNAME", "true")
 
-	target.Spec.AddFile(rabbitmqConf, rabbitmqConfFile)
 	target.Spec.AddFile(rabbitmqPlugins, enabledPlugins)
 
+	var nodes []string
+	for _, i := range n {
+		if i.ID != target.ID {
+			nodes = append(nodes, i.FullName())
+		}
+	}
+	configContent, err := template.RunTmpl(rabbitmqConfFile, map[string]interface{}{"Nodes": nodes})
+	if err != nil {
+		panic(err)
+	}
+	target.Spec.AddFile(rabbitmqConf, string(configContent))
 	return nil, nil
 }
 

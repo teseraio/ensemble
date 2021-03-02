@@ -22,9 +22,19 @@ func TestBootstrap(t *testing.T) {
 				},
 				{
 					Type:  "worker",
-					Count: 3,
+					Count: 1,
 				},
 			},
+		}),
+	})
+
+	srv.WaitForTask(uuid)
+
+	uuid = srv.Apply(&proto.Component{
+		Name:   "A",
+		Action: proto.Component_DELETE,
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			Backend: "Dask",
 		}),
 	})
 

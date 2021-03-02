@@ -2,6 +2,7 @@ package operator
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/teseraio/ensemble/lib/uuid"
@@ -22,10 +23,11 @@ func (s *service) Apply(ctx context.Context, component *proto.Component) (*proto
 		return nil, err
 	}
 	if seq == 0 {
+		fmt.Println("_ NOT UPDATED _")
 		// it was not updated
 		return component, nil
 	}
-
+	fmt.Println("_UPDATED_")
 	return component, nil
 }
 

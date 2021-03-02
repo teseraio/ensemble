@@ -9,6 +9,7 @@ import (
 	gproto "github.com/golang/protobuf/proto"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/teseraio/ensemble/lib/template"
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
@@ -105,7 +106,7 @@ func TestItemDecoding(t *testing.T) {
 			kind = "resources"
 		}
 
-		obj, err := RunTmpl(`{
+		obj, err := template.RunTmpl(`{
 			"apiVersion": "ensembleoss.io/v1",
 			"kind": "{{.kind}}",
 			"metadata": {

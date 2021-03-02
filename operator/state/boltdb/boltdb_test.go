@@ -104,3 +104,46 @@ func TestBoltdbFinalizeMultipleResources(t *testing.T) {
 	db.Finalize(comp.Id)
 	assert.Equal(t, db.queue.popImpl().Component.Id, "id2")
 }
+
+func TestBoltdbApply(t *testing.T) {
+	config := map[string]interface{}{
+		"path": "/tmp/db-" + uuid.UUID(),
+	}
+	st, err := Factory(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := st.(*BoltDB)
+
+	cID, _ := db.Apply(&proto.Component{
+		Id:     "id1",
+		Name:   "A",
+		Action: proto.Component_CREATE,
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			Backend: "backend1",
+		}),
+	})
+	assert.Equal(t, cID, int64(1))
+
+	// the sequence is not updated
+	cID2, _ := db.Apply(&proto.Component{
+		Id:     "id2",
+		Name:   "A",
+		Action: proto.Component_CREATE,
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			Backend: "backend1",
+		}),
+	})
+	assert.Equal(t, cID2, int64(0))
+
+	// remove the component
+	cID3, _ := db.Apply(&proto.Component{
+		Id:     "id2",
+		Name:   "A",
+		Action: proto.Component_DELETE,
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			Backend: "backend1",
+		}),
+	})
+	assert.Equal(t, cID3, int64(2))
+}

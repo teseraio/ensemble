@@ -10,37 +10,101 @@ import (
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
-const (
-	// clustersURL is the k8s url for the cluster objects
-	clustersURL = "/apis/ensembleoss.io/v1/namespaces/default/clusters"
+type APIGroupList struct {
+	Groups []*APIGroup
+}
 
-	// resourcesURL is the k8s url for the resource objects
-	resourcesURL = "/apis/ensembleoss.io/v1/namespaces/default/resources"
-)
-
-func (p *Provider) trackCRDs(clt proto.EnsembleServiceClient) {
-	store := newStore()
-	newWatcher(store, p.client, clustersURL, &Item{}, true)
-	newWatcher(store, p.client, resourcesURL, &Item{}, true)
-
-	for {
-		task := store.pop(context.Background())
-		item := task.item.(*Item)
-
-		spec, err := decodeItem(item)
-		if err != nil {
-			panic(err)
-		}
-
-		c := &proto.Component{
-			Name:     item.Metadata.Name,
-			Spec:     spec,
-			Metadata: item.Metadata.Labels,
-		}
-		if _, err := clt.Apply(context.Background(), c); err != nil {
-			panic(err)
+func (a *APIGroupList) findGroup(name string) bool {
+	for _, grp := range a.Groups {
+		if grp.Name == name {
+			return true
 		}
 	}
+	return false
+}
+
+type APIGroup struct {
+	Name string
+}
+
+type APIResourceList struct {
+	Resources []*APIResource
+}
+
+func (a *APIResourceList) findResource(name string) bool {
+	for _, res := range a.Resources {
+		if res.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+type APIResource struct {
+	Name string
+}
+
+var validResources = []string{
+	"clusters",
+	"resources",
+}
+
+func (p *Provider) trackCRDs(clt proto.EnsembleServiceClient) error {
+	// check that the ensembleoss group exists
+	var apiGroupList APIGroupList
+	if _, err := p.get("/apis", &apiGroupList); err != nil {
+		return err
+	}
+	if !apiGroupList.findGroup("ensembleoss.io") {
+		return fmt.Errorf("ensemble group not found")
+	}
+
+	var apiResourceList APIResourceList
+	if _, err := p.get("/apis/ensembleoss.io/v1", &apiResourceList); err != nil {
+		return err
+	}
+
+	store := newStore()
+	for _, res := range validResources {
+		ok := apiResourceList.findResource(res)
+		if ok {
+			newWatcher(store, p.client, "/apis/ensembleoss.io/v1/namespaces/default/"+res, &Item{}, true)
+			p.logger.Info("CRD tracker started", "name", res)
+		} else {
+			p.logger.Warn("CRD resource not defined", "name", res)
+		}
+	}
+
+	go func() {
+		for {
+			task := store.pop(context.Background())
+			item := task.item.(*Item)
+
+			spec, err := decodeItem(item)
+			if err != nil {
+				panic(err)
+			}
+
+			action := proto.Component_CREATE
+			if task.typ == "DELETED" {
+				action = proto.Component_DELETE
+			}
+
+			c := &proto.Component{
+				Name:     item.Metadata.Name,
+				Spec:     spec,
+				Metadata: item.Metadata.Labels,
+				Action:   action,
+			}
+
+			p.logger.Debug("apply component", "name", item.Metadata.Name, "kind", item.Kind, "action", task.typ)
+			if _, err := clt.Apply(context.Background(), c); err != nil {
+				panic(err)
+			}
+		}
+	}()
+
+	return nil
 }
 
 func decodeItem(item *Item) (*any.Any, error) {
@@ -68,6 +132,9 @@ func decodeClusterSpec(item *Item) (*any.Any, error) {
 	if err := mapstructure.Decode(item.Spec, &spec); err != nil {
 		return nil, err
 	}
+
+	fmt.Println("-- sets --")
+	fmt.Println(spec.Sets)
 
 	var sets []*proto.ClusterSpec_Group
 	for _, s := range spec.Sets {

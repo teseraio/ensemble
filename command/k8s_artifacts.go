@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/teseraio/ensemble/k8s"
+	"github.com/teseraio/ensemble/lib/template"
 	"gopkg.in/yaml.v2"
 )
 
@@ -100,7 +101,7 @@ func listAssetsByPrefix(prefix string, obj interface{}) ([]string, error) {
 			asset := k8s.MustAsset(n)
 			if strings.HasSuffix(n, ".template") {
 				// render the template
-				res, err := k8s.RunTmpl(string(asset), obj)
+				res, err := template.RunTmpl(string(asset), obj)
 				if err != nil {
 					return nil, err
 				}

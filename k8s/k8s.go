@@ -50,18 +50,27 @@ func (p *Provider) Setup() error {
 			task := store.pop(context.Background())
 			event := task.item.(*Event)
 
+			id := getIDFromRef(event.GetMetadata().Name)
+			cluster := p.getPodCluster(id)
+
 			fmt.Println("-----")
 			fmt.Println(event.Reason)
 			fmt.Println(event)
 
-			if event.Reason == "Started" {
+			if cluster == "" {
+				continue
+			}
 
+			fmt.Println("- good -")
+
+			if event.Reason == "Started" {
 				// query the node and get the ip
-				id := getIDFromRef(event.GetMetadata().Name)
+
 				ip := p.getPodIP(id)
 
 				p.watchCh <- &proto.InstanceUpdate{
-					ID: id,
+					ID:      id,
+					Cluster: cluster,
 					Event: &proto.InstanceUpdate_Conf{
 						Conf: &proto.InstanceUpdate_ConfDone{
 							Ip: ip,
@@ -71,10 +80,9 @@ func (p *Provider) Setup() error {
 			}
 
 			if event.Reason == "Killing" {
-				id := getIDFromRef(event.GetMetadata().Name)
-
 				p.watchCh <- &proto.InstanceUpdate{
-					ID: id,
+					ID:      id,
+					Cluster: cluster,
 					Event: &proto.InstanceUpdate_Status{
 						Status: &proto.InstanceUpdate_StatusChange{
 							Status: proto.InstanceUpdate_StatusChange_FAILED,
@@ -102,8 +110,9 @@ func (p *Provider) Start() error {
 	}
 
 	clt := proto.NewEnsembleServiceClient(conn)
-	go p.trackCRDs(clt)
-
+	if err := p.trackCRDs(clt); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -205,12 +214,24 @@ func (p *Provider) createHeadlessService(cluster string) error {
 	if err != nil {
 		return err
 	}
+
+	fmt.Println("-- headless --")
+	fmt.Println(string(data))
+
 	if _, _, err := p.post("/api/v1/namespaces/{namespace}/services", data); err != nil {
 		if err != errAlreadyExists {
 			return err
 		}
 	}
 	return nil
+}
+
+func (p *Provider) getPodCluster(id string) string {
+	var obj *Item
+	if _, err := p.get("/api/v1/namespaces/{namespace}/pods/"+id, &obj); err != nil {
+		panic(err)
+	}
+	return obj.Metadata.Labels["ensemble"]
 }
 
 func (p *Provider) getPodIP(id string) string {
@@ -236,8 +257,9 @@ func (p *Provider) getPodIP(id string) string {
 
 // CreateResource implements the Provider interface
 func (p *Provider) CreateResource(node *proto.Instance) (*proto.Instance, error) {
-	node = node.Copy()
+	p.logger.Debug("upsert instance", "id", node.ID, "cluster", node.Cluster, "name", node.Name)
 
+	node = node.Copy()
 	if err := p.createHeadlessService(node.Cluster); err != nil {
 		return nil, err
 	}
@@ -247,15 +269,17 @@ func (p *Provider) CreateResource(node *proto.Instance) (*proto.Instance, error)
 			return nil, err
 		}
 	}
-	pod := &Pod{
-		Name:     node.ID,
-		Builder:  node.Spec,
-		Ensemble: node.Cluster,
-	}
-	data, err := MarshalPod(pod)
+
+	fmt.Println("-- cmd --")
+	fmt.Println(node.Spec.Cmd)
+
+	data, err := MarshalPod(node)
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Println("-- data --")
+	fmt.Println(string(data))
 
 	// create the Pod resource
 	if _, _, err = p.post("/api/v1/namespaces/{namespace}/pods", data); err != nil {

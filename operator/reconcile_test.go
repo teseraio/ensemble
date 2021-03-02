@@ -1,14 +1,40 @@
 package operator
 
 import (
-	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
-func TestReconcileX(t *testing.T) {
+func TestReconcileScaleDown(t *testing.T) {
+	r := &reconciler{
+		dep: &proto.Deployment{
+			Instances: []*proto.Instance{
+				{
+					Healthy: true,
+					Group:   &proto.ClusterSpec_Group{},
+				},
+				{
+					Healthy: true,
+					Group:   &proto.ClusterSpec_Group{},
+				},
+			},
+		},
+		spec: &proto.ClusterSpec{
+			Groups: []*proto.ClusterSpec_Group{
+				{
+					Count: 1,
+				},
+			},
+		},
+	}
+	r.Compute()
+	assert.Equal(t, r.check("stop"), 1)
+}
+
+func TestReconcileScaleUp(t *testing.T) {
 	r := &reconciler{
 		dep: &proto.Deployment{
 			Instances: []*proto.Instance{
@@ -29,20 +55,41 @@ func TestReconcileX(t *testing.T) {
 		},
 	}
 	r.Compute()
-	for _, i := range r.res {
-		fmt.Println(i.status, i.instance)
-	}
+	assert.Equal(t, r.check("add"), 4)
 }
 
-func TestReconcileGroups(t *testing.T) {
+func TestReconcileGroups_CompleteFirstGroup(t *testing.T) {
+	r := &reconciler{
+		dep: &proto.Deployment{
+			Instances: []*proto.Instance{},
+		},
+		spec: &proto.ClusterSpec{
+			Name: "cluster",
+			Groups: []*proto.ClusterSpec_Group{
+				{
+					Type:  "group1",
+					Count: 1,
+				},
+				{
+					Type:  "group2",
+					Count: 3,
+				},
+			},
+		},
+	}
+	r.Compute()
+	assert.Equal(t, r.check("add"), 1)
+}
+
+func TestReconcileGroups_CompleteSecondGroup(t *testing.T) {
 	r := &reconciler{
 		dep: &proto.Deployment{
 			Instances: []*proto.Instance{
 				{
 					ID:      uuid.UUID(),
-					Healthy: false,
+					Healthy: true,
 					Group: &proto.ClusterSpec_Group{
-						Type: "x",
+						Name: "group1",
 					},
 				},
 			},
@@ -51,16 +98,16 @@ func TestReconcileGroups(t *testing.T) {
 			Name: "cluster",
 			Groups: []*proto.ClusterSpec_Group{
 				{
-					Type:  "x",
+					Type:  "group1",
 					Count: 1,
 				},
 				{
-					Type:  "y",
+					Type:  "group2",
 					Count: 3,
 				},
 			},
 		},
 	}
 	r.Compute()
-	r.print()
+	assert.Equal(t, r.check("add"), 1)
 }

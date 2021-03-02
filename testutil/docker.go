@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -31,8 +32,10 @@ type resource struct {
 
 // Client is a sugarcoat version of the docker client
 type Client struct {
-	client    *client.Client
-	resources map[string]*resource
+	client *client.Client
+
+	resources     map[string]*resource
+	resourcesLock sync.Mutex
 
 	workCh chan *proto.Instance
 
@@ -183,6 +186,9 @@ func (c *Client) execImpl(ctx context.Context, id string, execCmd []string) erro
 }
 
 func (c *Client) removeByName(n string) error {
+	c.resourcesLock.Lock()
+	defer c.resourcesLock.Unlock()
+
 	fmt.Println("_ REMOVE CANARY _")
 
 	for name, i := range c.resources {
@@ -198,6 +204,9 @@ func (c *Client) removeByName(n string) error {
 
 // Create creates a docker container
 func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, error) {
+	c.resourcesLock.Lock()
+	defer c.resourcesLock.Unlock()
+
 	// We will use the 'net1' network interface for dns resolving
 
 	builder := node.Spec
@@ -300,6 +309,8 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 	}()
 
 	ip := c.GetIP(body.ID)
+
+	fmt.Println("- send update -")
 	c.updateCh <- &proto.InstanceUpdate{
 		ID:      node.ID,
 		Cluster: node.Cluster,
@@ -348,8 +359,10 @@ func (c *Client) Exec(handler string, path string, args ...string) error {
 }
 
 func (c *Client) DeleteResource(node *proto.Instance) (*proto.Instance, error) {
-	if err := c.Remove(node.Handler); err != nil {
-		return nil, err
-	}
-	return node, nil
+	go func() {
+		if err := c.Remove(node.Handler); err != nil {
+			panic(err)
+		}
+	}()
+	return nil, nil
 }

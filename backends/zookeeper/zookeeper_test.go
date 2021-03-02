@@ -2,6 +2,7 @@ package zookeeper
 
 import (
 	"testing"
+	"time"
 
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/testutil"
@@ -25,22 +26,32 @@ func TestBootstrap(t *testing.T) {
 
 	srv.WaitForTask(uuid)
 
-	uuid = srv.Apply(&proto.Component{
-		Name: "A",
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-			Backend: "Zookeeper",
-			Groups: []*proto.ClusterSpec_Group{
-				{
-					Count: 3,
-					Config: map[string]string{
-						"tickTime": "3000",
+	time.Sleep(1 * time.Second)
+
+	srv.Destroy(0)
+
+	time.Sleep(1 * time.Second)
+
+	/*
+		fmt.Printf("\n\n\n\nRESTART\n\n\n\n")
+
+		uuid = srv.Apply(&proto.Component{
+			Name: "A",
+			Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+				Backend: "Zookeeper",
+				Groups: []*proto.ClusterSpec_Group{
+					{
+						Count: 3,
+						Config: map[string]string{
+							"tickTime": "3000",
+						},
 					},
 				},
-			},
-		}),
-	})
+			}),
+		})
 
-	srv.WaitForTask(uuid)
+		srv.WaitForTask(uuid)
+	*/
 }
 
 /*

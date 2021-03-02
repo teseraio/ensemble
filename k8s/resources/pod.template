@@ -8,7 +8,7 @@
 		}
 	},
 	"spec": {
-		"hostname": "{{.Name}}",
+		"hostname": "{{.Hostname}}",
 		"subdomain": "{{.Ensemble}}",
 		"containers": [
 			{
@@ -33,6 +33,18 @@
 					}
 					{{end}}
 				],
+				{{if .Command}}
+				"command": ["{{.Command}}"],
+				{{end}}
+				{{if .Args}}
+				"args": [
+					{{ $s := separator ", " }}
+					{{ range .Args }}
+					{{ call $s }}
+					"{{ . }}"
+					{{ end }}
+				],
+				{{end}}
 				"imagePullPolicy": "Always",
 				"name": "main-container",
 				"image": "{{.Image}}:{{.Version}}"
