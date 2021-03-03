@@ -44,15 +44,47 @@ func (a *allocSet) byGroup(typ string) (byGroup allocSet) {
 	return
 }
 
-func (a *allocSet) reschedule() (down allocSet, untainted allocSet) {
+func (a *allocSet) filterByStopping() (allocSet, allocSet) {
+	return a.filter(func(i *proto.Instance) bool {
+		return i.Desired == "Stop"
+	})
+}
+
+func (a *allocSet) filter(f func(i *proto.Instance) bool) (b allocSet, c allocSet) {
+	b = allocSet{}
+	c = allocSet{}
+
+	for _, i := range *a {
+		if f(i) {
+			b = append(b, i)
+		} else {
+			c = append(c, i)
+		}
+	}
+	return
+}
+
+const maxAttempts = 3
+
+func (a *allocSet) reschedule() (down allocSet, lost allocSet, untainted allocSet) {
 	// returns the nodes that need rescheduling
 	down = allocSet{}
 	untainted = allocSet{}
+	lost = allocSet{}
 
 	for _, i := range *a {
 		// TODO: Migrated
 		if i.Status == proto.Instance_FAILED {
-			down = append(down, i)
+			if i.Reschedule == nil {
+				i.Reschedule = &proto.Instance_Reschedule{}
+			}
+			ii := i.Copy()
+			if i.Reschedule.Attempts < maxAttempts {
+				ii.Reschedule.Attempts++
+				down = append(down, ii)
+			} else {
+				lost = append(lost)
+			}
 		} else {
 			untainted = append(untainted, i)
 		}
@@ -128,33 +160,48 @@ type update struct {
 
 func (r *reconciler) computeStop(grp *proto.ClusterSpec_Group, reschedule allocSet, untainted allocSet) (stop allocSet) {
 	stop = allocSet{}
+	remove := len(untainted) + len(reschedule) - int(grp.Count)
 
-	remove := len(untainted) - int(grp.Count)
-	for i := remove; i > 0; i-- {
-		// TODO: Remove first non-healthy nodes
-		stop = append(stop, untainted[i])
+	if remove <= 0 {
+		return
+	}
+	for i := 0; i < len(reschedule); i++ {
+		stop = append(stop, reschedule[i])
+		remove--
+		if remove == 0 {
+			return
+		}
 	}
 
+	for i := 0; i < len(untainted); i++ {
+		// TODO: Sort by health check
+		stop = append(stop, untainted[i])
+		remove--
+		if remove == 0 {
+			return
+		}
+	}
 	return stop
 }
 
 func (r *reconciler) computePlacements(grp *proto.ClusterSpec_Group, untainted, destructive allocSet) (place allocSet) {
 	place = allocSet{}
-
 	total := len(untainted) + len(destructive)
 
 	for i := total; i < int(grp.Count); i++ {
 		id := uuid.UUID8()
 
-		var name string
-		if grp.Type != "" {
-			// if the group has a name <name>-<group>-<indx>
-			name = fmt.Sprintf("%s-%s-%d", id, grp.Type, i)
-		} else {
-			// if the group does not have a name just <name>-<indx>
-			name = fmt.Sprintf("%s", id)
-		}
-		fmt.Println(name)
+		/*
+			var name string
+			if grp.Type != "" {
+				// if the group has a name <name>-<group>-<indx>
+				name = fmt.Sprintf("%s-%s-%d", id, grp.Type, i)
+			} else {
+				// if the group does not have a name just <name>-<indx>
+				name = fmt.Sprintf("%s", id)
+			}
+		*/
+		// fmt.Println(name)
 
 		instance := &proto.Instance{
 			ID:      id,
@@ -184,6 +231,16 @@ func (r *reconciler) print() {
 	}
 }
 
+func (r *reconciler) gather(status string) []*proto.Instance {
+	res := []*proto.Instance{}
+	for _, i := range r.res {
+		if i.status == status {
+			res = append(res, i.instance)
+		}
+	}
+	return res
+}
+
 func (r *reconciler) check(s string) (count int) {
 	for _, i := range r.res {
 		if i.status == s {
@@ -198,15 +255,19 @@ func (r *reconciler) Compute() {
 
 	if r.delete {
 		// remove all the running instances
+		pending := false
 		for _, i := range r.dep.Instances {
-			if i.Status == proto.Instance_RUNNING && i.Desired != "Stop" {
-				ii := i.Copy()
-				ii.Desired = "Stop"
-
-				r.appendUpdate(ii, "stop")
+			if i.Status == proto.Instance_RUNNING {
+				if i.Desired != "Stop" {
+					ii := i.Copy()
+					ii.Desired = "Stop"
+					r.appendUpdate(ii, "stop")
+				} else {
+					pending = true
+				}
 			}
 		}
-		if len(r.res) == 0 {
+		if len(r.res) == 0 && !pending {
 			// delete completed
 			r.done = true
 		}
@@ -225,17 +286,34 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 	set = set.byGroup(grp.Type)
 
 	// detect the stopped nodes (TODO: migrate)
-	reschedule, untainted := set.reschedule()
+	reschedule, lost, untainted := set.reschedule()
 
-	// compute stop
-	stop := r.computeStop(grp, reschedule, untainted)
+	// avoid the nodes that are already being stopped
+	_, untainted = untainted.filterByStopping()
+
+	var stop allocSet
+	if grp.Count == 0 {
+		// purge the group
+		stop = untainted
+	} else {
+		// scale down
+		stop = r.computeStop(grp, reschedule, untainted)
+	}
+
+	// remove the reschedule nodes if we are stopping any
+	reschedule = reschedule.difference(stop)
+	for _, i := range reschedule {
+		r.appendUpdate(i, "reschedule")
+	}
+
+	// stop nodes
+	for _, i := range stop {
+		ii := i.Copy()
+		ii.Desired = "Stop"
+
+		r.appendUpdate(ii, "stop")
+	}
 	if len(stop) != 0 {
-		for _, i := range stop {
-			ii := i.Copy()
-			ii.Desired = "Stop"
-
-			r.appendUpdate(ii, "stop")
-		}
 		return false
 	}
 
@@ -246,9 +324,13 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 	canaries, promoted, untainted = set.canaries()
 
 	// promote healthy canaries and add them to the untainted set
-	/*for _, i := range promoted {
-		r.appendUpdate(i, "promote")
-	}*/
+	for _, i := range promoted {
+		ii := i.Copy()
+		ii.Canary = false
+
+		r.appendUpdate(ii, "promote")
+	}
+
 	untainted = untainted.join(promoted)
 
 	// destructive updates (TODO: inplace)
@@ -262,7 +344,6 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 		for _, instance := range destructive[:num] {
 
 			// set the other node as pending to be removed
-
 			ii := instance.Copy()
 			ii.Healthy = false
 			ii.Group = grp
@@ -306,12 +387,12 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 
 	r.done = false
 	if allHealthy {
-		if len(updates) == 0 && len(place) == 0 {
+		if len(updates) == 0 && len(place) == 0 && len(lost) == 0 {
 			r.done = true
 		}
 	}
 
-	isComplete := len(destructive)+len(place)+len(reschedule) == 0 && !isRolling
+	isComplete := len(destructive)+len(place)+len(reschedule)+len(lost) == 0 && !isRolling
 	return isComplete
 }
 

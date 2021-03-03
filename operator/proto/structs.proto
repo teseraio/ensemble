@@ -329,6 +329,12 @@ message Instance {
     
     int64 sequence = 26;
 
+    Reschedule reschedule = 27;
+    
+    message Reschedule {
+        int64 attempts = 3;
+    }
+
     /*
     string Nodetype = 6; // is this required?
 

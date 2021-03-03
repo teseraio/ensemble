@@ -65,6 +65,14 @@ func (c *Cluster) NodeAtIndex(ID string) int {
 }
 */
 
+func (c *ClusterSpec) Copy() *ClusterSpec {
+	return proto.Clone(c).(*ClusterSpec)
+}
+
+func (c *ClusterSpec_Group) Copy() *ClusterSpec_Group {
+	return proto.Clone(c).(*ClusterSpec_Group)
+}
+
 func (d *Deployment) Copy() *Deployment {
 	return proto.Clone(d).(*Deployment)
 }
