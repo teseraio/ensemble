@@ -171,6 +171,11 @@ func (d *deploymentWatcher) updateStatus(op *proto.InstanceUpdate) {
 			// dont do evaluation now
 			d.upsertNodeAndEval(i)
 			return
+		} else {
+			// the node is not expected to fail
+			i.Status = proto.Instance_FAILED
+			d.upsertNodeAndEval(i)
+			return
 		}
 	}
 
@@ -335,7 +340,7 @@ func (s *Server) handleResource(dep *proto.Deployment, comp *proto.Component) er
 	}
 
 	if comp.Sequence != 1 {
-		pastComp, err := s.State.GetComponent(comp.Spec.TypeUrl, comp.Name, comp.Sequence-1)
+		pastComp, err := s.State.GetComponentWithSequence(comp.Id, comp.Sequence-1)
 		if err != nil {
 			return err
 		}
@@ -438,12 +443,17 @@ func (s *Server) taskQueue4() {
 		}
 
 		fmt.Println("-- comp id --")
+		fmt.Println(dep.Status)
 		fmt.Println(dep.CompID)
 
 		// get the spec for the cluster
-		comp, err := s.State.GetPending(dep.CompID)
+		comp, err := s.State.GetComponent(dep.CompID)
 		if err != nil {
 			panic(err)
+		}
+		// if sequence is not the same we have to stop because there is an error
+		if comp.Sequence != dep.Sequence {
+			panic("bad")
 		}
 
 		var spec proto.ClusterSpec
@@ -451,13 +461,9 @@ func (s *Server) taskQueue4() {
 			panic(err)
 		}
 
+		// we need this here because is not set before in the spec
 		spec.Name = eval.ClusterID
 		spec.Sequence = dep.Sequence
-
-		fmt.Println("- dep -")
-		fmt.Println(dep)
-		fmt.Println("- spec -")
-		fmt.Println(spec)
 
 		r := &reconciler{
 			delete: comp.Action == proto.Component_DELETE,
@@ -466,9 +472,6 @@ func (s *Server) taskQueue4() {
 		}
 		r.Compute()
 		r.print()
-
-		fmt.Println("- res -")
-		fmt.Println(r.res)
 
 		if !r.delete {
 			// this is the initializtion step
@@ -501,28 +504,43 @@ func (s *Server) taskQueue4() {
 			}
 		}
 
-		// we need to add this values to the db
+		// we need to add this values to the db first
 		for _, i := range r.res {
 			if err := s.State.UpsertNode(i.instance); err != nil {
 				panic(err)
 			}
 		}
 
+		// update the status of the instances
 		depW := s.getDeployment(eval.ClusterID)
 		for _, i := range r.res {
 			// create the instance
 			go depW.Update(i.instance)
 		}
 
+		// update the status of the deployment
 		if r.done {
-			fmt.Println("___ DONE ___")
-			// Update the status of the component and finalize the component
-			dep.Status = proto.DeploymentDone
-			if err := s.State.UpdateDeployment(dep); err != nil {
-				panic(err)
+			if dep.Status != proto.DeploymentDone {
+				// we dont need to do anything else, it was an out-of-time evaluation
+				fmt.Println("___ DONE ___")
+				// Update the status of the component and finalize the component
+				dep.Status = proto.DeploymentDone
+				if err := s.State.UpdateDeployment(dep); err != nil {
+					panic(err)
+				}
+				if err := s.State.Finalize(dep.CompID); err != nil {
+					panic(err)
+				}
 			}
-			if err := s.State.Finalize(dep.CompID); err != nil {
-				panic(err)
+		} else {
+			// we should send to the state a signal to block any other specchange
+			// evaluation till the state does not change to done again.
+			if dep.Status == proto.DeploymentDone {
+				// a node may have failed and we need to reset the status of the node
+				dep.Status = proto.DeploymentRunning
+				if err := s.State.UpdateDeployment(dep); err != nil {
+					panic(err)
+				}
 			}
 		}
 

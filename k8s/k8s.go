@@ -40,8 +40,6 @@ func getIDFromRef(ref string) string {
 }
 
 func (p *Provider) Setup() error {
-	fmt.Println("- setup -")
-
 	go func() {
 		store := newStore()
 		newWatcher(store, p.client, eventsURL, &Event{}, false)
@@ -53,15 +51,9 @@ func (p *Provider) Setup() error {
 			id := getIDFromRef(event.GetMetadata().Name)
 			cluster := p.getPodCluster(id)
 
-			fmt.Println("-----")
-			fmt.Println(event.Reason)
-			fmt.Println(event)
-
 			if cluster == "" {
 				continue
 			}
-
-			fmt.Println("- good -")
 
 			if event.Reason == "Started" {
 				// query the node and get the ip

@@ -21,7 +21,10 @@ type State interface {
 
 	// Apply changes to a resource
 	Apply(*proto.Component) (int64, error)
-	GetComponent(namespace, id string, generation int64) (*proto.Component, error)
+
+	GetComponent(id string) (*proto.Component, error)
+	GetComponentWithSequence(id string, sequence int64) (*proto.Component, error)
+
 	Finalize(id string) error
 	GetPending(id string) (*proto.Component, error)
 	GetTask(ctx context.Context) *proto.Component

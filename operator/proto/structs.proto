@@ -129,64 +129,6 @@ message ResourceSpec {
     string params = 4;
 }
 
-/*
-message NodeUpdate {
-    string id = 1;
-    string state = 2;
-}
-
-message Cluster {
-    string name = 1;
-
-    string namespace = 2;
-
-    string backend = 3;
-
-    repeated Group groups = 4;
-
-    Status status = 5;
-    
-    string deployment = 6;
-
-    int64 generation = 7;
-
-    bool stop = 8;
-
-    enum Status {
-        UNKNOWN = 0;
-        SCALING = 1;
-        COMPLETE = 2;
-    }
-}
-
-message Group {
-    int64 count = 2;
-    
-    Status status = 4;
-
-    string nodetype = 10;
-
-    string nodeset = 20;
-
-    int64 revision = 40;
-
-    google.protobuf.Any resources = 5;
-
-    google.protobuf.Any config = 6;
-
-    repeated Mount mounts = 7;
-
-    message Mount {
-
-    }
-
-    enum Status {
-        UNKNOWN = 0;
-        UPDATE = 1;
-    }
-}
-*/
-
 // This is not important to keep on the Instance stored since we can rebuild this at any
 // time because the function Initialize is deterministic??
 // This represents all the things required to Create the resource
@@ -199,40 +141,6 @@ message NodeSpec {
     map<string, string> files = 2;
     repeated string cmd = 5;
 }
-
-/*
-message Context {
-    Plan plan = 1;
-    Cluster cluster = 3;
-}
-
-message Plan {
-    bool delete = 1;
-
-    repeated Step steps = 2;
-
-    message Step {
-        string group = 1;
-
-        oneof action {
-            ActionDelete actionDelete = 2;
-            ActionScaleUp  actionScaleUp = 3;
-            ActionScaleDown actionScaleDown = 4;
-        }
-
-        message ActionDelete {
-        }
-
-        message ActionScaleUp {
-            int64 numNodes = 1;
-        }
-
-        message ActionScaleDown {
-            int64 numNodes = 1;
-        }
-    }
-}
-*/
 
 /* Deployment describes the current state of the cluster */
 
@@ -279,6 +187,19 @@ message InstanceUpdate {
         string ip = 1;
         string handler = 2;
     }
+}
+
+// Plan after a reconcile
+message Plan {
+    string evalID = 1;
+    
+    ClusterSpec cluster = 2;
+
+    Deployment deployment = 3;
+
+    repeated Instance nodeUpdate = 4;
+
+    repeated Instance nodeAllocated = 5;
 }
 
 // represents a POD
@@ -334,24 +255,6 @@ message Instance {
     message Reschedule {
         int64 attempts = 3;
     }
-
-    /*
-    string Nodetype = 6; // is this required?
-
-    GroupSpec groupSpec = 8; // is this required?
-
-    NodeSpec spec = 9;
-
-    map<string, string> KV = 10;
-
-    int64 generation = 2;
-
-    message NodeSpec {
-        map<string, string> env = 1;
-        map<string, string> files = 2;
-        repeated string cmd = 5;
-    }
-    */
 }
 
 /* Evaluation is used to trigger a new reconcile evaluation */

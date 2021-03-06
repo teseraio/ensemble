@@ -3,6 +3,7 @@ package boltdb
 import (
 	"container/heap"
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -74,6 +75,9 @@ func (t *taskQueue) addImpl(clusterID string, c *proto.Component) {
 		Component: c,
 		ready:     true,
 	}
+
+	fmt.Println("xxxx")
+	fmt.Println(c.Id)
 
 	t.items[c.Id] = tt
 	heap.Push(&t.heap, tt)

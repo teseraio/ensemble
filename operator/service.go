@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
@@ -14,9 +13,6 @@ type service struct {
 }
 
 func (s *service) Apply(ctx context.Context, component *proto.Component) (*proto.Component, error) {
-	// generate the random id for this version
-	component.Id = uuid.UUID()
-
 	// Apply the component
 	seq, err := s.s.State.Apply(component)
 	if err != nil {

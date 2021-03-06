@@ -1,6 +1,7 @@
 package zookeeper
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -26,11 +27,13 @@ func TestBootstrap(t *testing.T) {
 
 	srv.WaitForTask(uuid)
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(1000 * time.Second)
 
-	srv.Destroy(0)
+	fmt.Printf("\n\n\nDESTROY\n\n\n")
 
-	time.Sleep(1 * time.Second)
+	//srv.Destroy()
+
+	//time.Sleep(1000 * time.Second)
 
 	/*
 		fmt.Printf("\n\n\n\nRESTART\n\n\n\n")

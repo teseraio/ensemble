@@ -1,12 +1,25 @@
 package operator
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
+	"github.com/teseraio/ensemble/operator/state/boltdb"
 )
+
+func TestScheduler(t *testing.T) {
+	state, closeFn := boltdb.SetupFn(t)
+	closeFn()
+
+	fmt.Println(state)
+
+	sch := &scheduler{}
+	eval := &proto.Evaluation{}
+	sch.Process(eval)
+}
 
 type mockDeployment struct {
 	*proto.Deployment
@@ -98,7 +111,7 @@ func TestReconciler_ScaleUp(t *testing.T) {
 	assert.Len(t, rec.res, 0)
 }
 
-func TestReconciler_ScaleDownX(t *testing.T) {
+func TestReconciler_ScaleDown(t *testing.T) {
 	// 10 -> 5
 	spec := mockClusterSpec()
 	spec.Groups[0].Count = 5
@@ -389,10 +402,76 @@ func TestReconciler_RollingUpgrade_Complete(t *testing.T) {
 
 func TestReconciler_RollingUpgrade_ScaleUp(t *testing.T) {
 	// we need to figure out what to do here
+	spec0 := mockClusterSpec()
+	spec0.Groups[0].Count = 5
+
+	spec1 := spec0.Copy()
+	spec1.Sequence++
+	spec1.Groups[0].Count = 8
+	spec1.Groups[0].Resources = map[string]string{"A": "B"}
+
+	dep := newMockDeployment()
+
+	for i := 0; i < 5; i++ {
+		ii := &proto.Instance{}
+		ii.ID = uuid.UUID()
+		ii.Group = spec0.Groups[0]
+		ii.Healthy = true
+		dep.Instances = append(dep.Instances, ii)
+	}
+
+	rec := &reconciler{
+		dep:  dep.Deployment,
+		spec: spec1,
+	}
+	rec.Compute()
+
+	updates := rec.gather("update")
+	assert.Len(t, updates, 2)
+	assert.False(t, rec.done)
+
+	// wait until the updates are ready to place the new allocs
+	dep2 := dep.Copy()
+	dep2.union(updates)
+
+	rec = &reconciler{
+		dep:  dep2.Deployment,
+		spec: spec1,
+	}
+	rec.Compute()
+
+	assert.Len(t, rec.res, 0)
+	assert.False(t, rec.done)
 }
 
 func TestReconciler_RollingUpgrade_ScaleDown(t *testing.T) {
-	// similar to now
+	// stop the instances before the rolling update
+	spec0 := mockClusterSpec()
+	spec0.Groups[0].Count = 5
+
+	spec1 := spec0.Copy()
+	spec1.Sequence++
+	spec1.Groups[0].Count = 3
+	spec1.Groups[0].Resources = map[string]string{"A": "B"}
+
+	dep := newMockDeployment()
+
+	for i := 0; i < 5; i++ {
+		ii := &proto.Instance{}
+		ii.ID = uuid.UUID()
+		ii.Group = spec0.Groups[0]
+		ii.Healthy = true
+		dep.Instances = append(dep.Instances, ii)
+	}
+
+	rec := &reconciler{
+		dep:  dep.Deployment,
+		spec: spec1,
+	}
+	rec.Compute()
+
+	assert.Len(t, rec.gather("stop"), 2)
+	assert.False(t, rec.done)
 }
 
 func TestReconciler_InstanceFailed_Restart(t *testing.T) {

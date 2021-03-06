@@ -4,14 +4,17 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
+	"testing"
 
 	gproto "github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 
 	"github.com/boltdb/bolt"
+	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/operator/state"
 )
@@ -150,7 +153,7 @@ func getSeqNumber(bkt *bolt.Bucket) (int64, error) {
 }
 
 func (b *BoltDB) Apply(c *proto.Component) (int64, error) {
-	namespace := []byte(c.Spec.TypeUrl)
+	namespace := []byte(getProtoNamespace(c))
 
 	tx, err := b.db.Begin(true)
 	if err != nil {
@@ -162,6 +165,7 @@ func (b *BoltDB) Apply(c *proto.Component) (int64, error) {
 
 	// append current timestamp
 	c.Timestamp = ptypes.TimestampNow()
+	c.Id = fmt.Sprintf("%s.%s", namespace, c.Name)
 
 	// create the bucket to store this specific namespace
 	namespaceBkt, err := componentsBkt.CreateBucketIfNotExists(namespace)
@@ -232,25 +236,56 @@ func (b *BoltDB) Apply(c *proto.Component) (int64, error) {
 	return c.Sequence, nil
 }
 
-func (b *BoltDB) GetComponent(namespace string, id string, sequence int64) (*proto.Component, error) {
-	tx, err := b.db.Begin(true)
+func (b *BoltDB) GetComponentWithSequence(id string, sequence int64) (*proto.Component, error) {
+	tx, err := b.db.Begin(false)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
 
+	parts := strings.Split(id, ".")
+	namespace, name := parts[0], parts[1]
+
 	componentsBkt := tx.Bucket(componentsBucket)
 	namespaceBkt := componentsBkt.Bucket([]byte(namespace))
 
-	compBkt := namespaceBkt.Bucket([]byte(id))
+	compBkt := namespaceBkt.Bucket([]byte(name))
 	seqBkt := compBkt.Bucket(seqKey)
 
-	// read current object
 	comp := proto.Component{}
 	if err := dbGet(seqBkt, seqID(sequence), &comp); err != nil {
 		return nil, err
 	}
 
+	return &comp, nil
+}
+
+func (b *BoltDB) GetComponent(id string) (*proto.Component, error) {
+	tx, err := b.db.Begin(false)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	parts := strings.Split(id, ".")
+	namespace, name := parts[0], parts[1]
+
+	componentsBkt := tx.Bucket(componentsBucket)
+	namespaceBkt := componentsBkt.Bucket([]byte(namespace))
+
+	compBkt := namespaceBkt.Bucket([]byte(name))
+	seqBkt := compBkt.Bucket(seqKey)
+
+	// read current object
+	seq, err := getSeqNumber(compBkt)
+	if err != nil {
+		return nil, err
+	}
+
+	comp := proto.Component{}
+	if err := dbGet(seqBkt, seqID(seq), &comp); err != nil {
+		return nil, err
+	}
 	return &comp, nil
 }
 
@@ -274,13 +309,17 @@ func (b *BoltDB) GetPending(id string) (*proto.Component, error) {
 	return tt.Component, nil
 }
 
+func getProtoNamespace(c *proto.Component) string {
+	return strings.Replace(c.Spec.TypeUrl, ".", "-", -1)
+}
+
 func (b *BoltDB) Finalize(id string) error {
 	tt, ok := b.queue.finalize(id)
 	if !ok {
 		return fmt.Errorf("task for id '%s' not found", id)
 	}
 
-	namespace := []byte(tt.Component.Spec.TypeUrl)
+	namespace := []byte(getProtoNamespace(tt.Component))
 
 	tx, err := b.db.Begin(true)
 	if err != nil {
@@ -558,4 +597,21 @@ func dbGet(b *bolt.Bucket, id []byte, m gproto.Message) error {
 		return err
 	}
 	return nil
+}
+
+func SetupFn(t *testing.T) (state.State, func()) {
+	path := "/tmp/db-" + uuid.UUID()
+
+	st, err := Factory(map[string]interface{}{
+		"path": path,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	closeFn := func() {
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return st, closeFn
 }

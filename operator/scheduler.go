@@ -4,19 +4,50 @@ import (
 	"fmt"
 	"reflect"
 
+	gproto "github.com/golang/protobuf/proto"
 	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
-type deployment2 struct {
+type schedState interface {
+	LoadDeployment(id string) (*proto.Deployment, error)
+	GetComponent(id string) (*proto.Component, error)
 }
 
-func (d *deployment2) reconcile() {
-
+type scheduler struct {
+	state     schedState
+	handlerFn func(backend string) (Handler, error)
 }
 
-// interface required by external actors that modify the behaviour
-type reconcilerImpl interface {
+func (s *scheduler) Process(eval *proto.Evaluation) error {
+	deployment, err := s.state.LoadDeployment(eval.ClusterID)
+	if err != nil {
+		return err
+	}
+	component, err := s.state.GetComponent(deployment.CompID)
+	if err != nil {
+		return err
+	}
+
+	var clusterSpec proto.ClusterSpec
+	if err := gproto.Unmarshal(component.Spec.Value, &clusterSpec); err != nil {
+		return err
+	}
+
+	handler, err := s.handlerFn(clusterSpec.Backend)
+	if err != nil {
+		return err
+	}
+	fmt.Println(handler)
+
+	// reconcile the state
+	rec := &reconciler{
+		dep:  deployment,
+		spec: &clusterSpec,
+	}
+	rec.Compute()
+
+	return nil
 }
 
 type reconciler struct {
@@ -375,8 +406,10 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 
 	if allHealthy {
 		// only place new allocs for scale up if the cluster is stable
-		for _, p := range place {
-			r.appendUpdate(p, "add")
+		if len(updates) == 0 {
+			for _, p := range place {
+				r.appendUpdate(p, "add")
+			}
 		}
 
 		// place the updates

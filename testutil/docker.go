@@ -295,7 +295,13 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 
 	// watch for updates in the node
 	go func() {
-		c.client.ContainerWait(context.Background(), body.ID)
+		status, err := c.client.ContainerWait(context.Background(), body.ID)
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Println("// status //")
+		fmt.Println(status)
 
 		c.updateCh <- &proto.InstanceUpdate{
 			ID:      node.ID,
@@ -310,7 +316,6 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 
 	ip := c.GetIP(body.ID)
 
-	fmt.Println("- send update -")
 	c.updateCh <- &proto.InstanceUpdate{
 		ID:      node.ID,
 		Cluster: node.Cluster,
@@ -324,15 +329,15 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 	return body.ID, nil
 }
 
-func (c *Client) Destroy(indx int) {
-	/*
-		res := c.resources[indx]
-
-		// stop + remove does not work, so just remove with force
-		if err := c.client.ContainerRemove(context.Background(), res.handle, types.ContainerRemoveOptions{Force: true}); err != nil {
-			panic(err)
-		}
-	*/
+func (c *Client) Destroy() {
+	var resource *resource
+	for _, v := range c.resources {
+		resource = v
+	}
+	// stop + remove does not work, so just remove with force
+	if err := c.client.ContainerRemove(context.Background(), resource.handle, types.ContainerRemoveOptions{Force: true}); err != nil {
+		panic(err)
+	}
 }
 
 type Resource struct {
