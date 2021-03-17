@@ -64,13 +64,27 @@ func (b *backend) EvaluateConfig(spec *proto.NodeSpec, cc map[string]string) err
 
 func (b *backend) Initialize(nodes []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
 	// Id of the instance
-	target.Spec.AddEnv("ZOO_MY_ID", strconv.Itoa(int(target.Index)))
+	localIndex, err := proto.ParseIndex(target.Name)
+	if err != nil {
+		return nil, err
+	}
+	target.Spec.AddEnv("ZOO_MY_ID", strconv.Itoa(int(localIndex)))
 
 	// list of the zookeeper instances
 	res := []string{}
 	for _, node := range nodes {
-		res = append(res, getZkNodeSpec(node))
+		remoteIndex, err := proto.ParseIndex(node.Name)
+		if err != nil {
+			return nil, err
+		}
+
+		if node.ID == target.ID {
+			res = append(res, fmt.Sprintf("server.%d=0.0.0.0:2888:3888;2181", remoteIndex))
+		} else {
+			res = append(res, getZkNodeSpec(node, remoteIndex))
+		}
 	}
+
 	target.Spec.AddEnv("ZOO_SERVERS", strings.Join(res, " "))
 
 	return nil, nil
@@ -179,8 +193,8 @@ func (b *backend) evaluatePlanScaleDown(ctx *operator.PlanCtx, action *proto.Pla
 */
 //}
 
-func getZkNodeSpec(node *proto.Instance) string {
-	return fmt.Sprintf("server.%d=%s:2888:3888;2181", node.Index, node.FullName())
+func getZkNodeSpec(node *proto.Instance, index uint64) string {
+	return fmt.Sprintf("server.%d=%s:2888:3888;2181", index, node.FullName())
 }
 
 type config struct {
@@ -202,7 +216,6 @@ func (b *backend) Spec() *operator.Spec {
 		},
 		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group){
 			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group) {
-				fmt.Println("X")
 				spec.Image = "zookeeper"
 				spec.Version = "3.6"
 
@@ -231,20 +244,4 @@ func (b *backend) Client(node *proto.Instance) (interface{}, error) {
 	*/
 	panic("X")
 	return nil, nil
-}
-
-type sortedNodes []*proto.Instance
-
-func (s sortedNodes) Len() int      { return len(s) }
-func (s sortedNodes) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
-func (s sortedNodes) Less(i, j int) bool {
-	/*
-		if s[i].Get(keyRole) == roleObserver {
-			return true
-		}
-		if s[j].Get(keyRole) == roleObserver {
-			return true
-		}
-	*/
-	return false
 }

@@ -27,34 +27,37 @@ func TestBootstrap(t *testing.T) {
 
 	srv.WaitForTask(uuid)
 
-	time.Sleep(1000 * time.Second)
+	fmt.Println("_ DONE _")
+	return
 
-	fmt.Printf("\n\n\nDESTROY\n\n\n")
+	//time.Sleep(1000 * time.Second)
+
+	// fmt.Printf("\n\n\nDESTROY\n\n\n")
 
 	//srv.Destroy()
 
 	//time.Sleep(1000 * time.Second)
 
-	/*
-		fmt.Printf("\n\n\n\nRESTART\n\n\n\n")
+	fmt.Printf("\n\n\n\nRESTART\n\n\n\n")
 
-		uuid = srv.Apply(&proto.Component{
-			Name: "A",
-			Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-				Backend: "Zookeeper",
-				Groups: []*proto.ClusterSpec_Group{
-					{
-						Count: 3,
-						Config: map[string]string{
-							"tickTime": "3000",
-						},
+	uuid = srv.Apply(&proto.Component{
+		Name: "A",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			Backend: "Zookeeper",
+			Groups: []*proto.ClusterSpec_Group{
+				{
+					Count: 3,
+					Config: map[string]string{
+						"tickTime": "3000",
 					},
 				},
-			}),
-		})
+			},
+		}),
+	})
 
-		srv.WaitForTask(uuid)
-	*/
+	srv.WaitForTask(uuid)
+
+	time.Sleep(10 * time.Second)
 }
 
 /*

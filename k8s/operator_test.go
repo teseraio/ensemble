@@ -56,9 +56,12 @@ func TestItemDecoding(t *testing.T) {
 					"backend": {
 						"name": "a"
 					},
-					"sets": [
+					"groups": [
 						{
-							"replicas": 1
+							"replicas": 1,
+							"params": {
+								"a": "b"
+							}
 						}
 					]
 				}`,
@@ -67,6 +70,9 @@ func TestItemDecoding(t *testing.T) {
 				Groups: []*proto.ClusterSpec_Group{
 					{
 						Count: 1,
+						Config: map[string]string{
+							"a": "b",
+						},
 					},
 				},
 			},

@@ -123,30 +123,29 @@ func decodeClusterSpec(item *Item) (*any.Any, error) {
 		Backend struct {
 			Name string
 		}
-		Sets []struct {
+		Groups []struct {
 			Type     string
 			Name     string
 			Replicas uint64
+			Params   map[string]string
 		}
 	}
 	if err := mapstructure.Decode(item.Spec, &spec); err != nil {
 		return nil, err
 	}
 
-	fmt.Println("-- sets --")
-	fmt.Println(spec.Sets)
-
-	var sets []*proto.ClusterSpec_Group
-	for _, s := range spec.Sets {
-		sets = append(sets, &proto.ClusterSpec_Group{
-			Name:  s.Name,
-			Count: int64(s.Replicas),
-			Type:  s.Type,
+	var groups []*proto.ClusterSpec_Group
+	for _, s := range spec.Groups {
+		groups = append(groups, &proto.ClusterSpec_Group{
+			Name:   s.Name,
+			Count:  int64(s.Replicas),
+			Type:   s.Type,
+			Config: s.Params,
 		})
 	}
 	res := proto.MustMarshalAny(&proto.ClusterSpec{
 		Backend: spec.Backend.Name,
-		Groups:  sets,
+		Groups:  groups,
 	})
 	return res, nil
 }

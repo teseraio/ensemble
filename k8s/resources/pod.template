@@ -2,7 +2,7 @@
 	"apiVersion": "v1",
 	"kind": "Pod",
 	"metadata": {
-		"name": "{{.Name}}",
+		"name": "{{.ID}}",
 		"labels": {
 			"ensemble": "{{.Ensemble}}"
 		}
@@ -10,6 +10,7 @@
 	"spec": {
 		"hostname": "{{.Hostname}}",
 		"subdomain": "{{.Ensemble}}",
+		"restartPolicy": "Never",
 		"containers": [
 			{
 				{{if .Env}}

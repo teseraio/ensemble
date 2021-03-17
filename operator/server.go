@@ -74,7 +74,7 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		s.handlers[strings.ToLower(handler.Spec().Name)] = handler
 	}
 
-	s.service = &service{s}
+	s.service = &service{s: s}
 
 	s.grpcServer = grpc.NewServer()
 	proto.RegisterEnsembleServiceServer(s.grpcServer, s.service)
@@ -153,21 +153,21 @@ func (d *deploymentWatcher) updateStatus(op *proto.InstanceUpdate) {
 	}
 
 	switch obj := op.Event.(type) {
-	case *proto.InstanceUpdate_Conf:
+	case *proto.InstanceUpdate_Running_:
 		fmt.Println("_ A _")
-		i.Ip = obj.Conf.Ip
-		i.Handler = obj.Conf.Handler
+		i.Ip = obj.Running.Ip
+		i.Handler = obj.Running.Handler
 		i.Status = proto.Instance_RUNNING
 
-	case *proto.InstanceUpdate_Status:
+	case *proto.InstanceUpdate_Killing_:
 
-		fmt.Println("-- i --")
+		fmt.Printf("\n\n i \n\n")
 		fmt.Println(i)
 		fmt.Println(i.Desired)
 
-		if i.Desired == "DOWN" || i.Desired == "Stop" {
+		if i.Desired == proto.InstanceDesiredStopped {
 			// expected to be down
-			i.Status = proto.Instance_OUT
+			i.Status = proto.Instance_STOPPED // It is moved to out by reconciler
 			// dont do evaluation now
 			d.upsertNodeAndEval(i)
 			return
@@ -196,9 +196,9 @@ func (d *deploymentWatcher) Update(instance *proto.Instance) {
 	fmt.Printf("-- update instance from spec %s %s --\n", instance.ID, instance.Name)
 	//fmt.Println(instance)
 	//fmt.Println(instance.Canary)
+	fmt.Println(instance.Desired, instance.Status)
 
-	// do stuff here
-	if instance.Desired == "Stop" {
+	if instance.Desired == proto.InstanceDesiredStopped && instance.Status != proto.Instance_STOPPED {
 		fmt.Println("- stop -")
 		fmt.Println(instance.ID)
 
@@ -206,7 +206,7 @@ func (d *deploymentWatcher) Update(instance *proto.Instance) {
 			panic(err)
 		}
 		fmt.Println("- done stop -")
-	} else {
+	} else if instance.Desired == proto.InstanceDesiredRunning && instance.Status == proto.Instance_PENDING {
 		fmt.Println("- create resource -")
 		if _, err := d.s.Provider.CreateResource(instance); err != nil {
 			panic(err)
@@ -387,7 +387,7 @@ func (s *Server) handleCluster(dep *proto.Deployment, comp *proto.Component) err
 		return err
 	}
 
-	fmt.Printf("Handle cluster: %s (%d)\n", comp.Id, comp.Sequence)
+	fmt.Printf("==> Handle cluster: %s (%d)\n", comp.Id, comp.Sequence)
 
 	if dep == nil {
 		// new deployment
@@ -442,10 +442,6 @@ func (s *Server) taskQueue4() {
 			panic("bad")
 		}
 
-		fmt.Println("-- comp id --")
-		fmt.Println(dep.Status)
-		fmt.Println(dep.CompID)
-
 		// get the spec for the cluster
 		comp, err := s.State.GetComponent(dep.CompID)
 		if err != nil {
@@ -453,6 +449,7 @@ func (s *Server) taskQueue4() {
 		}
 		// if sequence is not the same we have to stop because there is an error
 		if comp.Sequence != dep.Sequence {
+			fmt.Println(comp.Sequence, dep.Sequence)
 			panic("bad")
 		}
 
@@ -471,82 +468,175 @@ func (s *Server) taskQueue4() {
 			spec:   &spec,
 		}
 		r.Compute()
-		r.print()
 
-		if !r.delete {
-			// this is the initializtion step
+		fmt.Println("== DEP ==")
+		for _, i := range dep.Instances {
+			fmt.Println(i)
+		}
 
-			nn := []*proto.Instance{}
-			for _, ii := range dep.Instances {
-				nn = append(nn, ii)
+		//fmt.Println(len(dep.Instances))
+		fmt.Println("~~ PRINT ~~")
+		r.res.print()
+
+		updates := []*proto.Instance{}
+
+		// out instances
+		for _, i := range r.res.out {
+			ii := i.Copy()
+
+			ii.Status = proto.Instance_OUT
+			updates = append(updates, ii)
+		}
+
+		// promote instances
+		for _, i := range r.res.promote {
+			ii := i.Copy()
+			ii.Canary = false
+
+			updates = append(updates, ii)
+		}
+
+		// stop instances
+		for _, i := range r.res.stop {
+			ii := i.instance.Copy()
+			ii.Desired = proto.InstanceDesiredStopped
+			ii.Canary = i.update
+
+			updates = append(updates, ii)
+		}
+
+		if len(r.res.place) != 0 {
+			// create a cluster object to initialize the instances
+			cluster := []*proto.Instance{}
+			for _, i := range dep.Instances {
+				cluster = append(cluster, i)
 			}
-			for _, i := range r.res {
-				nn = append(nn, i.instance)
 
-				instance := i.instance
+			// initialite the instances with the group specs
+			placeInstances := []*proto.Instance{}
+			for _, i := range r.res.place {
 
-				grpSpec := handler.Spec().Nodetypes[instance.Group.Type]
-				instance.Spec.Image = grpSpec.Image
-				instance.Spec.Version = grpSpec.Version
+				var name string
+				if i.instance == nil {
+					name = i.name
+				} else {
+					name = i.instance.Name
+				}
 
-				hh, ok := handler.Spec().Handlers[instance.Group.Type]
+				ii := &proto.Instance{}
+				ii.ID = uuid.UUID()
+				ii.Group = i.group
+				ii.Spec = &proto.NodeSpec{}
+				ii.Cluster = spec.Name
+				ii.Name = name
+				ii.Status = proto.Instance_PENDING
+				ii.Desired = proto.InstanceDesiredRunning
+
+				if i.update {
+					ii.Healthy = false
+					ii.Canary = true
+				}
+				if i.reschedule {
+					ii.Healthy = false
+				}
+
+				fmt.Println("-- place --")
+				fmt.Println(ii)
+
+				grpSpec := handler.Spec().Nodetypes[ii.Group.Type]
+
+				ii.Spec.Image = grpSpec.Image
+				ii.Spec.Version = grpSpec.Version
+
+				hh, ok := handler.Spec().Handlers[ii.Group.Type]
 				if ok {
-					hh(instance.Spec, instance.Group)
+					hh(ii.Spec, ii.Group)
 				}
+				placeInstances = append(placeInstances, ii)
 			}
 
-			// reconcile the init nodes
-			for _, i := range r.res {
-				handler.Initialize(nn, i.instance)
+			// add the place instances too
+			cluster = append(cluster, placeInstances...)
 
-				fmt.Println("-- spec --")
-				fmt.Println(i.instance.Spec)
-			}
-		}
-
-		// we need to add this values to the db first
-		for _, i := range r.res {
-			if err := s.State.UpsertNode(i.instance); err != nil {
-				panic(err)
+			// initialize each node
+			for _, i := range placeInstances {
+				if _, err := handler.Initialize(cluster, i); err != nil {
+					panic(err)
+				}
+				updates = append(updates, i)
 			}
 		}
 
-		// update the status of the instances
-		depW := s.getDeployment(eval.ClusterID)
-		for _, i := range r.res {
-			// create the instance
-			go depW.Update(i.instance)
+		plan := &schedulerPlan{
+			deployment: dep,
+			updates:    updates,
 		}
-
-		// update the status of the deployment
-		if r.done {
+		if r.res.done {
 			if dep.Status != proto.DeploymentDone {
-				// we dont need to do anything else, it was an out-of-time evaluation
-				fmt.Println("___ DONE ___")
-				// Update the status of the component and finalize the component
-				dep.Status = proto.DeploymentDone
-				if err := s.State.UpdateDeployment(dep); err != nil {
-					panic(err)
-				}
-				if err := s.State.Finalize(dep.CompID); err != nil {
-					panic(err)
-				}
+				plan.status = proto.DeploymentDone
 			}
 		} else {
-			// we should send to the state a signal to block any other specchange
-			// evaluation till the state does not change to done again.
-			if dep.Status == proto.DeploymentDone {
-				// a node may have failed and we need to reset the status of the node
-				dep.Status = proto.DeploymentRunning
-				if err := s.State.UpdateDeployment(dep); err != nil {
-					panic(err)
-				}
-			}
+			plan.status = proto.DeploymentRunning
+		}
+
+		if err := s.submitPlan(plan); err != nil {
+			panic(err)
 		}
 
 		s.logger.Debug("finalize eval", "id", eval.Id)
 		s.evalQueue.finalize(eval.Id)
 	}
+}
+
+type schedulerPlan struct {
+	deployment *proto.Deployment
+	updates    []*proto.Instance
+	status     string
+}
+
+// TODO: Serialize both handleEval and clusterSpec change because the spec can change
+// and handleEval might rewrite with a wrong component id.
+
+func (s *Server) submitPlan(p *schedulerPlan) error {
+	// update the state
+	for _, i := range p.updates {
+		if err := s.State.UpsertNode(i); err != nil {
+			return err
+		}
+	}
+
+	dep := p.deployment.Copy()
+	dep.Status = p.status
+
+	// update the state of the deployment if there is any change
+	if len(p.updates) != 0 || p.deployment.Status != p.status {
+		if err := s.State.UpdateDeployment(dep); err != nil {
+			return err
+		}
+	}
+
+	// if its done, finalize the component
+	if dep.Status == proto.DeploymentDone {
+		if err := s.State.Finalize(dep.CompID); err != nil {
+			fmt.Println("_ERR_")
+			fmt.Println(err.Error())
+			return nil
+		}
+	}
+
+	// send the instances for update
+	depW := s.getDeployment(dep.Id)
+	for _, i := range p.updates {
+		// create the instance
+		if i.Status == proto.Instance_OUT {
+			fmt.Println(i.ID)
+			fmt.Println("_ INSTANCE OUT _")
+		} else {
+			go depW.Update(i)
+		}
+	}
+
+	return nil
 }
 
 func (s *Server) getHandler(name string) (Handler, bool) {

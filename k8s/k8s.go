@@ -55,16 +55,41 @@ func (p *Provider) Setup() error {
 				continue
 			}
 
+			fmt.Println("---")
+			fmt.Println(cluster, event.Reason)
+
+			if event.Reason == "Failed" {
+				p.watchCh <- &proto.InstanceUpdate{
+					ID:      id,
+					Cluster: cluster,
+					Event: &proto.InstanceUpdate_Failed_{
+						Failed: &proto.InstanceUpdate_Failed{},
+					},
+				}
+			}
+
+			if event.Reason == "Scheduled" {
+				// is being started
+				p.watchCh <- &proto.InstanceUpdate{
+					ID:      id,
+					Cluster: cluster,
+					Event: &proto.InstanceUpdate_Scheduled_{
+						Scheduled: &proto.InstanceUpdate_Scheduled{},
+					},
+				}
+			}
+
 			if event.Reason == "Started" {
 				// query the node and get the ip
 
 				ip := p.getPodIP(id)
 
+				fmt.Println("- send -")
 				p.watchCh <- &proto.InstanceUpdate{
 					ID:      id,
 					Cluster: cluster,
-					Event: &proto.InstanceUpdate_Conf{
-						Conf: &proto.InstanceUpdate_ConfDone{
+					Event: &proto.InstanceUpdate_Running_{
+						Running: &proto.InstanceUpdate_Running{
 							Ip: ip,
 						},
 					},
@@ -75,10 +100,8 @@ func (p *Provider) Setup() error {
 				p.watchCh <- &proto.InstanceUpdate{
 					ID:      id,
 					Cluster: cluster,
-					Event: &proto.InstanceUpdate_Status{
-						Status: &proto.InstanceUpdate_StatusChange{
-							Status: proto.InstanceUpdate_StatusChange_FAILED,
-						},
+					Event: &proto.InstanceUpdate_Killing_{
+						Killing: &proto.InstanceUpdate_Killing{},
 					},
 				}
 			}
@@ -220,8 +243,21 @@ func (p *Provider) createHeadlessService(cluster string) error {
 
 func (p *Provider) getPodCluster(id string) string {
 	var obj *Item
-	if _, err := p.get("/api/v1/namespaces/{namespace}/pods/"+id, &obj); err != nil {
-		panic(err)
+	for i := 0; i < 10; i++ {
+		if _, err := p.get("/api/v1/namespaces/{namespace}/pods/"+id, &obj); err != nil {
+			fmt.Println("- id -")
+			fmt.Println(id)
+
+			if err != errNotFound {
+				panic(err)
+			}
+			fmt.Println("_ RETRY _")
+		} else {
+			break
+		}
+	}
+	if obj == nil {
+		return ""
 	}
 	return obj.Metadata.Labels["ensemble"]
 }
@@ -242,7 +278,7 @@ func (p *Provider) getPodIP(id string) string {
 			break
 		}
 		p.logger.Trace("create resource pod status", "id", id, "status", res.Status.Phase)
-		time.Sleep(1 * time.Second)
+		time.Sleep(50 * time.Millisecond)
 	}
 	return res.Status.PodIP
 }
@@ -262,8 +298,8 @@ func (p *Provider) CreateResource(node *proto.Instance) (*proto.Instance, error)
 		}
 	}
 
-	fmt.Println("-- cmd --")
-	fmt.Println(node.Spec.Cmd)
+	//fmt.Println("-- cmd --")
+	//fmt.Println(node.Spec.Cmd)
 
 	data, err := MarshalPod(node)
 	if err != nil {

@@ -21,6 +21,8 @@ import (
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
+const networkName = "net1"
+
 var _ operator.Provider = &Client{}
 
 type resource struct {
@@ -57,6 +59,18 @@ func NewDockerClient() (*Client, error) {
 		updateCh:  make(chan *proto.InstanceUpdate),
 		workCh:    make(chan *proto.Instance, 5),
 	}
+
+	// upsert internal docker network 'net1' required for DNS support
+	if _, err := cli.NetworkInspect(context.Background(), networkName); err != nil {
+		if strings.Contains(err.Error(), "No such network") {
+			if _, err := cli.NetworkCreate(context.Background(), networkName, types.NetworkCreate{CheckDuplicate: true}); err != nil {
+				panic(err)
+			}
+		} else {
+			return nil, err
+		}
+	}
+
 	go clt.run()
 	return clt, nil
 }
@@ -70,13 +84,12 @@ func (c *Client) Setup() error {
 }
 
 func (c *Client) Remove(id string) error {
+	fmt.Printf("REMOVE==================>%s\n", id)
 	if err := c.client.ContainerStop(context.Background(), id, nil); err != nil {
 		return err
 	}
-	// we need to do this as well because we need to reuse the name for rolling updates
-	if err := c.client.ContainerRemove(context.Background(), id, types.ContainerRemoveOptions{}); err != nil {
-		panic(err)
-	}
+	// do not remove the container name here but on the wait step because this part
+	// is async
 	return nil
 }
 
@@ -130,7 +143,7 @@ func (c *Client) GetIP(id string) string {
 	if err != nil {
 		panic(err)
 	}
-	return res.NetworkSettings.Networks["net1"].IPAddress
+	return res.NetworkSettings.Networks[networkName].IPAddress
 }
 
 func createIfNotExists(path string) error {
@@ -146,6 +159,14 @@ func (c *Client) run() {
 		for instance := range c.workCh {
 			if _, err := c.createImpl(context.Background(), instance); err != nil {
 				panic(err)
+				// send failed event
+				c.updateCh <- &proto.InstanceUpdate{
+					ID:      instance.ID,
+					Cluster: instance.Cluster,
+					Event: &proto.InstanceUpdate_Failed_{
+						Failed: &proto.InstanceUpdate_Failed{},
+					},
+				}
 			}
 		}
 	}
@@ -207,21 +228,25 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 	c.resourcesLock.Lock()
 	defer c.resourcesLock.Unlock()
 
-	// We will use the 'net1' network interface for dns resolving
+	c.updateCh <- &proto.InstanceUpdate{
+		ID:      node.ID,
+		Cluster: node.Cluster,
+		Event: &proto.InstanceUpdate_Scheduled_{
+			Scheduled: &proto.InstanceUpdate_Scheduled{},
+		},
+	}
 
+	// We will use the 'net1' network interface for dns resolving
 	builder := node.Spec
 
+	if builder.Version == "" {
+		builder.Version = "latest"
+	}
 	image := builder.Image + ":" + builder.Version
 	name := node.FullName()
 
-	fmt.Printf("CREATE: %s\n", name)
-
-	if node.Canary {
-		// we need to remove the container name first
-		if err := c.removeByName(name); err != nil {
-			return "", err
-		}
-	}
+	fmt.Printf("=====> CREATE: %s\n", name)
+	fmt.Println(image)
 
 	// Build the volumes
 	binds := []string{}
@@ -261,25 +286,28 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 	}
 
 	// decode computational resources
-	resConfig := c.Resources().(*Resource)
-	if err := mapstructure.WeakDecode(node.Group.Resources, &resConfig); err != nil {
-		return "", err
-	}
-	if resConfig != nil {
-		hostConfig.Resources = container.Resources{
-			CPUShares: int64(resConfig.CPUShares),
-			CPUCount:  int64(resConfig.CPUCount),
+	if node.Group != nil {
+		resConfig := c.Resources().(*Resource)
+		if err := mapstructure.WeakDecode(node.Group.Resources, &resConfig); err != nil {
+			return "", err
+		}
+		if resConfig != nil {
+			hostConfig.Resources = container.Resources{
+				CPUShares: int64(resConfig.CPUShares),
+				CPUCount:  int64(resConfig.CPUCount),
+			}
 		}
 	}
 
 	netConfig := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
-			"net1": {},
+			networkName: {},
 		},
 	}
 
 	body, err := c.client.ContainerCreate(ctx, config, hostConfig, netConfig, name)
 	if err != nil {
+		fmt.Println("- bad -")
 		panic(err)
 	}
 
@@ -295,38 +323,58 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 
 	// watch for updates in the node
 	go func() {
+		fmt.Println("> WAIT <")
+		fmt.Println(body.ID)
+
 		status, err := c.client.ContainerWait(context.Background(), body.ID)
 		if err != nil {
 			panic(err)
 		}
 
-		fmt.Println("// status //")
+		fmt.Println("====> status ====>")
 		fmt.Println(status)
+		fmt.Println(body.ID)
+
+		// we need to remove it here so that we can reuse the name
+		if err := c.client.ContainerRemove(context.Background(), body.ID, types.ContainerRemoveOptions{}); err != nil {
+			panic(err)
+		}
 
 		c.updateCh <- &proto.InstanceUpdate{
 			ID:      node.ID,
 			Cluster: node.Cluster,
-			Event: &proto.InstanceUpdate_Status{
-				Status: &proto.InstanceUpdate_StatusChange{
-					Status: proto.InstanceUpdate_StatusChange_FAILED,
-				},
+			Event: &proto.InstanceUpdate_Killing_{
+				Killing: &proto.InstanceUpdate_Killing{},
 			},
 		}
 	}()
+
+	fmt.Println("XX")
+	fmt.Println(body.ID)
 
 	ip := c.GetIP(body.ID)
 
 	c.updateCh <- &proto.InstanceUpdate{
 		ID:      node.ID,
 		Cluster: node.Cluster,
-		Event: &proto.InstanceUpdate_Conf{
-			Conf: &proto.InstanceUpdate_ConfDone{
+		Event: &proto.InstanceUpdate_Running_{
+			Running: &proto.InstanceUpdate_Running{
 				Ip:      ip,
 				Handler: body.ID,
 			},
 		},
 	}
 	return body.ID, nil
+}
+
+func (c *Client) DestroyAt() {
+	var handle string
+	for _, j := range c.resources {
+		handle = j.handle
+	}
+	if err := c.client.ContainerRemove(context.Background(), handle, types.ContainerRemoveOptions{Force: true}); err != nil {
+		panic(err)
+	}
 }
 
 func (c *Client) Destroy() {
@@ -350,7 +398,19 @@ func (c *Client) Resources() interface{} {
 }
 
 func (c *Client) CreateResource(node *proto.Instance) (*proto.Instance, error) {
+	fmt.Printf("Create resource: %s\n", node.Name)
 
+	// validation
+	for _, r := range c.resources {
+		if r.instance.ID == node.ID {
+			return nil, operator.ErrInstanceAlreadyRunning
+		}
+		if r.instance.FullName() == node.FullName() {
+			return nil, operator.ErrProviderNameAlreadyUsed
+		}
+	}
+
+	// async serialize the execution
 	c.workCh <- node
 
 	return nil, nil
@@ -364,9 +424,11 @@ func (c *Client) Exec(handler string, path string, args ...string) error {
 }
 
 func (c *Client) DeleteResource(node *proto.Instance) (*proto.Instance, error) {
+	fmt.Printf("Delete resource: %s %s\n", node.Name, node.Handler)
+
 	go func() {
 		if err := c.Remove(node.Handler); err != nil {
-			panic(err)
+			fmt.Printf("[ERR]: Failed to delete resource: %v\n", err)
 		}
 	}()
 	return nil, nil

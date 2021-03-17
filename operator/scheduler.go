@@ -4,65 +4,27 @@ import (
 	"fmt"
 	"reflect"
 
-	gproto "github.com/golang/protobuf/proto"
 	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
 )
-
-type schedState interface {
-	LoadDeployment(id string) (*proto.Deployment, error)
-	GetComponent(id string) (*proto.Component, error)
-}
-
-type scheduler struct {
-	state     schedState
-	handlerFn func(backend string) (Handler, error)
-}
-
-func (s *scheduler) Process(eval *proto.Evaluation) error {
-	deployment, err := s.state.LoadDeployment(eval.ClusterID)
-	if err != nil {
-		return err
-	}
-	component, err := s.state.GetComponent(deployment.CompID)
-	if err != nil {
-		return err
-	}
-
-	var clusterSpec proto.ClusterSpec
-	if err := gproto.Unmarshal(component.Spec.Value, &clusterSpec); err != nil {
-		return err
-	}
-
-	handler, err := s.handlerFn(clusterSpec.Backend)
-	if err != nil {
-		return err
-	}
-	fmt.Println(handler)
-
-	// reconcile the state
-	rec := &reconciler{
-		dep:  deployment,
-		spec: &clusterSpec,
-	}
-	rec.Compute()
-
-	return nil
-}
 
 type reconciler struct {
 	delete bool
 	dep    *proto.Deployment
 	spec   *proto.ClusterSpec
-	res    []*update
-	done   bool
-}
-
-func (r *reconciler) appendUpdate(instance *proto.Instance, status string) {
-	r.res = append(r.res, &update{status: status, instance: instance})
+	res    *reconcileResult
 }
 
 type allocSet []*proto.Instance
+
+func (a *allocSet) byName() (res map[string]*proto.Instance) {
+	res = map[string]*proto.Instance{}
+
+	for _, i := range *a {
+		res[i.Name] = i
+	}
+	return
+}
 
 func (a *allocSet) byGroup(typ string) (byGroup allocSet) {
 	byGroup = allocSet{}
@@ -75,9 +37,20 @@ func (a *allocSet) byGroup(typ string) (byGroup allocSet) {
 	return
 }
 
+func (a *allocSet) filterByStatus(status ...proto.Instance_Status) (allocSet, allocSet) {
+	return a.filter(func(i *proto.Instance) bool {
+		for _, s := range status {
+			if i.Status == s {
+				return true
+			}
+		}
+		return false
+	})
+}
+
 func (a *allocSet) filterByStopping() (allocSet, allocSet) {
 	return a.filter(func(i *proto.Instance) bool {
-		return i.Desired == "Stop"
+		return i.Desired == proto.InstanceDesiredStopped
 	})
 }
 
@@ -114,7 +87,7 @@ func (a *allocSet) reschedule() (down allocSet, lost allocSet, untainted allocSe
 				ii.Reschedule.Attempts++
 				down = append(down, ii)
 			} else {
-				lost = append(lost)
+				lost = append(lost, ii)
 			}
 		} else {
 			untainted = append(untainted, i)
@@ -123,13 +96,26 @@ func (a *allocSet) reschedule() (down allocSet, lost allocSet, untainted allocSe
 	return
 }
 
-func (a *allocSet) canaries() (canaries allocSet, healthy allocSet, untainted allocSet) {
+func (a *allocSet) canaries() (canaries allocSet, add allocSet, healthy allocSet, untainted allocSet) {
 	canaries = allocSet{}
 	untainted = allocSet{}
 	healthy = allocSet{}
+	add = allocSet{}
 
 	for _, i := range *a {
+		//fmt.Println("_ i _")
+		//fmt.Println(i.Desired)
+
 		if i.Canary {
+			if i.Status == proto.Instance_STOPPED {
+				add = append(add, i)
+				continue
+			}
+			if i.Desired == proto.InstanceDesiredStopped {
+				// its a destructive canary that is shutting down
+				canaries = append(canaries, i)
+				continue
+			}
 			if i.Healthy {
 				// promote canary
 				i.Canary = false
@@ -180,13 +166,36 @@ func (a *allocSet) difference(others allocSet) (res allocSet) {
 	return
 }
 
-type diffAlloc struct {
-	add, del, update allocSet
+type reconcileResult struct {
+	groupUpdates []groupUpdate
+	place        []instancePlaceResult
+	stop         []instanceStopResult
+	promote      []*proto.Instance
+	out          []*proto.Instance
+	done         bool
 }
 
-type update struct {
-	status   string
+func (r *reconcileResult) print() {
+	fmt.Printf("place: %d, stop: %d, promote: %d\n", len(r.place), len(r.stop), len(r.promote))
+}
+
+type instanceStopResult struct {
 	instance *proto.Instance
+	update   bool
+	group    *proto.ClusterSpec_Group
+}
+
+type instancePlaceResult struct {
+	name       string
+	instance   *proto.Instance
+	group      *proto.ClusterSpec_Group
+	update     bool
+	reschedule bool
+}
+
+type groupUpdate struct {
+	name   string
+	status string
 }
 
 func (r *reconciler) computeStop(grp *proto.ClusterSpec_Group, reschedule allocSet, untainted allocSet) (stop allocSet) {
@@ -215,34 +224,25 @@ func (r *reconciler) computeStop(grp *proto.ClusterSpec_Group, reschedule allocS
 	return stop
 }
 
-func (r *reconciler) computePlacements(grp *proto.ClusterSpec_Group, untainted, destructive allocSet) (place allocSet) {
-	place = allocSet{}
-	total := len(untainted) + len(destructive)
+func (r *reconciler) computePlacements(grp *proto.ClusterSpec_Group, untainted, destructive allocSet, placedCanaries int) (place []instancePlaceResult) {
+	place = []instancePlaceResult{}
+	total := len(untainted) + len(destructive) + placedCanaries
 
 	for i := total; i < int(grp.Count); i++ {
 		id := uuid.UUID8()
+		indx := i + 1 // index starts with 1
 
-		/*
-			var name string
-			if grp.Type != "" {
-				// if the group has a name <name>-<group>-<indx>
-				name = fmt.Sprintf("%s-%s-%d", id, grp.Type, i)
-			} else {
-				// if the group does not have a name just <name>-<indx>
-				name = fmt.Sprintf("%s", id)
-			}
-		*/
-		// fmt.Println(name)
-
-		instance := &proto.Instance{
-			ID:      id,
-			Cluster: r.spec.Name,
-			Index:   int64(i),
-			Name:    id,
-			Group:   grp,
-			Spec:    &proto.NodeSpec{},
+		// name of the node
+		var name string
+		if grp.Type == "" {
+			name = fmt.Sprintf("%s-%d", id, indx)
+		} else {
+			name = fmt.Sprintf("%s-%s-%d", id, grp.Type, indx)
 		}
-		place = append(place, instance) // Add index
+		place = append(place, instancePlaceResult{
+			name:  name,
+			group: grp,
+		})
 	}
 	return
 }
@@ -256,51 +256,27 @@ func min(i, j int) int {
 	return j
 }
 
-func (r *reconciler) print() {
-	for _, i := range r.res {
-		fmt.Printf("Res: %s %s (%s) (%s)\n", i.status, i.instance.ID, i.instance.Group.Type, i.instance.FullName())
-	}
-}
-
-func (r *reconciler) gather(status string) []*proto.Instance {
-	res := []*proto.Instance{}
-	for _, i := range r.res {
-		if i.status == status {
-			res = append(res, i.instance)
-		}
-	}
-	return res
-}
-
-func (r *reconciler) check(s string) (count int) {
-	for _, i := range r.res {
-		if i.status == s {
-			count++
-		}
-	}
-	return
-}
-
 func (r *reconciler) Compute() {
-	r.res = []*update{}
+	// r.res = []*update{}
+	r.res = &reconcileResult{}
 
 	if r.delete {
 		// remove all the running instances
 		pending := false
 		for _, i := range r.dep.Instances {
 			if i.Status == proto.Instance_RUNNING {
-				if i.Desired != "Stop" {
-					ii := i.Copy()
-					ii.Desired = "Stop"
-					r.appendUpdate(ii, "stop")
+				if i.Desired != proto.InstanceDesiredStopped {
+					r.res.stop = append(r.res.stop, instanceStopResult{
+						instance: i,
+					})
 				} else {
 					pending = true
 				}
 			}
 		}
-		if len(r.res) == 0 && !pending {
+		if len(r.res.stop) == 0 && !pending {
 			// delete completed
-			r.done = true
+			r.res.done = true
 		}
 		return
 	}
@@ -320,7 +296,8 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 	reschedule, lost, untainted := set.reschedule()
 
 	// avoid the nodes that are already being stopped
-	_, untainted = untainted.filterByStopping()
+	var stopping allocSet
+	stopping, untainted = untainted.filterByStopping()
 
 	var stop allocSet
 	if grp.Count == 0 {
@@ -334,15 +311,17 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 	// remove the reschedule nodes if we are stopping any
 	reschedule = reschedule.difference(stop)
 	for _, i := range reschedule {
-		r.appendUpdate(i, "reschedule")
+		r.res.place = append(r.res.place, instancePlaceResult{
+			instance:   i,
+			reschedule: true,
+		})
 	}
 
 	// stop nodes
 	for _, i := range stop {
-		ii := i.Copy()
-		ii.Desired = "Stop"
-
-		r.appendUpdate(ii, "stop")
+		r.res.stop = append(r.res.stop, instanceStopResult{
+			instance: i,
+		})
 	}
 	if len(stop) != 0 {
 		return false
@@ -351,40 +330,48 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 	untainted = untainted.difference(stop)
 
 	// get the pending and promoted canaries from the set
-	var canaries, promoted allocSet
-	canaries, promoted, untainted = set.canaries()
+	var canaries, readyToAllocate, promoted allocSet
+	canaries, readyToAllocate, promoted, untainted = set.canaries()
+
+	var canaryPlacements []instancePlaceResult
+	for _, i := range readyToAllocate {
+		r.res.out = append(r.res.out, i)
+
+		canaryPlacements = append(canaryPlacements, instancePlaceResult{
+			instance: i,
+			group:    grp,
+			update:   true,
+		})
+	}
+
+	// any canary placement is ready to be allocated
+	for _, i := range canaryPlacements {
+		r.res.place = append(r.res.place, i)
+	}
 
 	// promote healthy canaries and add them to the untainted set
 	for _, i := range promoted {
-		ii := i.Copy()
-		ii.Canary = false
-
-		r.appendUpdate(ii, "promote")
+		r.res.promote = append(r.res.promote, i)
 	}
 
 	untainted = untainted.join(promoted)
 
-	// destructive updates (TODO: inplace)
+	// destructive updates (TODO: inplace updates)
 	var destructive allocSet
 	destructive, untainted = computeUpdates(r.spec, grp, untainted)
 
 	// rolling update
-	updates := allocSet{}
-	if len(destructive) > 0 && len(canaries) == 0 {
+	updates := []instanceStopResult{}
+
+	areCanaries := len(canaries) + len(readyToAllocate)
+	if len(destructive) > 0 && areCanaries == 0 {
 		num := min(len(destructive), maxParallel)
 		for _, instance := range destructive[:num] {
-
-			// set the other node as pending to be removed
-			ii := instance.Copy()
-			ii.Healthy = false
-			ii.Group = grp
-			ii.Ip = ""
-			ii.Canary = true
-
-			updates = append(updates, ii)
-
-			// mark is as down the original instance
-			instance.Desired = "DOWN"
+			updates = append(updates, instanceStopResult{
+				instance: instance,
+				group:    grp,
+				update:   true,
+			})
 		}
 	}
 	isRolling := len(updates) != 0
@@ -402,26 +389,26 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 	}
 
 	// compute placements
-	place := r.computePlacements(grp, untainted, destructive) // sketchy right now
+	place := r.computePlacements(grp, untainted, destructive, len(readyToAllocate)) // sketchy right now
 
 	if allHealthy {
 		// only place new allocs for scale up if the cluster is stable
 		if len(updates) == 0 {
 			for _, p := range place {
-				r.appendUpdate(p, "add")
+				r.res.place = append(r.res.place, p)
 			}
 		}
 
 		// place the updates
 		for _, p := range updates {
-			r.appendUpdate(p, "update")
+			r.res.stop = append(r.res.stop, p)
 		}
 	}
 
-	r.done = false
+	r.res.done = false
 	if allHealthy {
-		if len(updates) == 0 && len(place) == 0 && len(lost) == 0 {
-			r.done = true
+		if len(reschedule) == 0 && len(readyToAllocate) == 0 && len(stopping) == 0 && len(updates) == 0 && len(place) == 0 && len(lost) == 0 {
+			r.res.done = true
 		}
 	}
 

@@ -1,25 +1,12 @@
 package operator
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
-	"github.com/teseraio/ensemble/operator/state/boltdb"
 )
-
-func TestScheduler(t *testing.T) {
-	state, closeFn := boltdb.SetupFn(t)
-	closeFn()
-
-	fmt.Println(state)
-
-	sch := &scheduler{}
-	eval := &proto.Evaluation{}
-	sch.Process(eval)
-}
 
 type mockDeployment struct {
 	*proto.Deployment
@@ -64,19 +51,61 @@ func mockClusterSpec() *proto.ClusterSpec {
 	}
 }
 
+type expectedReconciler struct {
+	place      int
+	update     int
+	reschedule int
+	stop       int
+	promote    int
+	done       bool
+}
+
+func testExpectReconcile(t *testing.T, reconciler *reconciler, expect expectedReconciler) {
+	var place, update, reschedule int
+	for _, i := range reconciler.res.place {
+		if i.update {
+			update++
+		} else if i.reschedule {
+			reschedule++
+		} else {
+			place++
+		}
+	}
+	if place != expect.place {
+		t.Fatalf("wrong place: %d %d", place, expect.place)
+	}
+	if update != expect.update {
+		t.Fatalf("wrong update: %d %d", update, expect.update)
+	}
+	if reschedule != expect.reschedule {
+		t.Fatalf("wrong reschedule: %d %d", reschedule, expect.reschedule)
+	}
+	if expect.stop != len(reconciler.res.stop) {
+		t.Fatalf("wrong stop: %d %d", expect.stop, len(reconciler.res.stop))
+	}
+	if expect.promote != len(reconciler.res.promote) {
+		t.Fatalf("wrong promote: %d %d", expect.promote, len(reconciler.res.promote))
+	}
+	if expect.done != reconciler.res.done {
+		t.Fatalf("incorrect done: %v %v", expect.done, reconciler.res.done)
+	}
+}
+
 func TestReconciler_Place_Empty(t *testing.T) {
 	spec := mockClusterSpec()
 	spec.Groups[0].Count = 5
 
 	dep := newMockDeployment()
 
-	reconciler := &reconciler{
+	rec := &reconciler{
 		dep:  dep.Deployment,
 		spec: spec,
 	}
-	reconciler.Compute()
+	rec.Compute()
 
-	assert.Equal(t, reconciler.check("add"), 5)
+	testExpectReconcile(t, rec, expectedReconciler{
+		place: 5,
+	})
 }
 
 func TestReconciler_ScaleUp(t *testing.T) {
@@ -98,17 +127,12 @@ func TestReconciler_ScaleUp(t *testing.T) {
 	}
 	rec.Compute()
 
-	place := rec.gather("add")
-	assert.Len(t, place, 5)
+	testExpectReconcile(t, rec, expectedReconciler{
+		place: 5,
+	})
 
-	dep2 := dep.Copy()
-	dep2.Instances = append(dep2.Instances, place...)
-
-	rec = &reconciler{
-		dep:  dep.Deployment,
-		spec: spec,
-	}
-	assert.Len(t, rec.res, 0)
+	// TODO
+	// Second eval
 }
 
 func TestReconciler_ScaleDown(t *testing.T) {
@@ -131,26 +155,26 @@ func TestReconciler_ScaleDown(t *testing.T) {
 	}
 	rec.Compute()
 
-	stop := rec.gather("stop")
-	assert.Len(t, stop, 5)
+	testExpectReconcile(t, rec, expectedReconciler{
+		stop: 5,
+		done: false,
+	})
 
-	// the desired state has changed
-	for _, i := range stop {
-		if i.Desired != "Stop" {
-			t.Fatal("bad")
-		}
+	// second eval
+	// update half the instances to desired Stop event
+	for i := 0; i < 5; i++ {
+		dep.Instances[i].Desired = proto.InstanceDesiredStopped
 	}
-
-	dep2 := dep.Copy()
-	dep2.union(stop)
-
 	rec = &reconciler{
-		dep:  dep2.Deployment,
+		dep:  dep.Deployment,
 		spec: spec,
 	}
 	rec.Compute()
 
-	assert.Len(t, rec.res, 0)
+	testExpectReconcile(t, rec, expectedReconciler{
+		stop: 0,
+		done: false,
+	})
 }
 
 func TestReconciler_ScaleDown_Zero(t *testing.T) {
@@ -172,7 +196,10 @@ func TestReconciler_ScaleDown_Zero(t *testing.T) {
 		spec: spec,
 	}
 	rec.Compute()
-	assert.Len(t, rec.gather("stop"), 5)
+
+	testExpectReconcile(t, rec, expectedReconciler{
+		stop: 5,
+	})
 }
 
 func TestReconciler_MultipleGroup_Unblock(t *testing.T) {
@@ -204,7 +231,9 @@ func TestReconciler_MultipleGroup_Unblock(t *testing.T) {
 	rec.Compute()
 
 	// one last item promoted
-	assert.Len(t, rec.gather("add"), 5)
+	testExpectReconcile(t, rec, expectedReconciler{
+		place: 5,
+	})
 }
 
 func TestReconciler_Purge(t *testing.T) {
@@ -228,38 +257,44 @@ func TestReconciler_Purge(t *testing.T) {
 	}
 	rec.Compute()
 
-	stopping := rec.gather("stop")
-	assert.Len(t, stopping, 5)
+	testExpectReconcile(t, rec, expectedReconciler{
+		stop: 5,
+	})
 
-	// Second eval: wait for all the instance to stop
-	dep2 := dep.Copy()
-	dep2.union(stopping)
+	// Second eval. Do not remove desired=stop instances
+	for i := 0; i < 5; i++ {
+		dep.Instances[i].Desired = proto.InstanceDesiredStopped
+	}
 
 	rec = &reconciler{
 		delete: true,
-		dep:    dep2.Deployment,
+		dep:    dep.Deployment,
 		spec:   spec,
 	}
 	rec.Compute()
 
-	assert.Len(t, rec.res, 0)
-	assert.False(t, rec.done)
+	testExpectReconcile(t, rec, expectedReconciler{
+		stop: 0,
+	})
 
-	// Third eval: the deployment is done when there are no more running nodes
-	dep3 := dep.Copy()
-	dep3.Instances = []*proto.Instance{}
+	// Third eval: Done=true
+	for i := 0; i < 5; i++ {
+		dep.Instances[i].Status = proto.Instance_STOPPED
+	}
 
 	rec = &reconciler{
 		delete: true,
-		dep:    dep3.Deployment,
+		dep:    dep.Deployment,
 		spec:   spec,
 	}
 	rec.Compute()
 
-	assert.True(t, rec.done)
+	testExpectReconcile(t, rec, expectedReconciler{
+		done: true,
+	})
 }
 
-func TestReconciler_RollingUpgrade(t *testing.T) {
+func TestReconciler_RollingUpgradeX(t *testing.T) {
 	// 5 (1) -> 5 (2)
 	spec0 := mockClusterSpec()
 	spec0.Groups[0].Count = 5
@@ -283,29 +318,66 @@ func TestReconciler_RollingUpgrade(t *testing.T) {
 	}
 	rec.Compute()
 
-	update := rec.gather("update")
-	assert.Len(t, update, 2)
+	// two instance are stopped
+	testExpectReconcile(t, rec, expectedReconciler{
+		stop: 2,
+	})
 
-	for _, i := range update {
-		if !i.Canary {
-			t.Fatal("bad")
-		}
+	// another reconcile should not stop the pending instances
+	for i := 0; i < 2; i++ {
+		dep.Instances[i].Desired = proto.InstanceDesiredStopped
+		dep.Instances[i].Canary = true
 	}
 
-	// Second eval: we have to wait for the healthy instances
-	// to unblock more updates
+	// second eval should be empty
+	rec.Compute()
 
-	dep2 := dep.Copy()
-	dep2.union(update)
+	testExpectReconcile(t, rec, expectedReconciler{
+		stop: 0,
+	})
+}
 
-	rec = &reconciler{
-		dep:  dep2.Deployment,
+func TestReconciler_RollingUpgrade_SecondEval(t *testing.T) {
+	// Second evaluation for the rolling update
+	spec0 := mockClusterSpec()
+	spec0.Groups[0].Count = 5
+
+	spec1 := spec0.Copy()
+	spec1.Sequence++
+	spec1.Groups[0].Resources = map[string]string{"A": "B"}
+
+	dep := newMockDeployment()
+	for i := 0; i < 3; i++ {
+		ii := &proto.Instance{}
+		ii.ID = uuid.UUID()
+		ii.Status = proto.Instance_RUNNING
+		ii.Group = spec0.Groups[0]
+		ii.Status = proto.Instance_RUNNING
+		dep.Instances = append(dep.Instances, ii)
+	}
+
+	// 2 instance stopped and canary
+	for i := 3; i < 5; i++ {
+		ii := &proto.Instance{}
+		ii.ID = uuid.UUID()
+		ii.Name = uuid.UUID()
+		ii.Canary = true
+		ii.Group = spec0.Groups[0]
+		ii.Status = proto.Instance_STOPPED
+		dep.Instances = append(dep.Instances, ii)
+	}
+
+	rec := &reconciler{
+		dep:  dep.Deployment,
 		spec: spec1,
 	}
 	rec.Compute()
 
-	update = rec.gather("update")
-	assert.Len(t, update, 0)
+	// two instance are stopped
+	testExpectReconcile(t, rec, expectedReconciler{
+		update: 2,
+		done:   false,
+	})
 }
 
 func TestReconciler_RollingUpgrade_PartialPromote(t *testing.T) {
@@ -347,18 +419,17 @@ func TestReconciler_RollingUpgrade_PartialPromote(t *testing.T) {
 
 	// wait until the two instances are running to unblock
 	// the next updates
-	update := rec.gather("update")
-	assert.Len(t, update, 0)
-
-	promote := rec.gather("promote")
-	assert.Len(t, promote, 1)
+	testExpectReconcile(t, rec, expectedReconciler{
+		update:  0,
+		promote: 1,
+	})
 
 	// Second eval: the second canary instance is healthy
 	// it triggers the new rolling updates
 
 	dep2 := dep.Copy()
-	dep2.union(promote)
-	dep2.Instances[4].Healthy = true
+	dep2.Instances[3].Canary = false // promote
+	dep2.Instances[4].Healthy = true // healthy
 
 	rec = &reconciler{
 		dep:  dep2.Deployment,
@@ -366,10 +437,10 @@ func TestReconciler_RollingUpgrade_PartialPromote(t *testing.T) {
 	}
 	rec.Compute()
 
-	assert.Len(t, rec.gather("update"), 2)
-	assert.Len(t, rec.gather("promote"), 1)
-
-	assert.False(t, rec.done)
+	testExpectReconcile(t, rec, expectedReconciler{
+		stop:    2,
+		promote: 1,
+	})
 }
 
 func TestReconciler_RollingUpgrade_Complete(t *testing.T) {
@@ -396,12 +467,14 @@ func TestReconciler_RollingUpgrade_Complete(t *testing.T) {
 	rec.Compute()
 
 	// one last item promoted
-	assert.Len(t, rec.gather("promote"), 1)
-	assert.True(t, rec.done)
+	testExpectReconcile(t, rec, expectedReconciler{
+		promote: 1,
+		done:    true,
+	})
 }
 
 func TestReconciler_RollingUpgrade_ScaleUp(t *testing.T) {
-	// we need to figure out what to do here
+	// First we do rolling update and then scale
 	spec0 := mockClusterSpec()
 	spec0.Groups[0].Count = 5
 
@@ -426,22 +499,9 @@ func TestReconciler_RollingUpgrade_ScaleUp(t *testing.T) {
 	}
 	rec.Compute()
 
-	updates := rec.gather("update")
-	assert.Len(t, updates, 2)
-	assert.False(t, rec.done)
-
-	// wait until the updates are ready to place the new allocs
-	dep2 := dep.Copy()
-	dep2.union(updates)
-
-	rec = &reconciler{
-		dep:  dep2.Deployment,
-		spec: spec1,
-	}
-	rec.Compute()
-
-	assert.Len(t, rec.res, 0)
-	assert.False(t, rec.done)
+	testExpectReconcile(t, rec, expectedReconciler{
+		stop: 2,
+	})
 }
 
 func TestReconciler_RollingUpgrade_ScaleDown(t *testing.T) {
@@ -470,8 +530,10 @@ func TestReconciler_RollingUpgrade_ScaleDown(t *testing.T) {
 	}
 	rec.Compute()
 
-	assert.Len(t, rec.gather("stop"), 2)
-	assert.False(t, rec.done)
+	testExpectReconcile(t, rec, expectedReconciler{
+		stop: 2,
+	})
+	// assert.False(t, rec.done)
 }
 
 func TestReconciler_InstanceFailed_Restart(t *testing.T) {
@@ -497,7 +559,9 @@ func TestReconciler_InstanceFailed_Restart(t *testing.T) {
 	}
 	rec.Compute()
 
-	assert.Len(t, rec.gather("reschedule"), 1)
+	testExpectReconcile(t, rec, expectedReconciler{
+		reschedule: 1,
+	})
 }
 
 func TestReconciler_InstanceFailed_MaxAttempts(t *testing.T) {
@@ -527,7 +591,9 @@ func TestReconciler_InstanceFailed_MaxAttempts(t *testing.T) {
 	rec.Compute()
 
 	// the lost instance is not rescheduled
-	assert.Len(t, rec.gather("reschedule"), 0)
+	testExpectReconcile(t, rec, expectedReconciler{
+		reschedule: 0,
+	})
 }
 
 func TestReconciler_InstanceFailed_ScaleDown(t *testing.T) {
@@ -556,14 +622,11 @@ func TestReconciler_InstanceFailed_ScaleDown(t *testing.T) {
 	}
 	rec.Compute()
 
-	stop := rec.gather("stop")
-	assert.Len(t, stop, 2)
+	testExpectReconcile(t, rec, expectedReconciler{
+		stop:       2,
+		reschedule: 1,
+	})
 
-	// two failed instances are lost
-	assert.Equal(t, stop[0].ID, dep.Instances[2].ID)
-	assert.Equal(t, stop[1].ID, dep.Instances[3].ID)
-
-	// one instance needs to be rescheduled
-	reschedule := rec.gather("reschedule")
-	assert.Len(t, reschedule, 1)
+	assert.Equal(t, rec.res.stop[0].instance.ID, dep.Instances[2].ID)
+	assert.Equal(t, rec.res.stop[1].instance.ID, dep.Instances[3].ID)
 }

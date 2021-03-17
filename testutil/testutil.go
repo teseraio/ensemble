@@ -27,17 +27,16 @@ type TestServer struct {
 	clt    proto.EnsembleServiceClient
 }
 
-type taskWrap struct {
-	id   string
-	name string
-}
-
 func (t *TestServer) Apply(c *proto.Component) string {
 	cc, err := t.clt.Apply(context.Background(), c)
 	if err != nil {
 		t.t.Fatal(err)
 	}
 	return cc.Id
+}
+
+func (t *TestServer) DestroyAt() {
+	t.docker.DestroyAt()
 }
 
 func (t *TestServer) Destroy() {

@@ -1,16 +1,15 @@
 package operator
 
 import (
+	"fmt"
+
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
-// NodeUpdate is an update from a node (TODO: move to proto)
-type NodeUpdate struct {
-	// id of the node that has failed
-	ID        string
-	ClusterID string
-	IP        string
-}
+var (
+	ErrInstanceAlreadyRunning  = fmt.Errorf("instance already running")
+	ErrProviderNameAlreadyUsed = fmt.Errorf("name already used")
+)
 
 // Provider is the entity that holds the state of the infrastructure. Both
 // for the computing resources and the general resources.

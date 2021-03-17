@@ -441,12 +441,17 @@ func (b *BoltDB) LoadDeployment(id string) (*proto.Deployment, error) {
 		}
 		if n.Status != proto.Instance_OUT {
 			c.Instances = append(c.Instances, n)
+		} else {
+			//fmt.Println("IS OUT!!")
 		}
 	}
 	return c, nil
 }
 
 func (b *BoltDB) UpdateDeployment(d *proto.Deployment) error {
+	fmt.Println("- update deployment -")
+	fmt.Println(d.Sequence)
+
 	tx, err := b.db.Begin(true)
 	if err != nil {
 		return err

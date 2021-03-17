@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"google.golang.org/protobuf/proto"
@@ -12,6 +13,7 @@ import (
 const (
 	DeploymentDone    = "done"
 	DeploymentRunning = "running"
+	DeploymentFailed  = "failed"
 )
 
 const (
@@ -234,4 +236,19 @@ func ClusterIDFromComponent(c *Component) (string, error) {
 		clusterID = item.GetClusterID()
 	}
 	return clusterID, nil
+}
+
+func ParseIndex(n string) (uint64, error) {
+	parts := strings.Split(n, "-")
+	if len(parts) != 2 && len(parts) != 3 {
+		return 0, fmt.Errorf("wrong number of parts")
+	}
+
+	// the index is always the last element
+	indexStr := parts[len(parts)-1]
+	index, err := strconv.Atoi(indexStr)
+	if err != nil {
+		return 0, err
+	}
+	return uint64(index), nil
 }

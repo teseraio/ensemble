@@ -61,10 +61,16 @@ func convertFiles(paths []string) *volumeMount {
 func MarshalPod(i *proto.Instance) ([]byte, error) {
 	builder := i.Spec
 
+	version := builder.Version
+	if version == "" {
+		version = "latest"
+	}
+
 	obj := map[string]interface{}{
+		"ID":       i.ID,
 		"Name":     i.Name,
 		"Image":    builder.Image,
-		"Version":  builder.Version,
+		"Version":  version,
 		"Env":      builder.Env,
 		"Files":    builder.Files,
 		"Ensemble": i.Cluster,
