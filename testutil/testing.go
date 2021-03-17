@@ -12,10 +12,10 @@ import (
 // testing suite for the Provider
 func TestProvider(t *testing.T, p operator.Provider) {
 	//t.Run("", func(t *testing.T) {
-	//	TestPodLifecycle(t, p)
+	//TestPodLifecycle(t, p)
 	//})
 	//t.Run("", func(t *testing.T) {
-	TestPodBarArgs(t, p)
+	//TestPodBarArgs(t, p)
 	//})
 	//TestPodJobFailed(t, p)
 	// TestDNS
@@ -59,6 +59,7 @@ func TestPodBarArgs(t *testing.T, p operator.Provider) {
 }
 
 func TestPodJobFailed(t *testing.T, p operator.Provider) {
+	// TODO
 	i := &proto.Instance{
 		ID:      uuid.UUID(),
 		Cluster: "xx11",
@@ -66,7 +67,7 @@ func TestPodJobFailed(t *testing.T, p operator.Provider) {
 		Spec: &proto.NodeSpec{
 			Image: "busybox",
 			// it stops gracefully
-			Cmd: []string{"sleep", "5"},
+			Cmd: []string{"sleep", "2"},
 		},
 	}
 	if _, err := p.CreateResource(i); err != nil {
@@ -111,10 +112,12 @@ func TestPodLifecycle(t *testing.T, p operator.Provider) {
 	}
 	i.Handler = obj.Running.Handler
 
-	// try to create the same container again
-	if _, err := p.CreateResource(i); err != nil {
-		t.Fatal(err)
-	}
+	/*
+		// try to create the same container again
+		if _, err := p.CreateResource(i); err != nil {
+			t.Fatal(err)
+		}
+	*/
 
 	if _, err := p.DeleteResource(i); err != nil {
 		t.Fatal(err)

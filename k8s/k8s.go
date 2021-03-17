@@ -32,8 +32,6 @@ func (p *Provider) Stop() {
 
 var eventsURL = "/apis/events.k8s.io/v1/events"
 
-var podsURL2 = "/api/v1/namespaces/default/pods"
-
 func getIDFromRef(ref string) string {
 	spl := strings.Split(ref, ".")
 	return spl[0]
@@ -51,12 +49,12 @@ func (p *Provider) Setup() error {
 			id := getIDFromRef(event.GetMetadata().Name)
 			cluster := p.getPodCluster(id)
 
+			fmt.Println("---")
+			fmt.Println(cluster, event.Reason)
+
 			if cluster == "" {
 				continue
 			}
-
-			fmt.Println("---")
-			fmt.Println(cluster, event.Reason)
 
 			if event.Reason == "Failed" {
 				p.watchCh <- &proto.InstanceUpdate{

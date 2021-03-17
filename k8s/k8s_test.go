@@ -1,15 +1,24 @@
 package k8s
 
 import (
-	"reflect"
 	"testing"
-	"time"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/teseraio/ensemble/lib/uuid"
-	"github.com/teseraio/ensemble/operator/proto"
+	"github.com/teseraio/ensemble/testutil"
 )
 
+func TestK8sProviderSpec(t *testing.T) {
+	p, err := K8sFactory(hclog.NewNullLogger(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Setup(); err != nil {
+		t.Fatal(err)
+	}
+	testutil.TestProvider(t, p)
+}
+
+/*
 func TestUpsertConfigMap(t *testing.T) {
 	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
 
@@ -183,3 +192,4 @@ func TestPodBadArgs(t *testing.T) {
 		t.Fatal("expected failed")
 	}
 }
+*/
