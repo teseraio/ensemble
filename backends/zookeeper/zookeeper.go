@@ -10,25 +10,7 @@ import (
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
-const (
-	// keyIndx is the key to store the index node
-	// in the cluster
-	// keyIndx = "Indx"
-
-	// keyRole is the key to store the role of the
-	// node in the ensemble (observer, participant)
-	keyRole = "Role"
-
-	// roleParticipant is an active node in the ensemble
-	roleParticipant = "participant"
-
-	// roleObserver is a follower node in the ensemble
-	// that does not form part of the ensemble
-	roleObserver = "observer"
-)
-
 type backend struct {
-	operator.BaseHandler
 }
 
 // Factory is a factory method for the zookeeper backend
@@ -38,11 +20,6 @@ func Factory() operator.Handler {
 
 func (b *backend) Ready(t *proto.Instance) bool {
 	return true
-}
-
-func (b *backend) PostHook(*operator.HookCtx) error {
-	// TAINTED: TODO
-	return nil
 }
 
 func (b *backend) EvaluateConfig(spec *proto.NodeSpec, cc map[string]string) error {

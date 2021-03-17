@@ -7,7 +7,6 @@ import (
 	"net"
 	"reflect"
 	"strings"
-	"sync"
 	"time"
 
 	gproto "github.com/golang/protobuf/proto"
@@ -52,21 +51,21 @@ type Server struct {
 
 	service proto.EnsembleServiceServer
 
-	lock        sync.Mutex
-	deployments map[string]*deploymentWatcher
+	//lock        sync.Mutex
+	//deployments map[string]*deploymentWatcher
 }
 
 // NewServer starts an instance of the operator server
 func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	s := &Server{
-		config:      config,
-		logger:      logger,
-		Provider:    config.Provider,
-		State:       config.State,
-		stopCh:      make(chan struct{}),
-		handlers:    map[string]Handler{},
-		deployments: map[string]*deploymentWatcher{},
-		evalQueue:   newEvalQueue(),
+		config:   config,
+		logger:   logger,
+		Provider: config.Provider,
+		State:    config.State,
+		stopCh:   make(chan struct{}),
+		handlers: map[string]Handler{},
+		// deployments: map[string]*deploymentWatcher{},
+		evalQueue: newEvalQueue(),
 	}
 
 	for _, factory := range config.HandlerFactories {
@@ -98,34 +97,13 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	return s, nil
 }
 
-type deploymentWatcher struct {
-	s *Server
-
-	// list of instances
-	lock sync.Mutex
-	ii   map[string]*proto.Instance
-}
-
-func (d *deploymentWatcher) upsertNodeAndEval(i *proto.Instance) {
-	if err := d.s.State.UpsertNode(i); err != nil {
-		panic(err)
-	}
-	eval := &proto.Evaluation{
-		Id:          uuid.UUID(),
-		Status:      proto.Evaluation_PENDING,
-		TriggeredBy: proto.Evaluation_NODECHANGE,
-		ClusterID:   i.Cluster,
-	}
-	d.s.evalQueue.add(eval)
-}
-
-func (d *deploymentWatcher) readiness(i *proto.Instance) {
-	dep, err := d.s.State.LoadDeployment(i.Cluster)
+func (s *Server) readiness(i *proto.Instance) {
+	dep, err := s.State.LoadDeployment(i.Cluster)
 	if err != nil {
 		panic(err)
 	}
 
-	handler, ok := d.s.getHandler(dep.Backend)
+	handler, ok := s.getHandler(dep.Backend)
 	if !ok {
 		panic("bad")
 	}
@@ -141,92 +119,60 @@ func (d *deploymentWatcher) readiness(i *proto.Instance) {
 
 	fmt.Println("_ HEALTHY DONE _")
 	i.Healthy = true
-	d.upsertNodeAndEval(i)
+	s.upsertNodeAndEval(i)
 }
 
-func (d *deploymentWatcher) updateStatus(op *proto.InstanceUpdate) {
-	d.s.logger.Debug("update instance status", "id", op.ID, "cluster", op.Cluster)
+func (s *Server) upsertNodeAndEval(i *proto.Instance) error {
+	if err := s.State.UpsertNode(i); err != nil {
+		return err
+	}
+	eval := &proto.Evaluation{
+		Id:          uuid.UUID(),
+		Status:      proto.Evaluation_PENDING,
+		TriggeredBy: proto.Evaluation_NODECHANGE,
+		ClusterID:   i.Cluster,
+	}
+	s.evalQueue.add(eval)
+	return nil
+}
 
-	i, ok := d.ii[op.ID]
-	if !ok {
-		panic("bad")
+func (s *Server) updateStatus(op *proto.InstanceUpdate) error {
+	s.logger.Debug("update instance status", "id", op.ID, "cluster", op.Cluster)
+
+	i, err := s.State.LoadInstance(op.Cluster, op.ID)
+	if err != nil {
+		return err
 	}
 
 	switch obj := op.Event.(type) {
 	case *proto.InstanceUpdate_Running_:
-		fmt.Println("_ A _")
 		i.Ip = obj.Running.Ip
 		i.Handler = obj.Running.Handler
 		i.Status = proto.Instance_RUNNING
 
 	case *proto.InstanceUpdate_Killing_:
-
-		fmt.Printf("\n\n i \n\n")
-		fmt.Println(i)
-		// fmt.Println(i.Desired)
-
 		if i.Status == proto.Instance_TAINTED {
 			// expected to be down
 			i.Status = proto.Instance_STOPPED // It is moved to out by reconciler
 			// dont do evaluation now
-			d.upsertNodeAndEval(i)
-			return
+			return s.upsertNodeAndEval(i)
 		} else {
 			// the node is not expected to fail
 			i.Status = proto.Instance_FAILED
-			d.upsertNodeAndEval(i)
-			return
+			return s.upsertNodeAndEval(i)
 		}
 	}
 
 	// update in the db
-	d.upsertNodeAndEval(i)
-
-	if i.Status == proto.Instance_RUNNING {
-		go d.readiness(i)
-	}
-}
-
-func (d *deploymentWatcher) Update(instance *proto.Instance) {
-	d.s.logger.Debug("update instance", "id", instance.ID, "name", instance.Name, "cluster", instance.Cluster)
-
-	d.lock.Lock()
-	defer d.lock.Unlock()
-
-	fmt.Printf("-- update instance from spec %s %s --\n", instance.ID, instance.Name)
-	//fmt.Println(instance)
-	//fmt.Println(instance.Canary)
-	// fmt.Println(instance.Desired, instance.Status)
-
-	if instance.Status == proto.Instance_TAINTED {
-		fmt.Println("- stop -")
-		fmt.Println(instance.ID)
-
-		if _, err := d.s.Provider.DeleteResource(instance); err != nil {
-			panic(err)
-		}
-		fmt.Println("- done stop -")
-	} else if instance.Status == proto.Instance_PENDING {
-		fmt.Println("- create resource -")
-		if _, err := d.s.Provider.CreateResource(instance); err != nil {
-			panic(err)
-		}
+	if err := s.upsertNodeAndEval(i); err != nil {
+		return err
 	}
 
-	d.ii[instance.ID] = instance
-}
-
-func (s *Server) getDeployment(name string) *deploymentWatcher {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	if _, ok := s.deployments[name]; !ok {
-		fmt.Println("_ CREATE DEPLOYMENT _")
-		fmt.Println(name)
-
-		s.deployments[name] = &deploymentWatcher{s: s, ii: map[string]*proto.Instance{}}
+	if i.Status == proto.Instance_RUNNING && !i.Healthy {
+		// if it is not healthy yet run the readiness function
+		go s.readiness(i.Copy())
 	}
-	return s.deployments[name]
+	return nil
 }
 
 func (s *Server) setupWatcher() {
@@ -234,8 +180,11 @@ func (s *Server) setupWatcher() {
 	for {
 		select {
 		case op := <-watchCh:
-			dep := s.getDeployment(op.Cluster)
-			go dep.updateStatus(op)
+			go func() {
+				if err := s.updateStatus(op); err != nil {
+					panic(err)
+				}
+			}()
 
 		case <-s.stopCh:
 			return
@@ -614,14 +563,24 @@ func (s *Server) submitPlan(p *schedulerPlan) error {
 	}
 
 	// send the instances for update
-	depW := s.getDeployment(dep.Id)
 	for _, i := range p.updates {
 		// create the instance
 		if i.Status == proto.Instance_OUT {
 			fmt.Println(i.ID)
 			fmt.Println("_ INSTANCE OUT _")
 		} else {
-			go depW.Update(i)
+			// Provider updates concurrently
+			go func(i *proto.Instance) {
+				if i.Status == proto.Instance_TAINTED {
+					if _, err := s.Provider.DeleteResource(i); err != nil {
+						panic(err)
+					}
+				} else if i.Status == proto.Instance_PENDING {
+					if _, err := s.Provider.CreateResource(i); err != nil {
+						panic(err)
+					}
+				}
+			}(i)
 		}
 	}
 

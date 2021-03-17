@@ -9,18 +9,6 @@ import (
 // HandlerFactory is a factory for Handlers
 type HandlerFactory func() Handler
 
-type HookCtx struct {
-	Node     *proto.Instance
-	Executor Executor
-}
-
-type BaseHandler struct {
-}
-
-func (b *BaseHandler) PostHook(*HookCtx) error {
-	return nil
-}
-
 // Handler is the interface that needs to be implemented by the backend
 type Handler interface {
 	// EvaluatePlan evaluates and modifies the execution plan

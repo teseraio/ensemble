@@ -595,7 +595,6 @@ func TestReconciler_RollingUpgrade_ScaleDown(t *testing.T) {
 	testExpectReconcile(t, rec, expectedReconciler{
 		stop: 2,
 	})
-	// assert.False(t, rec.done)
 }
 
 func TestReconciler_InstanceFailed_Restart(t *testing.T) {
