@@ -48,9 +48,15 @@ func (a *allocSet) filterByStatus(status ...proto.Instance_Status) (allocSet, al
 	})
 }
 
+func (a *allocSet) filterByCanary() (allocSet, allocSet) {
+	return a.filter(func(i *proto.Instance) bool {
+		return i.Canary
+	})
+}
+
 func (a *allocSet) filterByStopping() (allocSet, allocSet) {
 	return a.filter(func(i *proto.Instance) bool {
-		return i.Desired == proto.InstanceDesiredStopped
+		return i.Status == proto.Instance_TAINTED
 	})
 }
 
@@ -111,7 +117,7 @@ func (a *allocSet) canaries() (canaries allocSet, add allocSet, healthy allocSet
 				add = append(add, i)
 				continue
 			}
-			if i.Desired == proto.InstanceDesiredStopped {
+			if i.Status == proto.Instance_TAINTED {
 				// its a destructive canary that is shutting down
 				canaries = append(canaries, i)
 				continue
@@ -170,13 +176,13 @@ type reconcileResult struct {
 	groupUpdates []groupUpdate
 	place        []instancePlaceResult
 	stop         []instanceStopResult
-	promote      []*proto.Instance
+	ready        []*proto.Instance
 	out          []*proto.Instance
 	done         bool
 }
 
 func (r *reconcileResult) print() {
-	fmt.Printf("place: %d, stop: %d, promote: %d\n", len(r.place), len(r.stop), len(r.promote))
+	fmt.Printf("place: %d, stop: %d, ready: %d\n", len(r.place), len(r.stop), len(r.ready))
 }
 
 type instanceStopResult struct {
@@ -257,7 +263,6 @@ func min(i, j int) int {
 }
 
 func (r *reconciler) Compute() {
-	// r.res = []*update{}
 	r.res = &reconcileResult{}
 
 	if r.delete {
@@ -265,13 +270,11 @@ func (r *reconciler) Compute() {
 		pending := false
 		for _, i := range r.dep.Instances {
 			if i.Status == proto.Instance_RUNNING {
-				if i.Desired != proto.InstanceDesiredStopped {
-					r.res.stop = append(r.res.stop, instanceStopResult{
-						instance: i,
-					})
-				} else {
-					pending = true
-				}
+				r.res.stop = append(r.res.stop, instanceStopResult{
+					instance: i,
+				})
+			} else if i.Status != proto.Instance_STOPPED {
+				pending = true
 			}
 		}
 		if len(r.res.stop) == 0 && !pending {
@@ -292,12 +295,17 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 	set := allocSet(r.dep.Instances)
 	set = set.byGroup(grp.Type)
 
-	// detect the stopped nodes (TODO: migrate)
+	// filter by status=out instances in case there are some
+	_, set = set.filterByStatus(proto.Instance_OUT)
+
+	// detect the stopped nodes
 	reschedule, lost, untainted := set.reschedule()
 
-	// avoid the nodes that are already being stopped
 	var stopping allocSet
 	stopping, untainted = untainted.filterByStopping()
+
+	var stopped allocSet
+	stopped, untainted = untainted.filterByStatus(proto.Instance_STOPPED)
 
 	var stop allocSet
 	if grp.Count == 0 {
@@ -344,6 +352,13 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 		})
 	}
 
+	// add to out any stopped instances that are not canaries
+	// since those are already processed before
+	_, outStopped := stopped.filterByCanary()
+	for _, i := range outStopped {
+		r.res.out = append(r.res.out, i)
+	}
+
 	// any canary placement is ready to be allocated
 	for _, i := range canaryPlacements {
 		r.res.place = append(r.res.place, i)
@@ -351,7 +366,7 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 
 	// promote healthy canaries and add them to the untainted set
 	for _, i := range promoted {
-		r.res.promote = append(r.res.promote, i)
+		r.res.ready = append(r.res.ready, i)
 	}
 
 	untainted = untainted.join(promoted)

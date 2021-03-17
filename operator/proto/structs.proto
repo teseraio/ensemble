@@ -201,18 +201,19 @@ message Instance {
     Status status = 12;
 
     enum Status {
-        PENDING = 0; // pending on the Provider to be created
-        OUT     = 1; // an old instance of the ensemble
-
+        OUT     = 0; // an old instance of the ensemble
+        PENDING = 1; // pending on the Provider to be created
+        
         SCHEDULED = 5; // the instance is being created
         RUNNING = 2; // the instance is running
 
+        TAINTED = 8;
         FAILED  = 3; // the instance has stopped with a failure
         STOPPED = 4; // the instance is stopped
-        KILLING = 7; // the node is being removed
+        // KILLING = 7; // the node is being removed
     }
-    
-    string desired = 13;
+
+    // string desired = 13;
 
     bool canary = 14;
 

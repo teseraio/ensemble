@@ -30,6 +30,7 @@ type resource struct {
 	handle    string
 	clusterID string
 	instance  *proto.Instance
+	active    bool
 }
 
 // Client is a sugarcoat version of the docker client
@@ -340,6 +341,7 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 			panic(err)
 		}
 
+		c.resources[node.ID].active = false
 		c.updateCh <- &proto.InstanceUpdate{
 			ID:      node.ID,
 			Cluster: node.Cluster,
@@ -405,8 +407,10 @@ func (c *Client) CreateResource(node *proto.Instance) (*proto.Instance, error) {
 		if r.instance.ID == node.ID {
 			return nil, operator.ErrInstanceAlreadyRunning
 		}
-		if r.instance.FullName() == node.FullName() {
-			return nil, operator.ErrProviderNameAlreadyUsed
+		if r.active {
+			if r.instance.FullName() == node.FullName() {
+				return nil, operator.ErrProviderNameAlreadyUsed
+			}
 		}
 	}
 

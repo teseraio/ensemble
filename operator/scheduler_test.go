@@ -26,23 +26,6 @@ func (p *mockDeployment) Copy() *mockDeployment {
 	return pp
 }
 
-func (p *mockDeployment) union(ii []*proto.Instance) {
-	for _, i := range ii {
-		found := false
-		for indx, j := range p.Instances {
-			if j.ID == i.ID {
-				// remove the current instance
-				p.Instances[indx] = i
-				found = true
-				break
-			}
-		}
-		if !found {
-			p.Instances = append(p.Instances, i)
-		}
-	}
-}
-
 func mockClusterSpec() *proto.ClusterSpec {
 	return &proto.ClusterSpec{
 		Groups: []*proto.ClusterSpec_Group{
@@ -56,7 +39,8 @@ type expectedReconciler struct {
 	update     int
 	reschedule int
 	stop       int
-	promote    int
+	ready      int
+	out        int
 	done       bool
 }
 
@@ -83,8 +67,11 @@ func testExpectReconcile(t *testing.T, reconciler *reconciler, expect expectedRe
 	if expect.stop != len(reconciler.res.stop) {
 		t.Fatalf("wrong stop: %d %d", expect.stop, len(reconciler.res.stop))
 	}
-	if expect.promote != len(reconciler.res.promote) {
-		t.Fatalf("wrong promote: %d %d", expect.promote, len(reconciler.res.promote))
+	if expect.ready != len(reconciler.res.ready) {
+		t.Fatalf("wrong promote: %d %d", expect.ready, len(reconciler.res.ready))
+	}
+	if expect.out != len(reconciler.res.out) {
+		t.Fatalf("wrong out: %d %d", expect.out, len(reconciler.res.out))
 	}
 	if expect.done != reconciler.res.done {
 		t.Fatalf("incorrect done: %v %v", expect.done, reconciler.res.done)
@@ -108,6 +95,36 @@ func TestReconciler_Place_Empty(t *testing.T) {
 	})
 }
 
+func TestReconciler_ScaleUp_Blocked(t *testing.T) {
+	spec := mockClusterSpec()
+	spec.Groups[0].Count = 10
+
+	dep := newMockDeployment()
+	for i := 0; i < 5; i++ {
+		ii := &proto.Instance{}
+		if i%2 == 0 {
+			ii.Status = proto.Instance_PENDING
+		} else {
+			ii.Status = proto.Instance_SCHEDULED
+		}
+		ii.ID = uuid.UUID()
+		ii.Group = spec.Groups[0]
+		ii.Healthy = false // healthy is only possible is the instance is running
+		dep.Instances = append(dep.Instances, ii)
+	}
+
+	rec := &reconciler{
+		dep:  dep.Deployment,
+		spec: spec,
+	}
+	rec.Compute()
+
+	// we cannot scale up until all the instances are healthy
+	testExpectReconcile(t, rec, expectedReconciler{
+		place: 0,
+	})
+}
+
 func TestReconciler_ScaleUp(t *testing.T) {
 	spec := mockClusterSpec()
 	spec.Groups[0].Count = 10
@@ -115,6 +132,7 @@ func TestReconciler_ScaleUp(t *testing.T) {
 	dep := newMockDeployment()
 	for i := 0; i < 5; i++ {
 		ii := &proto.Instance{}
+		ii.Status = proto.Instance_RUNNING
 		ii.ID = uuid.UUID()
 		ii.Group = spec.Groups[0]
 		ii.Healthy = true
@@ -130,9 +148,6 @@ func TestReconciler_ScaleUp(t *testing.T) {
 	testExpectReconcile(t, rec, expectedReconciler{
 		place: 5,
 	})
-
-	// TODO
-	// Second eval
 }
 
 func TestReconciler_ScaleDown(t *testing.T) {
@@ -143,6 +158,7 @@ func TestReconciler_ScaleDown(t *testing.T) {
 	dep := newMockDeployment()
 	for i := 0; i < 10; i++ {
 		ii := &proto.Instance{}
+		ii.Status = proto.Instance_RUNNING
 		ii.ID = uuid.UUID()
 		ii.Group = spec.Groups[0]
 		ii.Healthy = true
@@ -161,19 +177,60 @@ func TestReconciler_ScaleDown(t *testing.T) {
 	})
 
 	// second eval
-	// update half the instances to desired Stop event
+	// update half the instances to pending stopped
 	for i := 0; i < 5; i++ {
-		dep.Instances[i].Desired = proto.InstanceDesiredStopped
-	}
-	rec = &reconciler{
-		dep:  dep.Deployment,
-		spec: spec,
+		dep.Instances[i].Status = proto.Instance_TAINTED
 	}
 	rec.Compute()
 
 	testExpectReconcile(t, rec, expectedReconciler{
 		stop: 0,
 		done: false,
+	})
+
+	// third eval
+	// update half the instances to stopped, they should
+	// be removed of the ensemble
+	for i := 0; i < 3; i++ {
+		dep.Instances[i].Status = proto.Instance_STOPPED
+	}
+	rec.Compute()
+
+	testExpectReconcile(t, rec, expectedReconciler{
+		out:  3,
+		done: false,
+	})
+}
+
+func TestReconciler_ScaleDown_Complete(t *testing.T) {
+	// 10 -> 5
+	spec := mockClusterSpec()
+	spec.Groups[0].Count = 5
+
+	dep := newMockDeployment()
+	for i := 0; i < 10; i++ {
+		ii := &proto.Instance{}
+		ii.Status = proto.Instance_RUNNING
+		ii.ID = uuid.UUID()
+		ii.Group = spec.Groups[0]
+		ii.Healthy = true
+		dep.Instances = append(dep.Instances, ii)
+	}
+
+	// stop 5 instances
+	for i := 0; i < 5; i++ {
+		dep.Instances[i].Status = proto.Instance_STOPPED
+	}
+
+	rec := &reconciler{
+		dep:  dep.Deployment,
+		spec: spec,
+	}
+	rec.Compute()
+
+	testExpectReconcile(t, rec, expectedReconciler{
+		out:  5,
+		done: true,
 	})
 }
 
@@ -185,6 +242,7 @@ func TestReconciler_ScaleDown_Zero(t *testing.T) {
 	dep := newMockDeployment()
 	for i := 0; i < 5; i++ {
 		ii := &proto.Instance{}
+		ii.Status = proto.Instance_RUNNING
 		ii.ID = uuid.UUID()
 		ii.Group = spec.Groups[0]
 		ii.Healthy = true
@@ -261,9 +319,9 @@ func TestReconciler_Purge(t *testing.T) {
 		stop: 5,
 	})
 
-	// Second eval. Do not remove desired=stop instances
+	// Second eval. Do not remove tainted instances
 	for i := 0; i < 5; i++ {
-		dep.Instances[i].Desired = proto.InstanceDesiredStopped
+		dep.Instances[i].Status = proto.Instance_TAINTED
 	}
 
 	rec = &reconciler{
@@ -306,6 +364,7 @@ func TestReconciler_RollingUpgradeX(t *testing.T) {
 	dep := newMockDeployment()
 	for i := 0; i < 5; i++ {
 		ii := &proto.Instance{}
+		ii.Status = proto.Instance_RUNNING
 		ii.ID = uuid.UUID()
 		ii.Group = spec0.Groups[0]
 		ii.Healthy = true
@@ -325,11 +384,9 @@ func TestReconciler_RollingUpgradeX(t *testing.T) {
 
 	// another reconcile should not stop the pending instances
 	for i := 0; i < 2; i++ {
-		dep.Instances[i].Desired = proto.InstanceDesiredStopped
+		dep.Instances[i].Status = proto.Instance_TAINTED
 		dep.Instances[i].Canary = true
 	}
-
-	// second eval should be empty
 	rec.Compute()
 
 	testExpectReconcile(t, rec, expectedReconciler{
@@ -361,9 +418,9 @@ func TestReconciler_RollingUpgrade_SecondEval(t *testing.T) {
 		ii := &proto.Instance{}
 		ii.ID = uuid.UUID()
 		ii.Name = uuid.UUID()
+		ii.Status = proto.Instance_STOPPED
 		ii.Canary = true
 		ii.Group = spec0.Groups[0]
-		ii.Status = proto.Instance_STOPPED
 		dep.Instances = append(dep.Instances, ii)
 	}
 
@@ -375,6 +432,7 @@ func TestReconciler_RollingUpgrade_SecondEval(t *testing.T) {
 
 	// two instance are stopped
 	testExpectReconcile(t, rec, expectedReconciler{
+		out:    2,
 		update: 2,
 		done:   false,
 	})
@@ -397,6 +455,7 @@ func TestReconciler_RollingUpgrade_PartialPromote(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		ii := &proto.Instance{}
 		ii.ID = uuid.UUID()
+		ii.Status = proto.Instance_RUNNING
 
 		if i < old {
 			ii.Group = spec0.Groups[0]
@@ -420,8 +479,8 @@ func TestReconciler_RollingUpgrade_PartialPromote(t *testing.T) {
 	// wait until the two instances are running to unblock
 	// the next updates
 	testExpectReconcile(t, rec, expectedReconciler{
-		update:  0,
-		promote: 1,
+		update: 0,
+		ready:  1,
 	})
 
 	// Second eval: the second canary instance is healthy
@@ -438,8 +497,8 @@ func TestReconciler_RollingUpgrade_PartialPromote(t *testing.T) {
 	rec.Compute()
 
 	testExpectReconcile(t, rec, expectedReconciler{
-		stop:    2,
-		promote: 1,
+		stop:  2,
+		ready: 1,
 	})
 }
 
@@ -451,6 +510,7 @@ func TestReconciler_RollingUpgrade_Complete(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		ii := &proto.Instance{}
+		ii.Status = proto.Instance_RUNNING
 		ii.ID = uuid.UUID()
 		ii.Group = spec0.Groups[0]
 		ii.Healthy = true
@@ -468,8 +528,8 @@ func TestReconciler_RollingUpgrade_Complete(t *testing.T) {
 
 	// one last item promoted
 	testExpectReconcile(t, rec, expectedReconciler{
-		promote: 1,
-		done:    true,
+		ready: 1,
+		done:  true,
 	})
 }
 
@@ -487,6 +547,7 @@ func TestReconciler_RollingUpgrade_ScaleUp(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		ii := &proto.Instance{}
+		ii.Status = proto.Instance_RUNNING
 		ii.ID = uuid.UUID()
 		ii.Group = spec0.Groups[0]
 		ii.Healthy = true
@@ -518,6 +579,7 @@ func TestReconciler_RollingUpgrade_ScaleDown(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		ii := &proto.Instance{}
+		ii.Status = proto.Instance_RUNNING
 		ii.ID = uuid.UUID()
 		ii.Group = spec0.Groups[0]
 		ii.Healthy = true
@@ -544,6 +606,7 @@ func TestReconciler_InstanceFailed_Restart(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		ii := &proto.Instance{}
+		ii.Status = proto.Instance_RUNNING
 		ii.ID = uuid.UUID()
 		ii.Group = spec.Groups[0]
 		ii.Healthy = true
@@ -572,6 +635,7 @@ func TestReconciler_InstanceFailed_MaxAttempts(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		ii := &proto.Instance{}
+		ii.Status = proto.Instance_RUNNING
 		ii.ID = uuid.UUID()
 		ii.Group = spec.Groups[0]
 		ii.Healthy = true
@@ -605,6 +669,7 @@ func TestReconciler_InstanceFailed_ScaleDown(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		ii := &proto.Instance{}
+		ii.Status = proto.Instance_RUNNING
 		ii.ID = uuid.UUID()
 		ii.Group = spec.Groups[0]
 		ii.Healthy = true

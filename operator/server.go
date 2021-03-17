@@ -163,9 +163,9 @@ func (d *deploymentWatcher) updateStatus(op *proto.InstanceUpdate) {
 
 		fmt.Printf("\n\n i \n\n")
 		fmt.Println(i)
-		fmt.Println(i.Desired)
+		// fmt.Println(i.Desired)
 
-		if i.Desired == proto.InstanceDesiredStopped {
+		if i.Status == proto.Instance_TAINTED {
 			// expected to be down
 			i.Status = proto.Instance_STOPPED // It is moved to out by reconciler
 			// dont do evaluation now
@@ -196,9 +196,9 @@ func (d *deploymentWatcher) Update(instance *proto.Instance) {
 	fmt.Printf("-- update instance from spec %s %s --\n", instance.ID, instance.Name)
 	//fmt.Println(instance)
 	//fmt.Println(instance.Canary)
-	fmt.Println(instance.Desired, instance.Status)
+	// fmt.Println(instance.Desired, instance.Status)
 
-	if instance.Desired == proto.InstanceDesiredStopped && instance.Status != proto.Instance_STOPPED {
+	if instance.Status == proto.Instance_TAINTED {
 		fmt.Println("- stop -")
 		fmt.Println(instance.ID)
 
@@ -206,7 +206,7 @@ func (d *deploymentWatcher) Update(instance *proto.Instance) {
 			panic(err)
 		}
 		fmt.Println("- done stop -")
-	} else if instance.Desired == proto.InstanceDesiredRunning && instance.Status == proto.Instance_PENDING {
+	} else if instance.Status == proto.Instance_PENDING {
 		fmt.Println("- create resource -")
 		if _, err := d.s.Provider.CreateResource(instance); err != nil {
 			panic(err)
@@ -489,7 +489,7 @@ func (s *Server) taskQueue4() {
 		}
 
 		// promote instances
-		for _, i := range r.res.promote {
+		for _, i := range r.res.ready {
 			ii := i.Copy()
 			ii.Canary = false
 
@@ -499,7 +499,7 @@ func (s *Server) taskQueue4() {
 		// stop instances
 		for _, i := range r.res.stop {
 			ii := i.instance.Copy()
-			ii.Desired = proto.InstanceDesiredStopped
+			ii.Status = proto.Instance_TAINTED
 			ii.Canary = i.update
 
 			updates = append(updates, ii)
@@ -530,18 +530,7 @@ func (s *Server) taskQueue4() {
 				ii.Cluster = spec.Name
 				ii.Name = name
 				ii.Status = proto.Instance_PENDING
-				ii.Desired = proto.InstanceDesiredRunning
-
-				if i.update {
-					ii.Healthy = false
-					ii.Canary = true
-				}
-				if i.reschedule {
-					ii.Healthy = false
-				}
-
-				fmt.Println("-- place --")
-				fmt.Println(ii)
+				ii.Canary = i.update
 
 				grpSpec := handler.Spec().Nodetypes[ii.Group.Type]
 
