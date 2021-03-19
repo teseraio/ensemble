@@ -24,11 +24,6 @@ message GetDeploymentReq {
     string cluster = 1;
 }
 
-message ComponentTask {
-    Component old = 1;
-    Component new = 2;
-}
-
 // Component is like a snapshot or something. AKA Evaluation
 message Component {
     // id of the component

@@ -17,10 +17,6 @@ func Factory() operator.Handler {
 	return &backend{}
 }
 
-func (b *backend) PostHook(*operator.HookCtx) error {
-	return nil
-}
-
 func (b *backend) Ready(t *proto.Instance) bool {
 	return true
 }
