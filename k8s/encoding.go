@@ -1,6 +1,7 @@
 package k8s
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -61,6 +62,16 @@ func convertFiles(paths []string) *volumeMount {
 func MarshalPod(i *proto.Instance) ([]byte, error) {
 	builder := i.Spec
 
+	type mount struct {
+		Name     string
+		Path     string
+		ReadOnly bool
+	}
+	var volMounts []*mount
+
+	// list of all the volumes in the pod
+	var volumes []interface{}
+
 	version := builder.Version
 	if version == "" {
 		version = "latest"
@@ -77,6 +88,7 @@ func MarshalPod(i *proto.Instance) ([]byte, error) {
 		"Hostname": i.Name,
 	}
 
+	// add commands
 	if num := len(builder.Cmd); num != 0 {
 		obj["Command"] = builder.Cmd[0]
 		if num > 1 {
@@ -84,13 +96,40 @@ func MarshalPod(i *proto.Instance) ([]byte, error) {
 		}
 	}
 
+	fmt.Println("-- mounts --")
+	fmt.Println(i.Mounts)
+
+	// add the persistent volumes
+	for _, m := range i.Mounts {
+		volMounts = append(volMounts, &mount{
+			Name:     m.Name,
+			Path:     m.Path,
+			ReadOnly: false,
+		})
+		volumes = append(volumes, map[string]interface{}{
+			"name": m.Name,
+			"persistentVolumeClaim": map[string]interface{}{
+				"claimName": i.Name + "-" + m.Name,
+			},
+		})
+	}
+
+	// add mount volumes
+	obj["Volumes"] = volumes
+
+	// add mount points
+	obj["VolumeMounts"] = volMounts
+
 	if len(builder.Files) > 0 {
-		paths := []string{}
-		for k := range builder.Files {
-			paths = append(paths, k)
-		}
-		v := convertFiles(paths)
-		obj["Volume"] = v
+		// TODO
+		/*
+			paths := []string{}
+			for k := range builder.Files {
+				paths = append(paths, k)
+			}
+			v := convertFiles(paths)
+			obj["Volume"] = v
+		*/
 	}
 
 	return RunTmpl2("pod", obj)

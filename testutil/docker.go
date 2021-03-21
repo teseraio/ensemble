@@ -17,6 +17,7 @@ import (
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/client"
 	"github.com/mitchellh/mapstructure"
+	"github.com/teseraio/ensemble/lib/mount"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 )
@@ -251,20 +252,43 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 
 	// Build the volumes
 	binds := []string{}
-	if len(builder.Files) != 0 {
-		dir, err := ioutil.TempDir("/tmp", "builder-")
+
+	// create the build files
+	if len(builder.Files2) != 0 {
+		buildDir, err := ioutil.TempDir("/tmp", "builder-")
 		if err != nil {
 			return "", err
 		}
-		for path, content := range builder.Files {
-			fullPath := filepath.Join(dir, path)
-			if err := createIfNotExists(filepath.Dir(fullPath)); err != nil {
+		mountPoints, err := mount.CreateMountPoints(builder.Files2)
+		if err != nil {
+			return "", err
+		}
+		for indx, mountPoint := range mountPoints {
+			mountPath := filepath.Join(buildDir, fmt.Sprintf("%d", indx))
+			for path, content := range mountPoint.Files {
+				subPath := strings.TrimPrefix(path, mountPoint.Path)
+				subPath = filepath.Join(mountPath, subPath)
+
+				if err := createIfNotExists(filepath.Dir(subPath)); err != nil {
+					return "", err
+				}
+				if err := ioutil.WriteFile(subPath, []byte(content), 0755); err != nil {
+					return "", err
+				}
+			}
+			binds = append(binds, fmt.Sprintf("%s:%s", mountPath, mountPoint.Path))
+		}
+	}
+
+	// create data volumes
+	if len(node.Mounts) != 0 {
+		dataDir := "/tmp/ensemble-" + node.Cluster + "-" + node.Name
+		for _, mount := range node.Mounts {
+			localPath := dataDir + "-" + mount.Name
+			if err := createIfNotExists(localPath); err != nil {
 				return "", err
 			}
-			if err := ioutil.WriteFile(fullPath, []byte(content), 0755); err != nil {
-				return "", err
-			}
-			binds = append(binds, fmt.Sprintf("%s:%s", fullPath, path))
+			binds = append(binds, fmt.Sprintf("%s:%s", localPath, mount.Path))
 		}
 	}
 

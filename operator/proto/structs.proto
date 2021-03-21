@@ -112,6 +112,13 @@ message NodeSpec {
     map<string, string> env = 1;
     map<string, string> files = 2;
     repeated string cmd = 5;
+
+    repeated File files2 = 6;
+    
+    message File {
+        string name = 1;
+        string content = 2;
+    }
 }
 
 /* Deployment describes the current state of the cluster */
@@ -227,8 +234,16 @@ message Instance {
 
     Reschedule reschedule = 27;
     
+    repeated Mount Mounts = 30;
+    
     message Reschedule {
         int64 attempts = 3;
+    }
+
+    message Mount {
+        string id = 1;
+        string name = 2;
+        string path = 3;
     }
 }
 

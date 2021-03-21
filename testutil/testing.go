@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ func TestProvider(t *testing.T, p operator.Provider) {
 	//})
 	//TestPodJobFailed(t, p)
 	// TestDNS
+	TestPodFiles(t, p)
 }
 
 func readEvent(p operator.Provider, t *testing.T) *proto.InstanceUpdate {
@@ -128,4 +130,42 @@ func TestPodLifecycle(t *testing.T, p operator.Provider) {
 	if _, ok := evnt.Event.(*proto.InstanceUpdate_Killing_); !ok {
 		t.Fatal("expected stopped")
 	}
+}
+
+func TestPodFiles(t *testing.T, p operator.Provider) {
+	id := uuid.UUID()
+
+	i := &proto.Instance{
+		ID:      id,
+		Cluster: "c11",
+		Name:    "d22",
+		Spec: &proto.NodeSpec{
+			Image: "nginx",
+			Files2: []*proto.NodeSpec_File{
+				{
+					Name:    "/a/b/c.txt",
+					Content: "abcd",
+				},
+			},
+		},
+		Mounts: []*proto.Instance_Mount{
+			{
+				Name: "data",
+				Path: "/data",
+			},
+		},
+	}
+
+	if _, err := p.CreateResource(i); err != nil {
+		t.Fatal(err)
+	}
+
+	// wait for it to be ready
+	for {
+		evnt := <-p.WatchUpdates()
+		if _, ok := evnt.Event.(*proto.InstanceUpdate_Running_); ok {
+			break
+		}
+	}
+	fmt.Println("- ready -")
 }

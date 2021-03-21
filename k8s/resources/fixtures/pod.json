@@ -1,0 +1,63 @@
+{
+    "example1":{
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+            "name": "a",
+            "labels": {
+                "ensemble": "b"
+            }
+        },
+        "spec": {
+            "hostname": "a",
+            "restartPolicy": "Never",
+            "subdomain": "b",
+            "containers": [
+                {
+                    "imagePullPolicy": "Always",
+                    "name": "main-container",
+                    "image": "image:latest",
+                    "volumeMounts": []
+                }
+            ],
+            "volumes": []
+        }    
+    },
+    "example2": {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+            "name": "id",
+            "labels": {
+                "ensemble": "b"
+            }
+        },
+        "spec": {
+            "hostname": "c",
+            "restartPolicy": "Never",
+            "subdomain": "b",
+            "containers": [
+                {
+                    "imagePullPolicy": "Always",
+                    "name": "main-container",
+                    "image": "image:latest",
+                    "volumeMounts": [
+                        {
+                            "mountPath": "/data",
+                            "name": "mount1",
+                            "readOnly": false
+                        }
+                    ]
+                }
+            ],
+            "volumes": [
+                {
+                    "name": "mount1",
+                    "persistentVolumeClaim": {
+                        "claimName": "c-mount1"
+                    }
+                }
+            ]
+        }    
+    }
+}
