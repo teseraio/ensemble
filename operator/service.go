@@ -30,8 +30,14 @@ func (s *service) Apply(ctx context.Context, component *proto.Component) (*proto
 }
 
 func (s *service) ListDeployments(ctx context.Context, _ *empty.Empty) (*proto.ListDeploymentsResp, error) {
-	// TODO
-	return nil, nil
+	deps, err := s.s.State.ListDeployments()
+	if err != nil {
+		return nil, err
+	}
+	resp := &proto.ListDeploymentsResp{
+		Deployments: deps,
+	}
+	return resp, nil
 }
 
 func (s *service) GetDeployment(ctx context.Context, req *proto.GetDeploymentReq) (*proto.Deployment, error) {
