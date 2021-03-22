@@ -4,19 +4,27 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
+	"testing"
 
 	gproto "github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/ptypes"
 
 	"github.com/boltdb/bolt"
+	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/operator/state"
 )
 
 var (
-	clustersBucket = []byte("clusters")
+	// clustersBucket    = []byte("clusters")
+	deploymentsBucket = []byte("deployments")
+	evaluationsBucket = []byte("evaluations")
+
+	componentsBucket = []byte("components")
 
 	// versioned indexes
 	clusterIndex = []byte("indx_cluster")
@@ -74,14 +82,13 @@ func (b *BoltDB) Wait(id string) chan struct{} {
 }
 
 func (b *BoltDB) initialize() error {
-	indexes := [][]byte{
-		clusterIndex,
-	}
 	buckets := [][]byte{
-		clustersBucket,
+		evaluationsBucket,
+		deploymentsBucket,
+		componentsBucket,
 	}
 	err := b.db.Update(func(tx *bolt.Tx) error {
-		for _, i := range append(buckets, indexes...) {
+		for _, i := range buckets {
 			if _, err := tx.CreateBucketIfNotExists(i); err != nil {
 				return err
 			}
@@ -94,43 +101,38 @@ func (b *BoltDB) initialize() error {
 
 	// load the indexes into the task
 	err = b.db.View(func(tx *bolt.Tx) error {
-		for _, i := range indexes {
-			generalBkt := tx.Bucket(i)
-			err = generalBkt.ForEach(func(k, v []byte) error {
-				itemBkt := generalBkt.Bucket(k)
+		bkt := tx.Bucket(componentsBucket)
 
-				// Find the first version in the sequence bucket that is pending and push
-				// it to the task queue
-				seqBkt := itemBkt.Bucket(seqKey)
-				cursor := seqBkt.Cursor()
+		return bkt.ForEach(func(k, v []byte) error {
+			compBkt := bkt.Bucket(k)
 
-				for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
-					c := proto.Component{}
-					if err := gproto.Unmarshal(v, &c); err != nil {
+			return compBkt.ForEach(func(k, v []byte) error {
+				bkt := compBkt.Bucket(k)
+				seqBkt := bkt.Bucket(seqKey)
+
+				seq, err := getSeqNumber(bkt)
+				if err != nil {
+					return err
+				}
+				comp := proto.Component{}
+				if err := dbGet(seqBkt, seqID(seq), &comp); err != nil {
+					return err
+				}
+				if comp.Status == proto.Component_PENDING {
+					clusterID, err := proto.ClusterIDFromComponent(&comp)
+					if err != nil {
 						return err
 					}
-					if c.Status == proto.Component_PENDING {
-						old := proto.Component{}
-						if c.Sequence != 1 {
-							if err := dbGet(seqBkt, []byte(fmt.Sprintf("seq-%d", c.Sequence-1)), &old); err != nil {
-								return err
-							}
-						}
-						b.queue.add(&c, &old)
-						break
-					}
+					b.queue.add(clusterID, &comp)
 				}
 				return nil
 			})
-			if err != nil {
-				return err
-			}
-		}
-		return nil
+		})
 	})
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -139,132 +141,155 @@ func (b *BoltDB) Close() error {
 	return b.db.Close()
 }
 
-func (b *BoltDB) applyImpl(bucket []byte, c *proto.Component) error {
+func getSeqNumber(bkt *bolt.Bucket) (int64, error) {
+	seq := 0
+	var err error
+	if raw := bkt.Get(metaKey); raw != nil {
+		if seq, err = strconv.Atoi(string(raw)); err != nil {
+			return 0, err
+		}
+	}
+	return int64(seq), nil
+}
+
+func (b *BoltDB) Apply(c *proto.Component) (int64, error) {
+	namespace := []byte(getProtoNamespace(c))
+
 	tx, err := b.db.Begin(true)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer tx.Rollback()
 
-	generalBkt := tx.Bucket(bucket)
+	componentsBkt := tx.Bucket(componentsBucket)
+
+	// append current timestamp
+	c.Timestamp = ptypes.TimestampNow()
+	if c.Id == "" {
+		return 0, fmt.Errorf("empty id")
+	}
+
+	// create the bucket to store this specific namespace
+	namespaceBkt, err := componentsBkt.CreateBucketIfNotExists(namespace)
+	if err != nil {
+		return 0, err
+	}
 
 	// find the bucket for the specific id
-	compBkt, err := generalBkt.CreateBucketIfNotExists([]byte(c.Name))
+	componentBucket, err := namespaceBkt.CreateBucketIfNotExists([]byte(c.Name))
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	// get sequence number
-	seq := 0
-	if raw := compBkt.Get(metaKey); raw != nil {
-		if seq, err = strconv.Atoi(string(raw)); err != nil {
-			return err
-		}
-	}
-
-	// append to the sequence bucket
-	seqBkt, err := compBkt.CreateBucketIfNotExists(seqKey)
+	// get sequence number, TODO: this only allows two values stored
+	seq, err := getSeqNumber(componentBucket)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	// get the current version and check if it has changed
+	// reference to the bucket to store the historical sequences
+	seqBkt, err := componentBucket.CreateBucketIfNotExists(seqKey)
+	if err != nil {
+		return 0, err
+	}
+
+	// get the current version
 	old := proto.Component{}
 	if seq != 0 {
-		if err := dbGet(seqBkt, []byte(fmt.Sprintf("seq-%d", seq)), &old); err != nil {
-			return err
+		if err := dbGet(seqBkt, seqID(int64(seq)), &old); err != nil {
+			return 0, err
 		}
-		if bytes.Equal(old.Spec.Value, c.Spec.Value) {
-			return nil
+		if c.Action == proto.Component_CREATE {
+			if bytes.Equal(old.Spec.Value, c.Spec.Value) {
+				return 0, nil
+			}
+		}
+	} else {
+		if c.Action == proto.Component_DELETE {
+			return 0, fmt.Errorf("cannot remove non created object")
 		}
 	}
 
 	// update the sequence number in the component
 	c.Sequence = int64(seq) + 1
 
-	seqID := []byte(fmt.Sprintf("seq-%d", c.Sequence))
-	if err := dbPut(seqBkt, seqID, c); err != nil {
-		return err
+	if old.Status != proto.Component_PENDING {
+		// push this component to the pending queue
+		clusterID, err := proto.ClusterIDFromComponent(c)
+		if err != nil {
+			return 0, err
+		}
+		b.queue.add(clusterID, c)
+
+		c.Status = proto.Component_PENDING
+		if err := componentBucket.Put(metaKey, []byte(fmt.Sprintf("%d", c.Sequence))); err != nil {
+			return 0, err
+		}
+	} else {
+		c.Status = proto.Component_QUEUED
 	}
 
-	// update the sequence
-	if err := compBkt.Put(metaKey, []byte(fmt.Sprintf("%d", c.Sequence))); err != nil {
-		return err
+	if err := dbPut(seqBkt, seqID(c.Sequence), c); err != nil {
+		return 0, err
 	}
 	if err := tx.Commit(); err != nil {
-		return err
+		return 0, err
 	}
-
-	// update the index if there is no task for this id
-	if !b.queue.existsByName(c.Name) {
-		b.queue.add(c, &old)
-	}
-	return nil
+	return c.Sequence, nil
 }
 
-func (b *BoltDB) getImpl(tx *bolt.Tx, name string) (*proto.Component, error) {
-	bucket := clusterIndex
-	generalBkt := tx.Bucket(bucket)
-
-	// find the bucket for the specific id
-	compBkt := generalBkt.Bucket([]byte(name))
-	if compBkt == nil {
-		return nil, fmt.Errorf("bad")
-	}
-
-	// get sequence number
-	seq := 0
-	if raw := compBkt.Get(metaKey); raw != nil {
-		var err error
-		if seq, err = strconv.Atoi(string(raw)); err != nil {
-			return nil, err
-		}
-	}
-	if seq == 0 {
-		return nil, fmt.Errorf("not found x")
-	}
-
-	seqID := []byte(fmt.Sprintf("seq-%d", seq))
-
-	comp := &proto.Component{}
-	if err := dbGet(compBkt.Bucket(seqKey), seqID, comp); err != nil {
+func (b *BoltDB) GetComponent(namespace, name string, sequence int64) (*proto.Component, error) {
+	tx, err := b.db.Begin(false)
+	if err != nil {
 		return nil, err
 	}
-	return comp, nil
-}
+	defer tx.Rollback()
 
-func (b *BoltDB) Get(name string) (*proto.Component, error) {
-	var comp *proto.Component
+	componentsBkt := tx.Bucket(componentsBucket)
+	namespaceBkt := componentsBkt.Bucket([]byte(namespace))
 
-	err := b.db.View(func(tx *bolt.Tx) error {
-		var err error
-		comp, err = b.getImpl(tx, name)
-		return err
-	})
-	return comp, err
-}
+	compBkt := namespaceBkt.Bucket([]byte(name))
+	seqBkt := compBkt.Bucket(seqKey)
 
-func (b *BoltDB) Apply(c *proto.Component) error {
-	return b.applyImpl(clusterIndex, c)
-}
-
-func (b *BoltDB) GetTask(ctx context.Context) (*proto.ComponentTask, error) {
-	t := b.queue.pop(ctx)
-	if t == nil {
-		return nil, nil
+	comp := proto.Component{}
+	if err := dbGet(seqBkt, seqID(sequence), &comp); err != nil {
+		return nil, err
 	}
-	return t.ComponentTask, nil
+
+	return &comp, nil
 }
 
 func seqID(seq int64) []byte {
 	return []byte(fmt.Sprintf("seq-%d", seq))
 }
 
+func (b *BoltDB) GetTask(ctx context.Context) *proto.Component {
+	tt := b.queue.pop(ctx)
+	if tt == nil {
+		return nil
+	}
+	return tt.Component
+}
+
+func (b *BoltDB) GetPending(id string) (*proto.Component, error) {
+	tt, ok := b.queue.get(id)
+	if !ok {
+		return nil, fmt.Errorf("not found")
+	}
+	return tt.Component, nil
+}
+
+func getProtoNamespace(c *proto.Component) string {
+	return strings.Replace(c.Spec.TypeUrl, ".", "-", -1)
+}
+
 func (b *BoltDB) Finalize(id string) error {
-	task, ok := b.queue.finalize(id)
+	tt, ok := b.queue.finalize(id)
 	if !ok {
 		return fmt.Errorf("task for id '%s' not found", id)
 	}
+
+	namespace := []byte(getProtoNamespace(tt.Component))
 
 	tx, err := b.db.Begin(true)
 	if err != nil {
@@ -272,27 +297,42 @@ func (b *BoltDB) Finalize(id string) error {
 	}
 	defer tx.Rollback()
 
-	comp := task.New
+	componentsBkt := tx.Bucket(componentsBucket)
+	namespaceBkt := componentsBkt.Bucket(namespace)
+	componentBkt := namespaceBkt.Bucket([]byte(tt.Component.Name))
 
-	generalBkt := tx.Bucket(clusterIndex)
-
-	// find the bucket for the specific id
-	seqBkt := generalBkt.Bucket([]byte(comp.Name)).Bucket(seqKey)
-
-	comp.Status = proto.Component_APPLIED
-	if err := dbPut(seqBkt, seqID(comp.Sequence), comp); err != nil {
+	seq, err := getSeqNumber(componentBkt)
+	if err != nil {
 		return err
 	}
 
-	// find the next possible sequence
+	seqBkt := componentBkt.Bucket(seqKey)
+
+	current := proto.Component{}
+	if err := dbGet(seqBkt, seqID(int64(seq)), &current); err != nil {
+		return err
+	}
+	if current.Id != tt.Component.Id {
+		return fmt.Errorf("wrong component")
+	}
+	if current.Status != proto.Component_PENDING {
+		return fmt.Errorf("state should be pending")
+	}
+
+	// change status to complete
+	current.Status = proto.Component_APPLIED
+	if err := dbPut(seqBkt, seqID(seq), &current); err != nil {
+		return err
+	}
+
+	// check if the next item is available
 	nextComp := proto.Component{}
-	if err := dbGet(seqBkt, seqID(comp.Sequence+1), &nextComp); err != nil {
+	if err := dbGet(seqBkt, seqID(seq+1), &nextComp); err != nil {
 		if err != errNotFound {
 			return err
 		}
 	} else {
-		// there exists a next component
-		b.queue.add(&nextComp, comp)
+		b.queue.add(tt.clusterID, &nextComp)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -301,35 +341,58 @@ func (b *BoltDB) Finalize(id string) error {
 
 	// notify any wait channels
 	b.waitChLock.Lock()
-	if ch, ok := b.waitCh[id]; ok {
+	if ch, ok := b.waitCh[tt.Component.Id]; ok {
 		close(ch)
-		delete(b.waitCh, id)
+		delete(b.waitCh, tt.Component.Id)
 	}
 	b.waitChLock.Unlock()
 
 	return nil
 }
 
-func (b *BoltDB) LoadCluster(id string) (*proto.Cluster, error) {
+func (b *BoltDB) LoadInstance(cluster, id string) (*proto.Instance, error) {
 	tx, err := b.db.Begin(false)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
 
-	clustersBkt := tx.Bucket(clustersBucket)
+	depsBkt := tx.Bucket(deploymentsBucket)
 
 	// find the sub-bucket for the cluster
-	clusterBkt := clustersBkt.Bucket([]byte(id))
-	if clusterBkt == nil {
-		return nil, state.ErrClusterNotFound
+	depBkt := depsBkt.Bucket([]byte(cluster))
+	if depBkt == nil {
+		return nil, fmt.Errorf("bad")
+	}
+
+	nodeID := "node-" + id
+	instance := proto.Instance{}
+	if err := dbGet(depBkt, []byte(nodeID), &instance); err != nil {
+		return nil, err
+	}
+	return &instance, nil
+}
+
+func (b *BoltDB) LoadDeployment(id string) (*proto.Deployment, error) {
+	tx, err := b.db.Begin(false)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	depsBkt := tx.Bucket(deploymentsBucket)
+
+	// find the sub-bucket for the cluster
+	depBkt := depsBkt.Bucket([]byte(id))
+	if depBkt == nil {
+		return nil, nil
 	}
 
 	// load the cluster meta
-	c := &proto.Cluster{
-		Nodes: []*proto.Node{},
+	c := &proto.Deployment{
+		Instances: []*proto.Instance{},
 	}
-	if err := dbGet(clusterBkt, metaKey, c); err != nil {
+	if err := dbGet(depBkt, metaKey, c); err != nil {
 		if err == errNotFound {
 			return nil, fmt.Errorf("meta key not found")
 		}
@@ -337,39 +400,40 @@ func (b *BoltDB) LoadCluster(id string) (*proto.Cluster, error) {
 	}
 
 	// load the nodes under node-<id>
-	nodeCursor := clusterBkt.Cursor()
+	nodeCursor := depBkt.Cursor()
 	for k, _ := nodeCursor.First(); k != nil; k, _ = nodeCursor.Next() {
 		if !strings.HasPrefix(string(k), "node-") {
 			continue
 		}
-		n := &proto.Node{}
-		if err := dbGet(clusterBkt, k, n); err != nil {
+		n := &proto.Instance{}
+		if err := dbGet(depBkt, k, n); err != nil {
 			return nil, err
 		}
-		c.Nodes = append(c.Nodes, n)
+		if n.Status != proto.Instance_OUT {
+			c.Instances = append(c.Instances, n)
+		} else {
+			//fmt.Println("IS OUT!!")
+		}
 	}
 	return c, nil
 }
 
-// UpsertNode implements the BoltDB interface
-func (b *BoltDB) UpsertNode(n *proto.Node) error {
+func (b *BoltDB) UpdateDeployment(d *proto.Deployment) error {
 	tx, err := b.db.Begin(true)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	clustersBkt := tx.Bucket(clustersBucket)
+	depsBkt := tx.Bucket(deploymentsBucket)
 
 	// find the sub-bucket for the cluster
-	clusterBkt := clustersBkt.Bucket([]byte(n.Cluster))
-	if clusterBkt == nil {
-		return state.ErrClusterNotFound
-	}
+	depBkt, _ := depsBkt.CreateBucketIfNotExists([]byte(d.Name))
 
-	// upsert under node-<id>
-	id := "node-" + n.ID
-	if err := dbPut(clusterBkt, []byte(id), n); err != nil {
+	dd := d.Copy()
+	dd.Instances = nil
+
+	if err := dbPut(depBkt, metaKey, dd); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
@@ -378,30 +442,28 @@ func (b *BoltDB) UpsertNode(n *proto.Node) error {
 	return nil
 }
 
-// UpsertCluster implements the BoltDB interface
-func (b *BoltDB) UpsertCluster(c *proto.Cluster) error {
+// UpsertNode implements the BoltDB interface
+func (b *BoltDB) UpsertNode(n *proto.Instance) error {
 	tx, err := b.db.Begin(true)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	clustersBkt := tx.Bucket(clustersBucket)
+	depsBkt := tx.Bucket(deploymentsBucket)
 
 	// find the sub-bucket for the cluster
-	clusterBkt := clustersBkt.Bucket([]byte(c.Name))
-	if clusterBkt == nil {
-		// cluster does not exists, create it
-		clusterBkt, err = clustersBkt.CreateBucket([]byte(c.Name))
-		if err != nil {
+	depBkt := depsBkt.Bucket([]byte(n.Cluster))
+	if depBkt == nil {
+		// create hte bucket, later on we add an step to do this
+		if depBkt, err = depsBkt.CreateBucket([]byte(n.Cluster)); err != nil {
 			return err
 		}
 	}
 
-	c = c.Copy()
-	c.Nodes = nil // we do not store the nodes here
-
-	if err := dbPut(clusterBkt, metaKey, c); err != nil {
+	// upsert under node-<id>
+	id := "node-" + n.ID
+	if err := dbPut(depBkt, []byte(id), n); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
@@ -432,4 +494,21 @@ func dbGet(b *bolt.Bucket, id []byte, m gproto.Message) error {
 		return err
 	}
 	return nil
+}
+
+func SetupFn(t *testing.T) (state.State, func()) {
+	path := "/tmp/db-" + uuid.UUID()
+
+	st, err := Factory(map[string]interface{}{
+		"path": path,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	closeFn := func() {
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return st, closeFn
 }

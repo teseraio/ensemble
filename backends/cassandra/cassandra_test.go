@@ -15,8 +15,10 @@ func TestBootstrap(t *testing.T) {
 		Name: "A",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
 			Backend: "Cassandra",
-			Sets: []*proto.ClusterSpec_Set{
-				{Replicas: 2},
+			Groups: []*proto.ClusterSpec_Group{
+				{
+					Count: 2,
+				},
 			},
 		}),
 	})

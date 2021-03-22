@@ -34,8 +34,12 @@ func (t *TestServer) Apply(c *proto.Component) string {
 	return cc.Id
 }
 
-func (t *TestServer) Destroy(i int) {
-	t.docker.Destroy(i)
+func (t *TestServer) DestroyAt() {
+	t.docker.DestroyAt()
+}
+
+func (t *TestServer) Destroy() {
+	t.docker.Destroy()
 }
 
 func (t *TestServer) WaitForTask(id string) {
@@ -81,7 +85,7 @@ func TestOperator(t *testing.T, factory operator.HandlerFactory) *TestServer {
 
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "ensemble",
-		Level: hclog.Info,
+		Level: hclog.Debug,
 	})
 	srv, err := operator.NewServer(logger, config)
 	if err != nil {

@@ -25,7 +25,8 @@ apt-get install -y \
 	jq \
 	tree \
 	unzip \
-	wget
+	wget \
+	conntrack
 
 # Install ARM build utilities
 apt-get install -y \
@@ -42,11 +43,6 @@ apt-get install -y \
 
 # Ensure everything is up to date
 apt-get upgrade -y
-
-# Install minikube
-curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 \
-  && chmod +x minikube \
-  && mv minikube /usr/local/bin
 
 # Ensure we cd into the working directory on login
 if ! grep "cd /opt/gopath/src/github.com/teseraio/ensemble" /home/vagrant/.profile ; then

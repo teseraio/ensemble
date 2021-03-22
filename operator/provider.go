@@ -1,15 +1,15 @@
 package operator
 
 import (
+	"fmt"
+
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
-// NodeUpdate is an update from a node (TODO: move to proto)
-type NodeUpdate struct {
-	// id of the node that has failed
-	ID        string
-	ClusterID string
-}
+var (
+	ErrInstanceAlreadyRunning  = fmt.Errorf("instance already running")
+	ErrProviderNameAlreadyUsed = fmt.Errorf("name already used")
+)
 
 // Provider is the entity that holds the state of the infrastructure. Both
 // for the computing resources and the general resources.
@@ -21,13 +21,13 @@ type Provider interface {
 	Start() error
 
 	// CreateResource creates the computational resource
-	CreateResource(*proto.Node) (*proto.Node, error)
+	CreateResource(*proto.Instance) (*proto.Instance, error)
 
 	// DeleteResource deletes the computational resource
-	DeleteResource(*proto.Node) (*proto.Node, error)
+	DeleteResource(*proto.Instance) (*proto.Instance, error)
 
 	// WatchUpdates watches for updates from nodes
-	WatchUpdates() chan *NodeUpdate
+	WatchUpdates() chan *proto.InstanceUpdate
 
 	// Exec executes a shell script
 	Exec(handler string, path string, args ...string) error

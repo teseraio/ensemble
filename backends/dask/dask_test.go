@@ -9,22 +9,32 @@ import (
 
 func TestBootstrap(t *testing.T) {
 	srv := testutil.TestOperator(t, Factory)
-	defer srv.Close()
+	// defer srv.Close()
 
 	uuid := srv.Apply(&proto.Component{
 		Name: "A",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
 			Backend: "Dask",
-			Sets: []*proto.ClusterSpec_Set{
+			Groups: []*proto.ClusterSpec_Group{
 				{
-					Type:     "scheduler",
-					Replicas: 1,
+					Type:  "scheduler",
+					Count: 1,
 				},
 				{
-					Type:     "worker",
-					Replicas: 1,
+					Type:  "worker",
+					Count: 1,
 				},
 			},
+		}),
+	})
+
+	srv.WaitForTask(uuid)
+
+	uuid = srv.Apply(&proto.Component{
+		Name:   "A",
+		Action: proto.Component_DELETE,
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			Backend: "Dask",
 		}),
 	})
 

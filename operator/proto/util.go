@@ -3,11 +3,22 @@ package proto
 import (
 	"bytes"
 	"encoding/json"
-	"reflect"
+	"fmt"
+	"strconv"
 	"strings"
 
-	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
+)
+
+const (
+	DeploymentDone    = "done"
+	DeploymentRunning = "running"
+	DeploymentFailed  = "failed"
+)
+
+const (
+	InstanceDesiredRunning = "running"
+	InstanceDesiredStopped = "stopped"
 )
 
 func Equal(p0, p1 proto.Message) bool {
@@ -22,122 +33,72 @@ func Equal(p0, p1 proto.Message) bool {
 	return bytes.Equal(m0, m1)
 }
 
-func (c *Cluster) Size() int {
-	return len(c.Nodes)
+func (c *ClusterSpec) Copy() *ClusterSpec {
+	return proto.Clone(c).(*ClusterSpec)
 }
 
-func (c *Cluster) NewNode() *Node {
-	return &Node{
-		ID:      uuid.New().String(),
-		State:   Node_UNKNOWN,
-		Cluster: c.Name,
-		Spec:    &Node_NodeSpec{},
-	}
+func (c *ClusterSpec_Group) Copy() *ClusterSpec_Group {
+	return proto.Clone(c).(*ClusterSpec_Group)
 }
 
-func (c *Cluster) DelNodeAtIndx(i int) {
-	c.Nodes = append(c.Nodes[:i], c.Nodes[i+1:]...)
+func (d *Deployment) Copy() *Deployment {
+	return proto.Clone(d).(*Deployment)
 }
 
-func (c *Cluster) AddNode(n *Node) {
-	c.Nodes = append(c.Nodes, n)
-}
-
-func (c *Cluster) NodeByID(ID string) (*Node, bool) {
-	for _, n := range c.Nodes {
-		if n.ID == ID {
-			return n, true
-		}
-	}
-	return nil, false
-}
-
-func (c *Cluster) NodeAtIndex(ID string) int {
-	for indx, n := range c.Nodes {
-		if n.ID == ID {
-			return indx
-		}
-	}
-	return -1
-}
-
-func (c *Cluster) Copy() *Cluster {
-	return proto.Clone(c).(*Cluster)
-}
-
-func (m *Node_Mount) Copy() *Node_Mount {
-	return proto.Clone(m).(*Node_Mount)
-}
-
-func (n *Node) FullName() string {
+func (n *Instance) FullName() string {
 	if n.Cluster != "" {
-		return n.ID + "." + n.Cluster
+		return n.Name + "." + n.Cluster
 	}
-	return n.ID
+	return n.Name
 }
 
-func (n *Node) Get(k string) string {
+var okKey = "ok"
+
+func (n *Instance) SetTrue(k string) {
+	n.Set(k, okKey)
+}
+
+func (n *Instance) GetTrue(k string) bool {
+	return n.Get(k) == "ok"
+}
+
+func (n *Instance) Get(k string) string {
 	v, _ := n.GetOk(k)
 	return v
 }
 
-func (n *Node) GetOk(k string) (string, bool) {
+func (n *Instance) GetOk(k string) (string, bool) {
 	v, ok := n.KV[k]
 	return v, ok
 }
 
-func (n *Node) Set(k, v string) {
+func (n *Instance) Set(k, v string) {
 	if n.KV == nil {
 		n.KV = map[string]string{}
 	}
 	n.KV[k] = v
 }
 
-func (n *Node) Equal(nn *Node) bool {
-	// check the state
-	if n.State != nn.State {
-		return false
-	}
-	// check the kv store
-	if !reflect.DeepEqual(n.KV, nn.KV) {
-		// TODO: Do better than this
-		if len(n.KV) == len(nn.KV) && len(n.KV) == 0 {
-			return true
-		}
-		return false
-	}
-	// check the mounts
-	if !reflect.DeepEqual(n.Mounts, nn.Mounts) {
-		return false
-	}
-	// check spec
-	if !reflect.DeepEqual(n.Spec, nn.Spec) {
-		return false
-	}
-	return true
-}
-
-// TODO: Use protobuf for this
-func (n *Node) Unmarshal(src []byte) error {
+func (n *Instance) Unmarshal(src []byte) error {
 	return json.Unmarshal(src, &n)
 }
 
-func (n *Node) Marshal() ([]byte, error) {
+func (n *Instance) Marshal() ([]byte, error) {
 	return json.Marshal(n)
 }
 
-func (n *Node) Copy() *Node {
-	return proto.Clone(n).(*Node)
+func (n *Instance) Copy() *Instance {
+	return proto.Clone(n).(*Instance)
 }
 
-func (b *Node_NodeSpec) AddFile(path string, content string) {
+func (b *NodeSpec) AddFile(path string, content string) {
 	if b.Files == nil {
 		b.Files = map[string]string{}
 	}
 	b.Files[path] = content
 }
 
-func (b *Node_NodeSpec) AddEnvList(l []string) {
+func (b *NodeSpec) AddEnvList(l []string) {
 	for _, i := range l {
 		indx := strings.Index(i, "=")
 		if indx == -1 {
@@ -147,38 +108,69 @@ func (b *Node_NodeSpec) AddEnvList(l []string) {
 	}
 }
 
-func (b *Node_NodeSpec) AddEnvMap(m map[string]string) {
+func (b *NodeSpec) AddEnvMap(m map[string]string) {
 	for k, v := range m {
 		b.AddEnv(k, v)
 	}
 }
 
-func (b *Node_NodeSpec) AddEnv(k, v string) {
+func (b *NodeSpec) AddEnv(k, v string) {
 	if b.Env == nil {
 		b.Env = map[string]string{}
 	}
 	b.Env[k] = v
 }
 
-func (b *Node_NodeSpec) Copy() *Node_NodeSpec {
-	return proto.Clone(b).(*Node_NodeSpec)
+func (b *NodeSpec) Copy() *NodeSpec {
+	return proto.Clone(b).(*NodeSpec)
 }
 
-/*
-func (t *Task) Time() (time.Time, error) {
-	return ptypes.Timestamp(t.Timestamp)
+func (r *ClusterSpec) GetClusterID() string {
+	return r.Name
 }
 
-type XX struct {
-	Replicas int64
-	Config   string
-	Resource string
+func (r *ResourceSpec) GetClusterID() string {
+	return r.Cluster
 }
-*/
 
-func (p *Plan_Set) Add(n *Node) {
-	if p.AddNodes == nil {
-		p.AddNodes = make([]*Node, 0)
+type clusterItem interface {
+	proto.Message
+	GetClusterID() string
+}
+
+var specs = map[string]clusterItem{
+	"proto.ResourceSpec": &ResourceSpec{},
+}
+
+func ClusterIDFromComponent(c *Component) (string, error) {
+	var clusterID string
+	if c.Spec.TypeUrl == "proto.ClusterSpec" {
+		// the name of the component is the id of the cluster
+		clusterID = c.Name
+	} else {
+		item, ok := specs[c.Spec.TypeUrl]
+		if !ok {
+			return "", fmt.Errorf("bad")
+		}
+		if err := proto.Unmarshal(c.Spec.Value, item); err != nil {
+			return "", err
+		}
+		clusterID = item.GetClusterID()
 	}
-	p.AddNodes = append(p.AddNodes, n)
+	return clusterID, nil
+}
+
+func ParseIndex(n string) (uint64, error) {
+	parts := strings.Split(n, "-")
+	if len(parts) != 2 && len(parts) != 3 {
+		return 0, fmt.Errorf("wrong number of parts")
+	}
+
+	// the index is always the last element
+	indexStr := parts[len(parts)-1]
+	index, err := strconv.Atoi(indexStr)
+	if err != nil {
+		return 0, err
+	}
+	return uint64(index), nil
 }

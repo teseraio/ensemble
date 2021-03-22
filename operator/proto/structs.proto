@@ -5,16 +5,23 @@ package proto;
 option go_package = "/operator/proto";
 
 import "google/protobuf/any.proto";
-// import "google/protobuf/empty.proto";
+import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 service EnsembleService {
     rpc Apply(Component) returns (Component);
+
+    rpc ListDeployments(google.protobuf.Empty) returns (ListDeploymentsResp);
+    
+    rpc GetDeployment(GetDeploymentReq) returns (Deployment);
 }
 
-message ComponentTask {
-    Component old = 1;
-    Component new = 2;
+message ListDeploymentsResp {
+    repeated Deployment deployments = 1;
+}
+
+message GetDeploymentReq {
+    string cluster = 1;
 }
 
 // Component is like a snapshot or something. AKA Evaluation
@@ -61,173 +68,186 @@ message Component {
 
 // Description of the cluster
 message ClusterSpec {
+    string name = 1;
+
     // name of the backend
     string backend = 2;
 
     // version of the backend (RESERVED)
     string version = 3;
 
-    repeated Set sets = 4;
+    repeated Group groups = 4;
 
-    message Set {
+    message Group {
         string name = 1;
-        int64 replicas = 2;
+        int64 count = 2;
         string type = 3;
         map<string, string> config = 4;
         map<string, string> resources = 5;
     }
+
+    int64 sequence = 5;
 }
 
 // Description of the resource
 message ResourceSpec {
     // name of the cluster
-    string cluster = 2;
+    string cluster = 1;
 
     // name of the resource in the backend
-    string resource = 3;
+    string resource = 2;
 
     // params are the params to configure the resource (in JSON)
-    string params = 4;
+    string params = 3;
 }
 
-message NodeUpdate {
-    string id = 1;
-    Node.NodeState state = 2;
+message NodeSpec {
+    string image = 1;
+    string version = 2;
+
+    map<string, string> env = 3;
+    map<string, string> files = 4;
+    repeated string cmd = 5;
 }
 
-message Node {
-    string ID = 1;
-    
-    string Addr = 2;
-
-    string Handle = 3;
-    
-    string Namespace = 4;
-    
-    string Nodeset = 5;
-  
-    string Nodetype = 6;
-
-    NodeState State = 7;
-
-    string Cluster = 8;
-
-    NodeSpec Spec = 9;
-
-    map<string, string> KV = 10;
-
-    repeated Mount Mounts = 11;
-
-    bool ready = 12;
-    
-    Resources resources = 13;
-    
-    enum NodeState {
-        UNKNOWN = 0;
-        INITIALIZED = 1;
-        PENDING = 2;
-        RUNNING = 3;
-        TAINTED = 4;
-        FAILED = 5;
-        DOWN = 6;
-    }
-
-    message Resources {
-        map<string, string> spec = 1;
-    }
-
-    message NodeSpec {
-        map<string, string> env = 1;
-        map<string, string> files = 2;
-        string image = 3;
-        string version = 4;
-        repeated string cmd = 5;
-    }
-    
-    message Mount {
-        string id = 1;
-        string name = 2;
-        string path = 3;
-    }
-}
-
-// Instance of a cluster
-message Cluster {
-    // name of the cluster
+// Deployment describes the current state of the cluster
+message Deployment {
     string name = 1;
 
-    string namespace = 2;
+    repeated Instance instances = 2;
 
-    string backend = 3;
+    string status = 3;
 
-    repeated Node nodes = 4;
+    // sequence applied for this deployment
+    int64 sequence = 4;
 
-    Status status = 5;
-    
-    enum Status {
-        UNKNOWN = 0;
-        SCALING = 1;
-        COMPLETE = 2;
-    }
+    string backend = 5;
 }
 
-message Context {
-    Plan plan = 1;
-    Plan.Set set = 2;
-    Cluster cluster = 3;
-}
-
-message Plan {
-    bool Bootstrap = 1;
-
-    repeated Set sets = 2;
-
-    message Set {
-        string type = 1; // organized by type of cluster
-        repeated Node AddNodes = 2;
-        int64 DelNodesNum = 3;
-        repeated string DelNodes = 4;
-        repeated string UpdateNodes = 5;
-    }
-}
-
-/*
-message Task {
+message InstanceUpdate {
     string ID = 1;
-    google.protobuf.Timestamp Timestamp = 6;
-    Evaluation Evaluation = 8;
+
+    string Cluster = 2;
+
+    oneof event {
+        Scheduled scheduled = 3;
+        Running running = 4;
+        Killing killing = 5;
+        Failed failed = 6;
+    }
+
+    message Scheduled {
+    }
+
+    message Failed {
+    }
+
+    message Killing {
+    }
+
+    message Running {
+        string ip = 1;
+        string handler = 2;
+    }
 }
 
-enum EvaluationState {
-    CREATED = 0;
-    UPDATED = 1;
-    DELETED = 2;
+// Plan after a reconcile
+message Plan {
+    string evalID = 1;
+    
+    ClusterSpec cluster = 2;
+
+    Deployment deployment = 3;
+
+    repeated Instance nodeUpdate = 4;
+
+    repeated Instance nodePlace = 5;
 }
+
+// Instance represents a node in the Ensemble
+message Instance {
+    string ID = 1;
+    
+    string Name = 2;
+
+    string Namespace = 3;
+    
+    string Cluster = 4;
+
+    ClusterSpec.Group group = 5;
+
+    map<string, string> KV = 6;
+
+    NodeSpec spec = 7;
+
+    Status status = 8;
+
+    enum Status {
+        OUT     = 0; // an old instance of the ensemble
+        PENDING = 1; // pending on the Provider to be created
+        
+        SCHEDULED = 5; // the instance is being created
+        RUNNING = 2;   // the instance is running
+
+        TAINTED = 8; // the instance is tainted and ready to be stopped
+        FAILED  = 3; // the instance has stopped with a failure
+        STOPPED = 4; // the instance is stopped
+    }
+
+    bool canary = 9;
+
+    bool healthy = 10;
+
+    int64 count = 11;
+
+    string ip = 12;
+    
+    // previous instance if this is replacing another one
+    string prev = 13;
+
+    string handler = 14;
+    
+    int64 sequence = 15;
+
+    Reschedule reschedule = 16;
+    
+    message Reschedule {
+        int64 attempts = 3;
+    }
+}
+
+/* Evaluation is used to trigger a new reconcile evaluation */
 
 message Evaluation {
-    int64 Generation = 1;
-    string ResourceVersion = 2;
+    // id of the evaluation
+    string id = 1;
 
-    // Name of the instance object (either cluster or resource)
-    string Name = 3;
+    Status status = 2;
 
-    // Name of the resource being created (if any)
-    string Resource = 4;
+    Trigger triggeredBy = 3;
 
-    // Name of the cluster (if its a resource)
-    string Cluster = 5;
+    string clusterID = 4;
 
-    // Name of the backend/database
-    string Backend = 6;
+    enum Status {
+        PENDING   = 0;
+        COMPLETE  = 1;
+        FAILED    = 2;
+        CANCELLED = 3;
+    }
 
-    // JSON string of the specification
-    string Spec = 7;
-
-    // JSON string of the status
-    string Status = 8;
-
-    EvaluationState State = 9;
-    string Namespace = 10;
-    bool IsDeleted = 11;
+    enum Trigger {
+        UNKNOWN = 0;
+        SPECCHANGE = 1;
+        NODECHANGE = 2;
+    }
 }
-*/
+
+message Event {
+    string evalID = 1;
+
+    string message = 2;
+
+    map<string, string> details = 3;
+
+    google.protobuf.Timestamp timestamp = 4;
+}

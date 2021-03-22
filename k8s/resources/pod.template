@@ -2,14 +2,15 @@
 	"apiVersion": "v1",
 	"kind": "Pod",
 	"metadata": {
-		"name": "{{.Name}}",
+		"name": "{{.ID}}",
 		"labels": {
 			"ensemble": "{{.Ensemble}}"
 		}
 	},
 	"spec": {
-		"hostname": "{{.Name}}",
+		"hostname": "{{.Hostname}}",
 		"subdomain": "{{.Ensemble}}",
+		"restartPolicy": "Never",
 		"containers": [
 			{
 				{{if .Env}}
@@ -33,6 +34,18 @@
 					}
 					{{end}}
 				],
+				{{if .Command}}
+				"command": ["{{.Command}}"],
+				{{end}}
+				{{if .Args}}
+				"args": [
+					{{ $s := separator ", " }}
+					{{ range .Args }}
+					{{ call $s }}
+					"{{ . }}"
+					{{ end }}
+				],
+				{{end}}
 				"imagePullPolicy": "Always",
 				"name": "main-container",
 				"image": "{{.Image}}:{{.Version}}"

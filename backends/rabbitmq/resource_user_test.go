@@ -15,8 +15,8 @@ func TestUser(t *testing.T) {
 		Name: "A",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
 			Backend: "Rabbitmq",
-			Sets: []*proto.ClusterSpec_Set{
-				{Replicas: 1},
+			Groups: []*proto.ClusterSpec_Group{
+				{Count: 1},
 			},
 		}),
 	})
@@ -30,9 +30,9 @@ func TestUser(t *testing.T) {
 			Cluster:  "A",
 			Resource: "User",
 			Params: `{
-				"username": "user",
-				"password": "pass"
-			}`,
+					"username": "user1",
+					"password": "pass1"
+				}`,
 		}),
 	})
 

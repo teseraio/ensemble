@@ -14,9 +14,12 @@ func TestExchange(t *testing.T) {
 	uuid1 := srv.Apply(&proto.Component{
 		Name: "A",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			Name:    "A",
 			Backend: "Rabbitmq",
-			Sets: []*proto.ClusterSpec_Set{
-				{Replicas: 1},
+			Groups: []*proto.ClusterSpec_Group{
+				{
+					Count: 1,
+				},
 			},
 		}),
 	})
@@ -30,8 +33,8 @@ func TestExchange(t *testing.T) {
 			Cluster:  "A",
 			Resource: "VHost",
 			Params: `{
-				"name": "v"
-			}`,
+						"name": "v"
+					}`,
 		}),
 	})
 
@@ -44,51 +47,14 @@ func TestExchange(t *testing.T) {
 			Cluster:  "A",
 			Resource: "Exchange",
 			Params: `{
-				"name": "e",
-				"vhost": "v",
-				"settings": {
-					"type": "fanout"
-				}
-			}`,
+						"name": "e",
+						"vhost": "v",
+						"settings": {
+							"type": "fanout"
+						}
+					}`,
 		}),
 	})
 
 	srv.WaitForTask(uuid3)
-
-	/*
-		provider, _ := testutil.NewTestProvider(t, "rabbitmq", nil)
-
-		srv := operator.TestOperator(t, provider, Factory)
-		defer srv.Stop()
-
-		uuid := provider.Apply(&testutil.TestTask{
-			Name:  "A",
-			Input: `{"replicas": 1}`,
-		})
-		provider.WaitForTask(uuid)
-
-		// create the vhost
-		uuid = provider.Apply(&testutil.TestTask{
-			Name:     "V",
-			Resource: "VHost",
-			Input: `{
-				"name": "v"
-			}`,
-		})
-		provider.WaitForTask(uuid)
-
-		// create the exchange
-		uuid = provider.Apply(&testutil.TestTask{
-			Name:     "B",
-			Resource: "Exchange",
-			Input: `{
-				"name": "B",
-				"vhost": "v",
-				"settings": {
-					"type": "fanout"
-				}
-			}`,
-		})
-		provider.WaitForTask(uuid)
-	*/
 }

@@ -15,8 +15,8 @@ func TestVHost(t *testing.T) {
 		Name: "A",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
 			Backend: "Rabbitmq",
-			Sets: []*proto.ClusterSpec_Set{
-				{Replicas: 1},
+			Groups: []*proto.ClusterSpec_Group{
+				{Count: 1},
 			},
 		}),
 	})

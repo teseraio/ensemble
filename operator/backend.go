@@ -1,51 +1,39 @@
 package operator
 
-import "github.com/teseraio/ensemble/operator/proto"
+import (
+	"fmt"
+
+	"github.com/teseraio/ensemble/operator/proto"
+)
 
 // HandlerFactory is a factory for Handlers
 type HandlerFactory func() Handler
 
-type HookCtx struct {
-	Cluster  *proto.Cluster
-	Node     *proto.Node
-	Executor Executor
-}
-
-type NodeRes struct {
-	Config interface{}
-}
-
-type PlanCtx struct {
-	Cluster   *proto.Cluster
-	Plan      *proto.Plan
-	NodeTypes map[string]*NodeRes
-}
-
-type BaseHandler struct {
-}
-
-func (b *BaseHandler) PostHook(*HookCtx) error {
-	return nil
-}
-
 // Handler is the interface that needs to be implemented by the backend
 type Handler interface {
 	// EvaluatePlan evaluates and modifies the execution plan
-	EvaluatePlan(*PlanCtx) error
+	//EvaluatePlan(n []*proto.Instance) error
+
+	//EvaluateConfig(spec *proto.NodeSpec, config map[string]string) error
+
+	Initialize(n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error)
+	// A(clr *proto.Cluster, n []*proto.Node) error
+
+	Ready(t *proto.Instance) bool
 
 	// PostHook is executed when a node changes the state
-	PostHook(*HookCtx) error
+	// PostHook(*HookCtx) error
 
 	// Spec returns the specification for the cluster
 	Spec() *Spec
 
 	// Client returns a connection with a specific node in the cluster
-	Client(node *proto.Node) (interface{}, error)
+	Client(node *proto.Instance) (interface{}, error)
 }
 
 // Executor is the interface required by the backends to execute
 type Executor interface {
-	Exec(n *proto.Node, path string, cmd ...string) error
+	Exec(n *proto.Instance, path string, cmd ...string) error
 }
 
 // Spec returns the backend specification
@@ -53,6 +41,16 @@ type Spec struct {
 	Name      string
 	Nodetypes map[string]Nodetype
 	Resources []Resource
+	Handlers  map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group)
+}
+
+func (s *Spec) GetResource(name string) (res Resource) {
+	for _, i := range s.Resources {
+		if i.GetName() == name {
+			res = i
+		}
+	}
+	return
 }
 
 // Nodetype is a type of node for the Backend
@@ -97,15 +95,11 @@ type Resource interface {
 
 // BaseResource is a resource that can have multiple instances
 type BaseResource struct {
-	ID string `schema:"id"`
-}
-
-// SetID sets the id of the specific resource
-func (b *BaseResource) SetID(id string) {
-	b.ID = id
 }
 
 // Init implements the Resource interface
 func (b *BaseResource) Init(spec map[string]interface{}) error {
 	return nil
 }
+
+var ErrResourceNotFound = fmt.Errorf("resource not found")

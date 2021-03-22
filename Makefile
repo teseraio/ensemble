@@ -9,7 +9,7 @@ build-dev-docker:
 	docker build -t ensemble:dev .
 
 protoc:
-	protoc --go_out=plugins=grpc:. ./operator/proto/*.proto
+	protoc --go_out=. --go-grpc_out=. ./operator/proto/*.proto
 
 bindata:
 	go generate ./k8s

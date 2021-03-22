@@ -1,19 +1,20 @@
 package k8s
 
 import (
-	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
+/*
 // Pod is a type to create a k8s pod
 type Pod struct {
 	Name     string
 	Ensemble string
-	Builder  *proto.Node_NodeSpec
+	Builder  *proto.NodeSpec
 }
+*/
 
 type volumeMount struct {
 	// Name is the name of the volume in the pod description
@@ -57,31 +58,39 @@ func convertFiles(paths []string) *volumeMount {
 }
 
 // MarshalPod marshals a pod
-func MarshalPod(p *Pod) ([]byte, error) {
-	if p.Ensemble == "" {
-		return nil, fmt.Errorf("ensemble not defined")
+func MarshalPod(i *proto.Instance) ([]byte, error) {
+	builder := i.Spec
+
+	version := builder.Version
+	if version == "" {
+		version = "latest"
 	}
 
 	obj := map[string]interface{}{
-		"Name":     p.Name,
-		"Image":    p.Builder.Image,
-		"Version":  p.Builder.Version,
-		"Env":      p.Builder.Env,
-		"Files":    p.Builder.Files,
-		"Ensemble": p.Ensemble,
+		"ID":       i.ID,
+		"Name":     i.Name,
+		"Image":    builder.Image,
+		"Version":  version,
+		"Env":      builder.Env,
+		"Files":    builder.Files,
+		"Ensemble": i.Cluster,
+		"Hostname": i.Name,
 	}
 
-	if len(p.Builder.Files) > 0 {
+	if num := len(builder.Cmd); num != 0 {
+		obj["Command"] = builder.Cmd[0]
+		if num > 1 {
+			obj["Args"] = builder.Cmd[1:]
+		}
+	}
+
+	if len(builder.Files) > 0 {
 		paths := []string{}
-		for k := range p.Builder.Files {
+		for k := range builder.Files {
 			paths = append(paths, k)
 		}
 		v := convertFiles(paths)
 		obj["Volume"] = v
-	}
-
-	if len(p.Builder.Cmd) != 0 {
-		obj["Command"] = "'" + strings.Join(p.Builder.Cmd, "', '") + "'"
 	}
 
 	return RunTmpl2("pod", obj)

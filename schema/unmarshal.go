@@ -38,6 +38,22 @@ func Decode(input map[string]interface{}, obj interface{}) error {
 	return nil
 }
 
+func Encode(obj interface{}) (map[string]interface{}, error) {
+	var res map[string]interface{}
+	dc := &mapstructure.DecoderConfig{
+		Result:  &res,
+		TagName: "schema",
+	}
+	ms, err := mapstructure.NewDecoder(dc)
+	if err != nil {
+		return nil, err
+	}
+	if err = ms.Decode(obj); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
 func ValidateRequired(input map[string]interface{}, obj interface{}) error {
 	// we have to do this manually since mapstructure does not allow required tags.
 

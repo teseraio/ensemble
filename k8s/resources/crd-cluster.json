@@ -27,7 +27,7 @@
                                         },
                                         "required": ["name"]
                                     },
-                                    "sets": {
+                                    "groups": {
                                         "type": "array",
                                         "items": {
                                             "type": "object",
@@ -40,6 +40,12 @@
                                                 },
                                                 "replicas": {
                                                     "type": "integer"
+                                                },
+                                                "params": {
+                                                    "type": "object",
+                                                    "additionalProperties": {
+                                                        "type": "string"
+                                                    }
                                                 }
                                             },
                                             "required": [

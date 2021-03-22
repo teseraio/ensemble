@@ -18,6 +18,11 @@ func (v *VHost) GetName() string {
 	return "VHost"
 }
 
+// Get implements the Resource interface
+func (v *VHost) Get(req interface{}) error {
+	return nil
+}
+
 // Delete implements the Resource interface
 func (v *VHost) Delete(req interface{}) error {
 	client := req.(*rabbithole.Client)

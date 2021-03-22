@@ -9,6 +9,7 @@ import (
 	gproto "github.com/golang/protobuf/proto"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/teseraio/ensemble/lib/template"
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
@@ -55,17 +56,23 @@ func TestItemDecoding(t *testing.T) {
 					"backend": {
 						"name": "a"
 					},
-					"sets": [
+					"groups": [
 						{
-							"replicas": 1
+							"replicas": 1,
+							"params": {
+								"a": "b"
+							}
 						}
 					]
 				}`,
 			spec: &proto.ClusterSpec{
 				Backend: "a",
-				Sets: []*proto.ClusterSpec_Set{
+				Groups: []*proto.ClusterSpec_Group{
 					{
-						Replicas: 1,
+						Count: 1,
+						Config: map[string]string{
+							"a": "b",
+						},
 					},
 				},
 			},
@@ -105,7 +112,7 @@ func TestItemDecoding(t *testing.T) {
 			kind = "resources"
 		}
 
-		obj, err := RunTmpl(`{
+		obj, err := template.RunTmpl(`{
 			"apiVersion": "ensembleoss.io/v1",
 			"kind": "{{.kind}}",
 			"metadata": {
