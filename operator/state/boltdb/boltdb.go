@@ -373,6 +373,27 @@ func (b *BoltDB) LoadInstance(cluster, id string) (*proto.Instance, error) {
 	return &instance, nil
 }
 
+func (b *BoltDB) ListDeployments() ([]*proto.Deployment, error) {
+	tx, err := b.db.Begin(false)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	depsBkt := tx.Bucket(deploymentsBucket)
+
+	var deps []*proto.Deployment
+	depsBkt.ForEach(func(k, v []byte) error {
+		dep, err := b.loadDeploymentImpl(depsBkt, string(k))
+		if err != nil {
+			return err
+		}
+		deps = append(deps, dep)
+		return nil
+	})
+	return deps, nil
+}
+
 func (b *BoltDB) LoadDeployment(id string) (*proto.Deployment, error) {
 	tx, err := b.db.Begin(false)
 	if err != nil {
@@ -382,6 +403,14 @@ func (b *BoltDB) LoadDeployment(id string) (*proto.Deployment, error) {
 
 	depsBkt := tx.Bucket(deploymentsBucket)
 
+	dep, err := b.loadDeploymentImpl(depsBkt, id)
+	if err != nil {
+		return nil, err
+	}
+	return dep, nil
+}
+
+func (b *BoltDB) loadDeploymentImpl(depsBkt *bolt.Bucket, id string) (*proto.Deployment, error) {
 	// find the sub-bucket for the cluster
 	depBkt := depsBkt.Bucket([]byte(id))
 	if depBkt == nil {

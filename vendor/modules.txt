@@ -112,6 +112,9 @@ github.com/posener/complete
 github.com/posener/complete/cmd
 github.com/posener/complete/cmd/install
 github.com/posener/complete/match
+# github.com/ryanuber/columnize v2.1.2+incompatible
+## explicit
+github.com/ryanuber/columnize
 # github.com/stretchr/testify v1.7.0
 ## explicit
 github.com/stretchr/testify/assert

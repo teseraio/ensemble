@@ -6,7 +6,9 @@ import (
 	"os"
 
 	"github.com/mitchellh/cli"
+	"github.com/ryanuber/columnize"
 	"github.com/teseraio/ensemble/command/server"
+	"github.com/teseraio/ensemble/operator/proto"
 	"google.golang.org/grpc"
 )
 
@@ -30,6 +32,19 @@ func Commands() map[string]cli.CommandFactory {
 		"version": func() (cli.Command, error) {
 			return &VersionCommand{
 				UI: ui,
+			}, nil
+		},
+		"deployment": func() (cli.Command, error) {
+			return &DeploymentCommand{}, nil
+		},
+		"deployment list": func() (cli.Command, error) {
+			return &DeploymentListCommand{
+				Meta: meta,
+			}, nil
+		},
+		"deployment status": func() (cli.Command, error) {
+			return &DeploymentStatusCommand{
+				Meta: meta,
 			}, nil
 		},
 		"k8s": func() (cli.Command, error) {
@@ -57,15 +72,29 @@ type Meta struct {
 // FlagSet adds some default commands to handle grpc connections with the server
 func (m *Meta) FlagSet(n string) *flag.FlagSet {
 	f := flag.NewFlagSet(n, flag.ContinueOnError)
-	f.StringVar(&m.addr, "address", "127.0.0.1:5555", "Address of the http api")
+	f.StringVar(&m.addr, "address", "127.0.0.1:6001", "Address of the http api")
 	return f
 }
 
 // Conn returns a grpc connection
-func (m *Meta) Conn() (*grpc.ClientConn, error) {
+func (m *Meta) Conn() (proto.EnsembleServiceClient, error) {
 	conn, err := grpc.Dial(m.addr, grpc.WithInsecure())
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to server: %v", err)
 	}
-	return conn, nil
+	clt := proto.NewEnsembleServiceClient(conn)
+	return clt, nil
+}
+
+func formatList(in []string) string {
+	columnConf := columnize.DefaultConfig()
+	columnConf.Empty = "<none>"
+	return columnize.Format(in, columnConf)
+}
+
+func formatKV(in []string) string {
+	columnConf := columnize.DefaultConfig()
+	columnConf.Empty = "<none>"
+	columnConf.Glue = " = "
+	return columnize.Format(in, columnConf)
 }

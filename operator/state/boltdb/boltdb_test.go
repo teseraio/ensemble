@@ -156,3 +156,30 @@ func TestGetComponent(t *testing.T) {
 	}
 	assert.Equal(t, comp.Id, "id1")
 }
+
+func TestListDeployments(t *testing.T) {
+	config := map[string]interface{}{
+		"path": "/tmp/db-" + uuid.UUID(),
+	}
+	st, err := Factory(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = st.UpdateDeployment(&proto.Deployment{
+		Name: "a",
+	})
+	assert.NoError(t, err)
+
+	err = st.UpdateDeployment(&proto.Deployment{
+		Name: "b",
+	})
+	assert.NoError(t, err)
+
+	deps, err := st.ListDeployments()
+	assert.NoError(t, err)
+	assert.Len(t, deps, 2)
+
+	assert.Equal(t, deps[0].Name, "a")
+	assert.Equal(t, deps[1].Name, "b")
+}

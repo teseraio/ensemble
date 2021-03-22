@@ -21,6 +21,7 @@ type State interface {
 	GetPending(id string) (*proto.Component, error)
 	GetTask(ctx context.Context) *proto.Component
 
+	ListDeployments() ([]*proto.Deployment, error)
 	UpdateDeployment(d *proto.Deployment) error
 	UpsertNode(n *proto.Instance) error
 	LoadDeployment(id string) (*proto.Deployment, error)
