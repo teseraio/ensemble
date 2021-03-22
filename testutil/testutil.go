@@ -2,7 +2,6 @@ package testutil
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"os"
 	"sync/atomic"
@@ -45,9 +44,7 @@ func (t *TestServer) Destroy() {
 
 func (t *TestServer) WaitForTask(id string) {
 	ch := t.state.Wait(id)
-	fmt.Println("- wait -")
 	<-ch
-	fmt.Println("- done -")
 }
 
 func (t *TestServer) Close() {

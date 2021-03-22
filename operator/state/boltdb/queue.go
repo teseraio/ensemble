@@ -3,7 +3,6 @@ package boltdb
 import (
 	"container/heap"
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -76,9 +75,6 @@ func (t *taskQueue) addImpl(clusterID string, c *proto.Component) {
 		ready:     true,
 	}
 
-	fmt.Println("xxxx")
-	fmt.Println(c.Id)
-
 	t.items[c.Id] = tt
 	heap.Push(&t.heap, tt)
 
@@ -118,32 +114,40 @@ POP:
 	}
 }
 
-func (t *taskQueue) finalize(id string) (*task, bool) {
+func (t *taskQueue) finalize(clusterID string) (*task, bool) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	i, ok := t.items[id]
-	if !ok {
+	var item *task
+	for _, i := range t.items {
+		if i.clusterID == clusterID {
+			if i.ready {
+				return nil, false
+			}
+			item = i
+		}
+	}
+	if item == nil {
 		return nil, false
 	}
 
 	// remove the element from the heap
-	heap.Remove(&t.heap, i.index)
-	delete(t.items, id)
+	heap.Remove(&t.heap, item.index)
+	delete(t.items, item.Id)
 
 	// check if there is a pending eval
-	pending, ok := t.pending[i.clusterID]
+	pending, ok := t.pending[clusterID]
 	if ok {
 		var nextTask *proto.Component
 		nextTask, pending = pending[0], pending[1:]
 		if len(pending) == 0 {
-			delete(t.pending, i.clusterID)
+			delete(t.pending, clusterID)
 		} else {
-			t.pending[i.clusterID] = pending
+			t.pending[clusterID] = pending
 		}
-		t.addImpl(i.clusterID, nextTask)
+		t.addImpl(clusterID, nextTask)
 	}
-	return i, true
+	return item, true
 }
 
 type taskQueueImpl []*task

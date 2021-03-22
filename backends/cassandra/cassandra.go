@@ -17,42 +17,27 @@ func Factory() operator.Handler {
 	return &backend{}
 }
 
-func (b *backend) PostHook(*operator.HookCtx) error {
-	return nil
+func (b *backend) Ready(t *proto.Instance) bool {
+	return true
 }
 
-// EvaluatePlan implements the Handler interface
-func (b *backend) EvaluatePlan(ctx *operator.PlanCtx) error {
-	plan := ctx.Plan.Sets[0]
-
-	if len(plan.AddNodes) != 0 {
-		var seed *proto.Node
-		for _, n := range ctx.Cluster.Nodes {
-			if n.Get(seedKey) == "ok" {
-				seed = n
-			}
-		}
-		if seed == nil {
-			seed = plan.AddNodes[0]
-			// take the first node as the seed
-			seed.Set(seedKey, "ok")
-		}
-		for _, n := range plan.AddNodes {
-			if n.Get(seedKey) == "" {
-				// is not the seed node
-				n.Spec.AddEnv("CASSANDRA_SEEDS", seed.ID)
-			}
+func (b *backend) Initialize(n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
+	// check if there is any seed node on the set already
+	var seedNode *proto.Instance
+	for _, i := range n {
+		if i.GetTrue(seedKey) {
+			seedNode = i
 		}
 	}
 
-	if plan.DelNodesNum != 0 {
-		set := ctx.Plan.Sets[0]
-		// pick the last elements
-		for _, n := range ctx.Cluster.Nodes[:set.DelNodesNum] {
-			set.DelNodes = append(set.DelNodes, n.ID)
-		}
+	if seedNode == nil {
+		// we are the seed node
+		target.SetTrue(seedKey)
+	} else {
+		// connect to the seed node
+		target.Spec.AddEnv("CASSANDRA_SEEDS", seedNode.FullName())
 	}
-	return nil
+	return nil, nil
 }
 
 // Spec implements the Handler interface
@@ -72,27 +57,6 @@ func (b *backend) Spec() *operator.Spec {
 }
 
 // Client implements the Handler interface
-func (b *backend) Client(node *proto.Node) (interface{}, error) {
+func (b *backend) Client(node *proto.Instance) (interface{}, error) {
 	return nil, nil
-}
-
-/*
-// Reconcile implements the Handler interface
-func (b *backend) Reconcile(executor operator.Executor, e *proto.Cluster, node *proto.Node, ctx *proto.Context) error {
-	switch node.State {
-	case proto.Node_INITIALIZED:
-		b.recocileNodeInitialized(executor, e, node)
-	}
-	return nil
-}
-*/
-
-func (b *backend) recocileNodeInitialized(executor operator.Executor, e *proto.Cluster, node *proto.Node) error {
-	if len(e.Nodes) != 0 {
-		// node joining a cluster (there should be another which is the seed)
-		node.Spec.AddEnv("CASSANDRA_SEEDS", e.Nodes[0].ID)
-	} else {
-		// its the seed node
-	}
-	return nil
 }

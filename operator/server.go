@@ -48,11 +48,7 @@ type Server struct {
 	stopCh     chan struct{}
 
 	evalQueue *evalQueue
-
-	service proto.EnsembleServiceServer
-
-	//lock        sync.Mutex
-	//deployments map[string]*deploymentWatcher
+	service   proto.EnsembleServiceServer
 }
 
 // NewServer starts an instance of the operator server
@@ -107,17 +103,13 @@ func (s *Server) readiness(i *proto.Instance) {
 	if !ok {
 		panic("bad")
 	}
-
-	c := 0
 	for {
-		fmt.Printf("Ready: %s %d\n", i.FullName(), c)
 		if handler.Ready(i) {
 			break
 		}
 		time.Sleep(1 * time.Second)
 	}
 
-	fmt.Println("_ HEALTHY DONE _")
 	i.Healthy = true
 	s.upsertNodeAndEval(i)
 }
@@ -289,7 +281,7 @@ func (s *Server) handleResource(dep *proto.Deployment, comp *proto.Component) er
 	}
 
 	if comp.Sequence != 1 {
-		pastComp, err := s.State.GetComponentWithSequence(comp.Id, comp.Sequence-1)
+		pastComp, err := s.State.GetComponent("proto.ResourceSpec", comp.Id, comp.Sequence-1)
 		if err != nil {
 			return err
 		}
@@ -336,12 +328,10 @@ func (s *Server) handleCluster(dep *proto.Deployment, comp *proto.Component) err
 		return err
 	}
 
-	fmt.Printf("==> Handle cluster: %s (%d)\n", comp.Id, comp.Sequence)
-
 	if dep == nil {
 		// new deployment
 		dep = &proto.Deployment{
-			Id:      comp.Name,
+			Name:    comp.Name,
 			Backend: spec.Backend,
 		}
 	} else {
@@ -352,7 +342,6 @@ func (s *Server) handleCluster(dep *proto.Deployment, comp *proto.Component) err
 
 	// this is a change in the spec
 	dep.Status = proto.DeploymentRunning
-	dep.CompID = comp.Id
 	dep.Sequence = comp.Sequence
 
 	if err := s.State.UpdateDeployment(dep); err != nil {
@@ -364,7 +353,7 @@ func (s *Server) handleCluster(dep *proto.Deployment, comp *proto.Component) err
 		Id:          uuid.UUID(),
 		Status:      proto.Evaluation_PENDING,
 		TriggeredBy: proto.Evaluation_SPECCHANGE,
-		ClusterID:   dep.Id,
+		ClusterID:   dep.Name,
 	})
 	return nil
 }
@@ -392,16 +381,10 @@ func (s *Server) taskQueue4() {
 		}
 
 		// get the spec for the cluster
-		comp, err := s.State.GetComponent(dep.CompID)
+		comp, err := s.State.GetComponent("proto-ClusterSpec", dep.Name, dep.Sequence)
 		if err != nil {
 			panic(err)
 		}
-		// if sequence is not the same we have to stop because there is an error
-		if comp.Sequence != dep.Sequence {
-			fmt.Println(comp.Sequence, dep.Sequence)
-			panic("bad")
-		}
-
 		var spec proto.ClusterSpec
 		if err := gproto.Unmarshal(comp.Spec.Value, &spec); err != nil {
 			panic(err)
@@ -417,15 +400,7 @@ func (s *Server) taskQueue4() {
 			spec:   &spec,
 		}
 		r.Compute()
-
-		fmt.Println("== DEP ==")
-		for _, i := range dep.Instances {
-			fmt.Println(i)
-		}
-
-		//fmt.Println(len(dep.Instances))
-		fmt.Println("~~ PRINT ~~")
-		r.res.print()
+		// r.res.print()
 
 		updates := []*proto.Instance{}
 
@@ -555,10 +530,8 @@ func (s *Server) submitPlan(p *schedulerPlan) error {
 
 	// if its done, finalize the component
 	if dep.Status == proto.DeploymentDone {
-		if err := s.State.Finalize(dep.CompID); err != nil {
-			fmt.Println("_ERR_")
-			fmt.Println(err.Error())
-			return nil
+		if err := s.State.Finalize(dep.Name); err != nil {
+			return err
 		}
 	}
 
@@ -566,8 +539,7 @@ func (s *Server) submitPlan(p *schedulerPlan) error {
 	for _, i := range p.updates {
 		// create the instance
 		if i.Status == proto.Instance_OUT {
-			fmt.Println(i.ID)
-			fmt.Println("_ INSTANCE OUT _")
+			// instance is out
 		} else {
 			// Provider updates concurrently
 			go func(i *proto.Instance) {

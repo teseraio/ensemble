@@ -109,9 +109,6 @@ func (a *allocSet) canaries() (canaries allocSet, add allocSet, healthy allocSet
 	add = allocSet{}
 
 	for _, i := range *a {
-		//fmt.Println("_ i _")
-		//fmt.Println(i.Desired)
-
 		if i.Canary {
 			if i.Status == proto.Instance_STOPPED {
 				add = append(add, i)

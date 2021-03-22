@@ -1,20 +1,22 @@
 package proto
 
-import "testing"
+import (
+	reflect "reflect"
+	"testing"
+)
 
-/*
 func TestNodeSpec(t *testing.T) {
 	out := map[string]string{
 		"A": "B",
 	}
 
-	b := &Node_NodeSpec{}
+	b := &NodeSpec{}
 	b.AddEnv("A", "B")
 	if !reflect.DeepEqual(b.Env, out) {
 		t.Fatal("bad")
 	}
 
-	b = &Node_NodeSpec{}
+	b = &NodeSpec{}
 	b.AddEnvList([]string{
 		"A=B",
 	})
@@ -22,7 +24,7 @@ func TestNodeSpec(t *testing.T) {
 		t.Fatal("bad")
 	}
 
-	b = &Node_NodeSpec{}
+	b = &NodeSpec{}
 	b.AddEnvMap(map[string]string{
 		"A": "B",
 	})
@@ -30,7 +32,7 @@ func TestNodeSpec(t *testing.T) {
 		t.Fatal("bad")
 	}
 
-	b = &Node_NodeSpec{}
+	b = &NodeSpec{}
 	b.AddEnvList([]string{
 		"A=",
 	})
@@ -38,7 +40,6 @@ func TestNodeSpec(t *testing.T) {
 		t.Fatal("bad")
 	}
 }
-*/
 
 func TestParseIndex(t *testing.T) {
 	cases := []struct {

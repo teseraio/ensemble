@@ -43,9 +43,6 @@ func (e *Exchange) Delete(req interface{}) error {
 
 // Reconcile implements the Resource interface
 func (e *Exchange) Reconcile(req interface{}) error {
-	fmt.Println("_ RECONCILE _")
-	fmt.Println(e)
-
 	client := req.(*rabbithole.Client)
 
 	settings := rabbithole.ExchangeSettings{

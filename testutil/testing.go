@@ -11,14 +11,10 @@ import (
 
 // testing suite for the Provider
 func TestProvider(t *testing.T, p operator.Provider) {
-	//t.Run("", func(t *testing.T) {
 	//TestPodLifecycle(t, p)
-	//})
-	//t.Run("", func(t *testing.T) {
 	//TestPodBarArgs(t, p)
-	//})
 	//TestPodJobFailed(t, p)
-	// TestDNS
+	//TODO: TestDNS
 }
 
 func readEvent(p operator.Provider, t *testing.T) *proto.InstanceUpdate {
@@ -111,13 +107,6 @@ func TestPodLifecycle(t *testing.T, p operator.Provider) {
 		t.Fatal("expected running")
 	}
 	i.Handler = obj.Running.Handler
-
-	/*
-		// try to create the same container again
-		if _, err := p.CreateResource(i); err != nil {
-			t.Fatal(err)
-		}
-	*/
 
 	if _, err := p.DeleteResource(i); err != nil {
 		t.Fatal(err)

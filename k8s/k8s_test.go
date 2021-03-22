@@ -8,6 +8,7 @@ import (
 )
 
 func TestK8sProviderSpec(t *testing.T) {
+	// TODO
 	p, err := K8sFactory(hclog.NewNullLogger(), nil)
 	if err != nil {
 		t.Fatal(err)

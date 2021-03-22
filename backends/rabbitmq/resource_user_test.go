@@ -1,7 +1,6 @@
 package rabbitmq
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/teseraio/ensemble/operator/proto"
@@ -24,7 +23,6 @@ func TestUser(t *testing.T) {
 
 	srv.WaitForTask(uuid1)
 
-	fmt.Println("_ RECONCILE _")
 	// create the user
 	uuid2 := srv.Apply(&proto.Component{
 		Name: "B",

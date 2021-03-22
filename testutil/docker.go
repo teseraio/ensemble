@@ -85,7 +85,6 @@ func (c *Client) Setup() error {
 }
 
 func (c *Client) Remove(id string) error {
-	fmt.Printf("REMOVE==================>%s\n", id)
 	if err := c.client.ContainerStop(context.Background(), id, nil); err != nil {
 		return err
 	}
@@ -160,14 +159,6 @@ func (c *Client) run() {
 		for instance := range c.workCh {
 			if _, err := c.createImpl(context.Background(), instance); err != nil {
 				panic(err)
-				// send failed event
-				c.updateCh <- &proto.InstanceUpdate{
-					ID:      instance.ID,
-					Cluster: instance.Cluster,
-					Event: &proto.InstanceUpdate_Failed_{
-						Failed: &proto.InstanceUpdate_Failed{},
-					},
-				}
 			}
 		}
 	}
@@ -195,7 +186,7 @@ func (c *Client) execImpl(ctx context.Context, id string, execCmd []string) erro
 	}
 	defer conn.Close()
 
-	o, err := ioutil.ReadAll(conn.Reader)
+	_, err = ioutil.ReadAll(conn.Reader)
 	if err != nil {
 		return err
 	}
@@ -203,24 +194,6 @@ func (c *Client) execImpl(ctx context.Context, id string, execCmd []string) erro
 		return err
 	}
 
-	fmt.Println(string(o))
-	return nil
-}
-
-func (c *Client) removeByName(n string) error {
-	c.resourcesLock.Lock()
-	defer c.resourcesLock.Unlock()
-
-	fmt.Println("_ REMOVE CANARY _")
-
-	for name, i := range c.resources {
-		if i.instance.FullName() == n {
-			if err := c.Remove(i.handle); err != nil {
-				return err
-			}
-			delete(c.resources, name)
-		}
-	}
 	return nil
 }
 
@@ -245,9 +218,6 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 	}
 	image := builder.Image + ":" + builder.Version
 	name := node.FullName()
-
-	fmt.Printf("=====> CREATE: %s\n", name)
-	fmt.Println(image)
 
 	// Build the volumes
 	binds := []string{}
@@ -308,7 +278,6 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 
 	body, err := c.client.ContainerCreate(ctx, config, hostConfig, netConfig, name)
 	if err != nil {
-		fmt.Println("- bad -")
 		panic(err)
 	}
 
@@ -324,17 +293,10 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 
 	// watch for updates in the node
 	go func() {
-		fmt.Println("> WAIT <")
-		fmt.Println(body.ID)
-
-		status, err := c.client.ContainerWait(context.Background(), body.ID)
+		_, err := c.client.ContainerWait(context.Background(), body.ID)
 		if err != nil {
 			panic(err)
 		}
-
-		fmt.Println("====> status ====>")
-		fmt.Println(status)
-		fmt.Println(body.ID)
 
 		// we need to remove it here so that we can reuse the name
 		if err := c.client.ContainerRemove(context.Background(), body.ID, types.ContainerRemoveOptions{}); err != nil {
@@ -350,9 +312,6 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 			},
 		}
 	}()
-
-	fmt.Println("XX")
-	fmt.Println(body.ID)
 
 	ip := c.GetIP(body.ID)
 
@@ -400,7 +359,7 @@ func (c *Client) Resources() interface{} {
 }
 
 func (c *Client) CreateResource(node *proto.Instance) (*proto.Instance, error) {
-	fmt.Printf("Create resource: %s\n", node.Name)
+	// fmt.Printf("Create resource: %s\n", node.Name)
 
 	// validation
 	for _, r := range c.resources {
@@ -428,7 +387,7 @@ func (c *Client) Exec(handler string, path string, args ...string) error {
 }
 
 func (c *Client) DeleteResource(node *proto.Instance) (*proto.Instance, error) {
-	fmt.Printf("Delete resource: %s %s\n", node.Name, node.Handler)
+	// fmt.Printf("Delete resource: %s %s\n", node.Name, node.Handler)
 
 	go func() {
 		if err := c.Remove(node.Handler); err != nil {

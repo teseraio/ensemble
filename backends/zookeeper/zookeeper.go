@@ -22,23 +22,6 @@ func (b *backend) Ready(t *proto.Instance) bool {
 	return true
 }
 
-func (b *backend) EvaluateConfig(spec *proto.NodeSpec, cc map[string]string) error {
-	spec.Image = "zookeeper"
-	spec.Version = "3.6"
-
-	// this should be pretty deterministic
-	var c *config
-	if err := mapstructure.WeakDecode(cc, &c); err != nil {
-		return err
-	}
-	if c != nil {
-		if c.TickTime != 0 {
-			spec.AddEnv("ZOO_TICK_TIME", strconv.Itoa(int(c.TickTime)))
-		}
-	}
-	return nil
-}
-
 func (b *backend) Initialize(nodes []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
 	// Id of the instance
 	localIndex, err := proto.ParseIndex(target.Name)
@@ -63,112 +46,8 @@ func (b *backend) Initialize(nodes []*proto.Instance, target *proto.Instance) (*
 	}
 
 	target.Spec.AddEnv("ZOO_SERVERS", strings.Join(res, " "))
-
 	return nil, nil
 }
-
-// EvaluatePlan implements the Handler interface
-func (b *backend) EvaluatePlan(n []*proto.Instance) error {
-	// set the index of each node
-	/*
-		for indx, nn := range n {
-			nn.Set(keyIndx, strconv.Itoa(indx))
-		}
-	*/
-	/*
-		switch obj := ctx.Plan.Action.(type) {
-		case *proto.Plan_Step_ActionScale_:
-			if obj.ActionScale.Direction == proto.Plan_Step_ActionScale_UP {
-				return b.evaluatePlanScaleUp(ctx, obj.ActionScale)
-			}
-			return b.evaluatePlanScaleDown(ctx, obj.ActionScale)
-		}
-	*/
-	return nil
-}
-
-/*
-func (b *backend) evaluatePlanScaleUp(ctx *operator.PlanCtx, action *proto.Plan_Step_ActionScale) error {
-	return nil
-}
-
-func (b *backend) evaluatePlanScaleDown(ctx *operator.PlanCtx, action *proto.Plan_Step_ActionScale) error {
-	return nil
-}
-*/
-
-// zookeeper only has one set
-//plan := ctx.Plan.Sets[0]
-
-//if plan.DelNodesNum != 0 {
-// scale down
-
-/*
-	cc := ctx.Cluster.Copy()
-	sort.Sort(sortedNodes(cc.Nodes))
-
-	delNodes := []string{}
-	for i := 0; i < int(plan.DelNodesNum); i++ {
-		delNodes = append(delNodes, cc.Nodes[i].ID)
-	}
-	plan.DelNodes = delNodes
-*/
-
-//} else {
-// scale up
-
-/*
-	// start the index in 1
-	ogIndx := len(ctx.Cluster.Nodes) + 1
-
-	// add a sequential index to each node
-	for seqIndx, n := range plan.AddNodes {
-		indx := strconv.Itoa(ogIndx + seqIndx)
-		n.Set(keyIndx, indx)
-		n.Spec.AddEnv("ZOO_MY_ID", indx)
-
-		if ctx.Plan.Bootstrap {
-			// participant
-			n.Set(keyRole, roleParticipant)
-		} else {
-			// observer
-			n.Set(keyRole, roleObserver)
-		}
-	}
-
-	// get the cluster nodes
-	var nodes []*proto.Node
-	if ctx.Plan.Bootstrap {
-		// join as participant
-		nodes = plan.AddNodes
-	} else {
-		// join as observer
-		nodes = ctx.Cluster.Nodes
-	}
-
-	// add the cluster nodes
-	for _, n := range plan.AddNodes {
-		var res []string
-		for _, node := range nodes {
-			res = append(res, getZkNodeSpec(node))
-		}
-		if !ctx.Plan.Bootstrap {
-			// add yourself to the cluster too
-			res = append(res, getZkNodeSpec(n))
-		}
-
-		// add the configuration
-		config := ctx.NodeTypes[n.Nodetype].Config.(*config)
-
-		if config != nil {
-			if config.TickTime != 0 {
-				n.Spec.AddEnv("ZOO_TICK_TIME", strconv.Itoa(int(config.TickTime)))
-			}
-		}
-		n.Spec.AddEnv("ZOO_SERVERS", strings.Join(res, " "))
-	}
-*/
-//}
 
 func getZkNodeSpec(node *proto.Instance, index uint64) string {
 	return fmt.Sprintf("server.%d=%s:2888:3888;2181", index, node.FullName())
@@ -193,9 +72,6 @@ func (b *backend) Spec() *operator.Spec {
 		},
 		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group){
 			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group) {
-				spec.Image = "zookeeper"
-				spec.Version = "3.6"
-
 				var c *config
 				if err := mapstructure.WeakDecode(grp.Config, &c); err != nil {
 					panic(err)
@@ -212,13 +88,5 @@ func (b *backend) Spec() *operator.Spec {
 
 // Client implements the Handler interface
 func (b *backend) Client(node *proto.Instance) (interface{}, error) {
-	/*
-		c, _, err := zk.Connect([]string{node.Addr}, time.Second)
-		if err != nil {
-			return nil, err
-		}
-		return c, nil
-	*/
-	panic("X")
 	return nil, nil
 }

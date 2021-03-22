@@ -33,40 +33,6 @@ func Equal(p0, p1 proto.Message) bool {
 	return bytes.Equal(m0, m1)
 }
 
-/*
-func (c *Cluster) Size() int {
-	return len(c.Nodes)
-}
-*/
-
-/*
-func (c *Cluster) DelNodeAtIndx(i int) {
-	c.Nodes = append(c.Nodes[:i], c.Nodes[i+1:]...)
-}
-
-func (c *Cluster) AddNode(n *Instance) {
-	c.Nodes = append(c.Nodes, n)
-}
-
-func (c *Cluster) NodeByID(ID string) (*Node, bool) {
-	for _, n := range c.Nodes {
-		if n.ID == ID {
-			return n, true
-		}
-	}
-	return nil, false
-}
-
-func (c *Cluster) NodeAtIndex(ID string) int {
-	for indx, n := range c.Nodes {
-		if n.ID == ID {
-			return indx
-		}
-	}
-	return -1
-}
-*/
-
 func (c *ClusterSpec) Copy() *ClusterSpec {
 	return proto.Clone(c).(*ClusterSpec)
 }
@@ -79,17 +45,21 @@ func (d *Deployment) Copy() *Deployment {
 	return proto.Clone(d).(*Deployment)
 }
 
-/*
-func (m *Node_Mount) Copy() *Node_Mount {
-	return proto.Clone(m).(*Node_Mount)
-}
-*/
-
 func (n *Instance) FullName() string {
 	if n.Cluster != "" {
 		return n.Name + "." + n.Cluster
 	}
 	return n.Name
+}
+
+var okKey = "ok"
+
+func (n *Instance) SetTrue(k string) {
+	n.Set(k, okKey)
+}
+
+func (n *Instance) GetTrue(k string) bool {
+	return n.Get(k) == "ok"
 }
 
 func (n *Instance) Get(k string) string {
@@ -109,33 +79,6 @@ func (n *Instance) Set(k, v string) {
 	n.KV[k] = v
 }
 
-/*
-func (n *Instance) Equal(nn *Instance) bool {
-	// check the state
-	if n.State != nn.State {
-		return false
-	}
-	// check the kv store
-	if !reflect.DeepEqual(n.KV, nn.KV) {
-		// TODO: Do better than this
-		if len(n.KV) == len(nn.KV) && len(n.KV) == 0 {
-			return true
-		}
-		return false
-	}
-	// check the mounts
-	if !reflect.DeepEqual(n.Mounts, nn.Mounts) {
-		return false
-	}
-	// check spec
-	if !reflect.DeepEqual(n.Spec, nn.Spec) {
-		return false
-	}
-	return true
-}
-*/
-
-// TODO: Use protobuf for this
 func (n *Instance) Unmarshal(src []byte) error {
 	return json.Unmarshal(src, &n)
 }
@@ -181,27 +124,6 @@ func (b *NodeSpec) AddEnv(k, v string) {
 func (b *NodeSpec) Copy() *NodeSpec {
 	return proto.Clone(b).(*NodeSpec)
 }
-
-/*
-func (t *Task) Time() (time.Time, error) {
-	return ptypes.Timestamp(t.Timestamp)
-}
-
-type XX struct {
-	Replicas int64
-	Config   string
-	Resource string
-}
-*/
-
-/*
-func (p *Plan_Set) Add(n *Instance) {
-	if p.AddNodes == nil {
-		p.AddNodes = make([]*Node, 0)
-	}
-	p.AddNodes = append(p.AddNodes, n)
-}
-*/
 
 func (r *ClusterSpec) GetClusterID() string {
 	return r.Name

@@ -165,7 +165,9 @@ func (b *BoltDB) Apply(c *proto.Component) (int64, error) {
 
 	// append current timestamp
 	c.Timestamp = ptypes.TimestampNow()
-	c.Id = fmt.Sprintf("%s.%s", namespace, c.Name)
+	if c.Id == "" {
+		return 0, fmt.Errorf("empty id")
+	}
 
 	// create the bucket to store this specific namespace
 	namespaceBkt, err := componentsBkt.CreateBucketIfNotExists(namespace)
@@ -236,15 +238,12 @@ func (b *BoltDB) Apply(c *proto.Component) (int64, error) {
 	return c.Sequence, nil
 }
 
-func (b *BoltDB) GetComponentWithSequence(id string, sequence int64) (*proto.Component, error) {
+func (b *BoltDB) GetComponent(namespace, name string, sequence int64) (*proto.Component, error) {
 	tx, err := b.db.Begin(false)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
-
-	parts := strings.Split(id, ".")
-	namespace, name := parts[0], parts[1]
 
 	componentsBkt := tx.Bucket(componentsBucket)
 	namespaceBkt := componentsBkt.Bucket([]byte(namespace))
@@ -257,35 +256,6 @@ func (b *BoltDB) GetComponentWithSequence(id string, sequence int64) (*proto.Com
 		return nil, err
 	}
 
-	return &comp, nil
-}
-
-func (b *BoltDB) GetComponent(id string) (*proto.Component, error) {
-	tx, err := b.db.Begin(false)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	parts := strings.Split(id, ".")
-	namespace, name := parts[0], parts[1]
-
-	componentsBkt := tx.Bucket(componentsBucket)
-	namespaceBkt := componentsBkt.Bucket([]byte(namespace))
-
-	compBkt := namespaceBkt.Bucket([]byte(name))
-	seqBkt := compBkt.Bucket(seqKey)
-
-	// read current object
-	seq, err := getSeqNumber(compBkt)
-	if err != nil {
-		return nil, err
-	}
-
-	comp := proto.Component{}
-	if err := dbGet(seqBkt, seqID(seq), &comp); err != nil {
-		return nil, err
-	}
 	return &comp, nil
 }
 
@@ -371,9 +341,9 @@ func (b *BoltDB) Finalize(id string) error {
 
 	// notify any wait channels
 	b.waitChLock.Lock()
-	if ch, ok := b.waitCh[id]; ok {
+	if ch, ok := b.waitCh[tt.Component.Id]; ok {
 		close(ch)
-		delete(b.waitCh, id)
+		delete(b.waitCh, tt.Component.Id)
 	}
 	b.waitChLock.Unlock()
 
@@ -449,9 +419,6 @@ func (b *BoltDB) LoadDeployment(id string) (*proto.Deployment, error) {
 }
 
 func (b *BoltDB) UpdateDeployment(d *proto.Deployment) error {
-	fmt.Println("- update deployment -")
-	fmt.Println(d.Sequence)
-
 	tx, err := b.db.Begin(true)
 	if err != nil {
 		return err
@@ -461,7 +428,7 @@ func (b *BoltDB) UpdateDeployment(d *proto.Deployment) error {
 	depsBkt := tx.Bucket(deploymentsBucket)
 
 	// find the sub-bucket for the cluster
-	depBkt, _ := depsBkt.CreateBucketIfNotExists([]byte(d.Id))
+	depBkt, _ := depsBkt.CreateBucketIfNotExists([]byte(d.Name))
 
 	dd := d.Copy()
 	dd.Instances = nil
@@ -503,81 +470,6 @@ func (b *BoltDB) UpsertNode(n *proto.Instance) error {
 		return err
 	}
 	return nil
-}
-
-/*
-func (b *BoltDB) GetCluster(name string) (*proto.Cluster, error) {
-	tx, err := b.db.Begin(false)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	clustersBkt := tx.Bucket(clustersBucket)
-
-	c := proto.Cluster{}
-	if err := dbGet(clustersBkt, []byte(name), &c); err != nil {
-		if err == errNotFound {
-			return nil, state.ErrClusterNotFound
-		}
-		return nil, err
-	}
-	return &c, nil
-}
-
-// UpsertCluster implements the BoltDB interface
-func (b *BoltDB) UpsertCluster(c *proto.Cluster) error {
-	tx, err := b.db.Begin(true)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	clustersBkt := tx.Bucket(clustersBucket)
-	if err := dbPut(clustersBkt, []byte(c.Name), c); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	return nil
-}
-*/
-
-func (b *BoltDB) AddEvaluation(eval *proto.Evaluation) error {
-	/*
-		tx, err := b.db.Begin(true)
-		if err != nil {
-			return err
-		}
-		defer tx.Rollback()
-
-		evalBkt := tx.Bucket(evaluationsBucket)
-		if err := dbPut(evalBkt, []byte(eval.Id), eval); err != nil {
-			return err
-		}
-		if err := tx.Commit(); err != nil {
-			return err
-		}
-
-		tt := &task{
-			Evaluation: eval,
-			timestamp:  time.Now(),
-		}
-		b.queue2.add(tt)
-	*/
-	return nil
-}
-
-func (b *BoltDB) GetTask2(ctx context.Context) (*proto.Evaluation, error) {
-	/*
-		t := b.queue2.pop(ctx)
-		if t == nil {
-			return nil, nil
-		}
-		return t.Evaluation, nil
-	*/
-	return nil, nil
 }
 
 func dbPut(b *bolt.Bucket, id []byte, m gproto.Message) error {

@@ -49,9 +49,6 @@ func (p *Provider) Setup() error {
 			id := getIDFromRef(event.GetMetadata().Name)
 			cluster := p.getPodCluster(id)
 
-			fmt.Println("---")
-			fmt.Println(cluster, event.Reason)
-
 			if cluster == "" {
 				continue
 			}
@@ -82,7 +79,6 @@ func (p *Provider) Setup() error {
 
 				ip := p.getPodIP(id)
 
-				fmt.Println("- send -")
 				p.watchCh <- &proto.InstanceUpdate{
 					ID:      id,
 					Cluster: cluster,
@@ -227,10 +223,6 @@ func (p *Provider) createHeadlessService(cluster string) error {
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("-- headless --")
-	fmt.Println(string(data))
-
 	if _, _, err := p.post("/api/v1/namespaces/{namespace}/services", data); err != nil {
 		if err != errAlreadyExists {
 			return err
@@ -243,13 +235,9 @@ func (p *Provider) getPodCluster(id string) string {
 	var obj *Item
 	for i := 0; i < 10; i++ {
 		if _, err := p.get("/api/v1/namespaces/{namespace}/pods/"+id, &obj); err != nil {
-			fmt.Println("- id -")
-			fmt.Println(id)
-
 			if err != errNotFound {
 				panic(err)
 			}
-			fmt.Println("_ RETRY _")
 		} else {
 			break
 		}
@@ -296,17 +284,10 @@ func (p *Provider) CreateResource(node *proto.Instance) (*proto.Instance, error)
 		}
 	}
 
-	//fmt.Println("-- cmd --")
-	//fmt.Println(node.Spec.Cmd)
-
 	data, err := MarshalPod(node)
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Println("-- data --")
-	fmt.Println(string(data))
-
 	// create the Pod resource
 	if _, _, err = p.post("/api/v1/namespaces/{namespace}/pods", data); err != nil {
 		return nil, err

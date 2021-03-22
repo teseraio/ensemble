@@ -35,12 +35,6 @@ cluster_formation.classic_config.nodes.{{ $i }} = rabbit@{{ $elem }}
 {{ end }}
 {{ end }}`
 
-/*
-cluster_formation.classic_config.nodes.1 = rabbit@A0.A
-cluster_formation.classic_config.nodes.2 = rabbit@A1.A
-cluster_formation.classic_config.nodes.3 = rabbit@A2.A
-*/
-
 func (b *backend) Initialize(n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
 	target.Spec.AddEnv("RABBITMQ_ERLANG_COOKIE", "TODO")
 	target.Spec.AddEnv("RABBITMQ_USE_LONGNAME", "true")
@@ -71,19 +65,6 @@ func (b *backend) Ready(t *proto.Instance) bool {
 	}
 	return true
 }
-
-/*
-// EvaluatePlan implements the Handler interface
-func (b *backend) EvaluatePlan(plan *proto.Context) error {
-	if plan.Plan.Sets[0].DelNodesNum != 0 {
-		set := plan.Plan.Sets[0]
-		for _, n := range plan.Cluster.Nodes[:set.DelNodesNum] {
-			set.DelNodes = append(set.DelNodes, n.ID)
-		}
-	}
-	return nil
-}
-*/
 
 // Spec implements the Handler interface
 func (b *backend) Spec() *operator.Spec {
@@ -117,59 +98,3 @@ func (b *backend) Spec() *operator.Spec {
 func (b *backend) Client(node *proto.Instance) (interface{}, error) {
 	return rabbithole.NewClient("http://"+node.Ip+":15672", "guest", "guest")
 }
-
-/*
-// Reconcile implements the Handler interface
-func (b *backend) Reconcile(executor operator.Executor, e *proto.Cluster, node *proto.Node, plan *proto.Context) error {
-	switch node.State {
-	case proto.Node_INITIALIZED:
-		recocileNodeInitialized(node)
-
-	case proto.Node_PENDING:
-		time.Sleep(10 * time.Second)
-
-	case proto.Node_RUNNING:
-		return b.reconcileNodeRunning(executor, e, node)
-
-	case proto.Node_TAINTED:
-		return reconcileNodeTainted(executor, node)
-	}
-	return nil
-}
-
-func reconcileNodeTainted(executor operator.Executor, node *proto.Node) error {
-	return executor.Exec(node, rabbitmqctl, "shutdown")
-}
-
-func recocileNodeInitialized(node *proto.Node) {
-	node.Spec.AddEnv("RABBITMQ_ERLANG_COOKIE", "TODO")
-	node.Spec.AddEnv("RABBITMQ_USE_LONGNAME", "true")
-
-	// enable the http management plugin by default
-	node.Spec.AddEnv("RABBITMQ_ENABLED_PLUGINS_FILE", "/some/enabled_plugins")
-	node.Spec.AddFile("/some/enabled_plugins", enabledPlugins)
-}
-
-func (b *backend) reconcileNodeRunning(executor operator.Executor, e *proto.Cluster, node *proto.Node) error {
-	if len(e.Nodes) != 1 {
-		// node joining a cluster
-		target := e.Nodes[0]
-
-		clt, err := b.Client(target)
-		if err != nil {
-			return err
-		}
-
-		info, err := clt.(*rabbithole.Client).Overview()
-		if err != nil {
-			return err
-		}
-
-		nodeName := info.Node
-		if err := addNode(executor, node, nodeName); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-*/
