@@ -211,7 +211,7 @@ func (s *Server) Stop() {
 }
 
 // Exec implements the Activator interface
-func (s *Server) Exec(n *proto.Instance, path string, cmd ...string) error {
+func (s *Server) Exec(n *proto.Instance, path string, cmd ...string) (string, error) {
 	return s.Provider.Exec("n.Handle", path, cmd...)
 }
 

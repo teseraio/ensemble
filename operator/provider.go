@@ -30,7 +30,7 @@ type Provider interface {
 	WatchUpdates() chan *proto.InstanceUpdate
 
 	// Exec executes a shell script
-	Exec(handler string, path string, args ...string) error
+	Exec(handler string, path string, args ...string) (string, error)
 
 	// Resources returns a struct that defines the node resources
 	// that can be configured for this provider
