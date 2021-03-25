@@ -91,7 +91,17 @@
                 {
                     "name": "file-data-0",
                     "configMap": {
-                        "name": "file-data-0"
+                        "items": [
+                            {
+                                "key": "data.a",
+                                "path": "a"
+                            },
+                            {
+                                "key": "data.b",
+                                "path": "b"
+                            }
+                        ],
+                        "name": "id-file-data-0"
                     }
                 }
             ]
