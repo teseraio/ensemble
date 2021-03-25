@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/mitchellh/mapstructure"
+	"github.com/teseraio/ensemble/lib/mount"
 	"github.com/teseraio/ensemble/operator/proto"
 	"google.golang.org/grpc"
 )
@@ -147,13 +147,13 @@ func (p *Provider) DeleteResource(node *proto.Instance) (*proto.Instance, error)
 }
 
 // Exec implements the Provider interface
-func (p *Provider) Exec(handler string, path string, cmdArgs ...string) error {
+func (p *Provider) Exec(handler string, path string, cmdArgs ...string) (string, error) {
 	out, err := p.client.Exec(handler, "main-container", path, cmdArgs...)
 	if err != nil {
-		return err
+		return "", err
 	}
 	p.logger.Trace("exec", "handler", handler, "out", string(out))
-	return nil
+	return string(out), nil
 }
 
 func transformURL(rawURL string) string {
@@ -162,7 +162,12 @@ func transformURL(rawURL string) string {
 	return url
 }
 
-func (p *Provider) upsertConfigMap(name string, data map[string]string) error {
+func cleanPath(path string) string {
+	// clean the path to k8s format
+	return strings.Replace(strings.Trim(path, "/"), "/", ".", -1)
+}
+
+func (p *Provider) upsertConfigMap(name string, files *mount.MountPoint) error {
 	// check if the config map exists
 	var item *Item
 
@@ -174,20 +179,9 @@ func (p *Provider) upsertConfigMap(name string, data map[string]string) error {
 
 	exists := item != nil
 
-	if exists {
-		// Check if both maps are equal
-		var previousData map[string]string
-		if err := mapstructure.Decode(item.Data, &previousData); err != nil {
-			return err
-		}
-		if reflect.DeepEqual(data, previousData) {
-			return nil
-		}
-	}
-
 	parts := []string{}
-	for k, v := range data {
-		parts = append(parts, fmt.Sprintf("\"%s\": \"%s\"", cleanPath(k), v))
+	for name, content := range files.Files {
+		parts = append(parts, fmt.Sprintf("\"%s\": \"%s\"", cleanPath(name), content))
 	}
 	obj := map[string]interface{}{
 		"Name": name,
@@ -269,18 +263,56 @@ func (p *Provider) getPodIP(id string) string {
 	return res.Status.PodIP
 }
 
+func (p *Provider) createVolume(instance *proto.Instance, m *proto.Instance_Mount) error {
+	claimName := instance.Name + "-" + m.Name
+
+	res, err := RunTmpl2("volume-claim", map[string]interface{}{
+		"Name":        claimName,
+		"StorageName": "standard",
+		"Storage":     "1Gi", // TODO
+	})
+	if err != nil {
+		return err
+	}
+	if _, _, err = p.post("/api/v1/namespaces/{namespace}/persistentvolumeclaims", res); err != nil {
+		if err != errAlreadyExists {
+			return err
+		}
+	}
+	return nil
+}
+
 // CreateResource implements the Provider interface
 func (p *Provider) CreateResource(node *proto.Instance) (*proto.Instance, error) {
 	p.logger.Debug("upsert instance", "id", node.ID, "cluster", node.Cluster, "name", node.Name)
-
 	node = node.Copy()
+
+	// create headless service for dns resolving
 	if err := p.createHeadlessService(node.Cluster); err != nil {
 		return nil, err
 	}
-	if len(node.Spec.Files) > 0 {
-		// store all the files under the '-files' prefix
-		if err := p.upsertConfigMap(node.ID+"-files", node.Spec.Files); err != nil {
+
+	// files to be mounted on the pod
+	if len(node.Spec.Files) != 0 {
+		mountPoints, err := mount.CreateMountPoints(node.Spec.Files)
+		if err != nil {
 			return nil, err
+		}
+		for indx, mountPoint := range mountPoints {
+			name := node.ID + "-file-data-" + strconv.Itoa(indx)
+
+			if err := p.upsertConfigMap(name, mountPoint); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// volume mount
+	if len(node.Mounts) != 0 {
+		for _, m := range node.Mounts {
+			if err := p.createVolume(node, m); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -288,10 +320,12 @@ func (p *Provider) CreateResource(node *proto.Instance) (*proto.Instance, error)
 	if err != nil {
 		return nil, err
 	}
+
 	// create the Pod resource
 	if _, _, err = p.post("/api/v1/namespaces/{namespace}/pods", data); err != nil {
 		return nil, err
 	}
+
 	return node, nil
 }
 

@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -16,7 +17,9 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/mitchellh/mapstructure"
+	"github.com/teseraio/ensemble/lib/mount"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 )
@@ -168,35 +171,6 @@ func (c *Client) run() {
 	}
 }
 
-func (c *Client) execImpl(ctx context.Context, id string, execCmd []string) error {
-	ec := types.ExecConfig{
-		User:         "",
-		AttachStderr: true,
-		AttachStdout: true,
-		Cmd:          execCmd,
-	}
-	execID, err := c.client.ContainerExecCreate(ctx, id, ec)
-	if err != nil {
-		return err
-	}
-
-	conn, err := c.client.ContainerExecAttach(ctx, execID.ID, types.ExecConfig{})
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
-	_, err = ioutil.ReadAll(conn.Reader)
-	if err != nil {
-		return err
-	}
-	if _, err := c.client.ContainerExecInspect(ctx, execID.ID); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // Create creates a docker container
 func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, error) {
 	c.resourcesLock.Lock()
@@ -219,22 +193,44 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 	image := builder.Image + ":" + builder.Version
 	name := node.FullName()
 
-	// Build the volumes
 	binds := []string{}
+
+	// mount files
 	if len(builder.Files) != 0 {
-		dir, err := ioutil.TempDir("/tmp", "builder-")
+		buildDir, err := ioutil.TempDir("/tmp", "builder-")
 		if err != nil {
 			return "", err
 		}
-		for path, content := range builder.Files {
-			fullPath := filepath.Join(dir, path)
-			if err := createIfNotExists(filepath.Dir(fullPath)); err != nil {
+		mountPoints, err := mount.CreateMountPoints(builder.Files)
+		if err != nil {
+			return "", err
+		}
+		for indx, mountPoint := range mountPoints {
+			mountPath := filepath.Join(buildDir, fmt.Sprintf("%d", indx))
+			for path, content := range mountPoint.Files {
+				subPath := strings.TrimPrefix(path, mountPoint.Path)
+				subPath = filepath.Join(mountPath, subPath)
+
+				if err := createIfNotExists(filepath.Dir(subPath)); err != nil {
+					return "", err
+				}
+				if err := ioutil.WriteFile(subPath, []byte(content), 0755); err != nil {
+					return "", err
+				}
+			}
+			binds = append(binds, fmt.Sprintf("%s:%s", mountPath, mountPoint.Path))
+		}
+	}
+
+	// mount paths
+	if len(node.Mounts) != 0 {
+		dataDir := "/tmp/ensemble-" + node.Cluster + "-" + node.Name
+		for _, mount := range node.Mounts {
+			localPath := dataDir + "-" + mount.Name
+			if err := createIfNotExists(localPath); err != nil {
 				return "", err
 			}
-			if err := ioutil.WriteFile(fullPath, []byte(content), 0755); err != nil {
-				return "", err
-			}
-			binds = append(binds, fmt.Sprintf("%s:%s", fullPath, path))
+			binds = append(binds, fmt.Sprintf("%s:%s", localPath, mount.Path))
 		}
 	}
 
@@ -297,7 +293,6 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 		if err != nil {
 			panic(err)
 		}
-
 		// we need to remove it here so that we can reuse the name
 		if err := c.client.ContainerRemove(context.Background(), body.ID, types.ContainerRemoveOptions{}); err != nil {
 			panic(err)
@@ -359,7 +354,7 @@ func (c *Client) Resources() interface{} {
 }
 
 func (c *Client) CreateResource(node *proto.Instance) (*proto.Instance, error) {
-	// fmt.Printf("Create resource: %s\n", node.Name)
+	// fmt.Printf("Create resource: %s %s\n", node.ID, node.Name)
 
 	// validation
 	for _, r := range c.resources {
@@ -379,11 +374,69 @@ func (c *Client) CreateResource(node *proto.Instance) (*proto.Instance, error) {
 	return nil, nil
 }
 
-func (c *Client) Exec(handler string, path string, args ...string) error {
+func (c *Client) Exec(id string, path string, args ...string) (string, error) {
 	execCmd := []string{path}
 	execCmd = append(execCmd, args...)
 
+	var handler string
+	for _, r := range c.resources {
+		if r.instance.ID == id {
+			handler = r.handle
+		}
+	}
+	if handler == "" {
+		return "", fmt.Errorf("not found")
+	}
+
 	return c.execImpl(context.Background(), handler, execCmd)
+}
+
+func (c *Client) execImpl(ctx context.Context, id string, execCmd []string) (string, error) {
+	ec := types.ExecConfig{
+		User:         "",
+		AttachStderr: true,
+		AttachStdout: true,
+		Cmd:          execCmd,
+	}
+	execID, err := c.client.ContainerExecCreate(ctx, id, ec)
+	if err != nil {
+		return "", err
+	}
+
+	aresp, err := c.client.ContainerExecAttach(ctx, execID.ID, types.ExecConfig{})
+	if err != nil {
+		return "", err
+	}
+	defer aresp.Close()
+
+	var outBuf, errBuf bytes.Buffer
+	outputDone := make(chan error)
+
+	go func() {
+		_, err = stdcopy.StdCopy(&outBuf, &errBuf, aresp.Reader)
+		outputDone <- err
+	}()
+
+	select {
+	case err := <-outputDone:
+		if err != nil {
+			return "", err
+		}
+		break
+
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+
+	// get the exit code
+	if _, err := c.client.ContainerExecInspect(ctx, execID.ID); err != nil {
+		return "", err
+	}
+
+	if errBuf.Len() != 0 {
+		return "", fmt.Errorf(errBuf.String())
+	}
+	return outBuf.String(), nil
 }
 
 func (c *Client) DeleteResource(node *proto.Instance) (*proto.Instance, error) {

@@ -93,9 +93,12 @@ func (n *Instance) Copy() *Instance {
 
 func (b *NodeSpec) AddFile(path string, content string) {
 	if b.Files == nil {
-		b.Files = map[string]string{}
+		b.Files = []*NodeSpec_File{}
 	}
-	b.Files[path] = content
+	b.Files = append(b.Files, &NodeSpec_File{
+		Name:    path,
+		Content: content,
+	})
 }
 
 func (b *NodeSpec) AddEnvList(l []string) {
