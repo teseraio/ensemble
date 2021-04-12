@@ -1,12 +1,6 @@
 package rabbitmq
 
-import (
-	"testing"
-
-	"github.com/teseraio/ensemble/operator/proto"
-	"github.com/teseraio/ensemble/testutil"
-)
-
+/*
 func TestExchange(t *testing.T) {
 	srv := testutil.TestOperator(t, Factory)
 	defer srv.Close()
@@ -58,3 +52,4 @@ func TestExchange(t *testing.T) {
 
 	srv.WaitForTask(uuid3)
 }
+*/

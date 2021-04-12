@@ -18,10 +18,10 @@ import (
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
-	"github.com/mitchellh/mapstructure"
 	"github.com/teseraio/ensemble/lib/mount"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
+	"github.com/teseraio/ensemble/schema"
 )
 
 const networkName = "net1"
@@ -254,16 +254,18 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 
 	// decode computational resources
 	if node.Group != nil {
-		resConfig := c.Resources().(*Resource)
-		if err := mapstructure.WeakDecode(node.Group.Resources, &resConfig); err != nil {
-			return "", err
-		}
-		if resConfig != nil {
-			hostConfig.Resources = container.Resources{
-				CPUShares: int64(resConfig.CPUShares),
-				CPUCount:  int64(resConfig.CPUCount),
+		/*
+			resConfig := c.Resources().(*Resource)
+			if err := mapstructure.WeakDecode(node.Group.Resources, &resConfig); err != nil {
+				return "", err
 			}
-		}
+			if resConfig != nil {
+				hostConfig.Resources = container.Resources{
+					CPUShares: int64(resConfig.CPUShares),
+					CPUCount:  int64(resConfig.CPUCount),
+				}
+			}
+		*/
 	}
 
 	netConfig := &network.NetworkingConfig{
@@ -349,8 +351,26 @@ type Resource struct {
 	CPUCount  uint64 `mapstructure:"cpuCount"`
 }
 
-func (c *Client) Resources() interface{} {
-	return &Resource{}
+func (c *Client) Resources() operator.ProviderResources {
+	return operator.ProviderResources{
+		Resources: schema.Schema2{
+			Spec: &schema.Record{
+				Fields: map[string]*schema.Field{
+					"cpuShares": {
+						Type:     schema.TypeInt,
+						ForceNew: true,
+					},
+					"cpuCount": {
+						Type:     schema.TypeInt,
+						ForceNew: true,
+					},
+				},
+			},
+		},
+		Storage: schema.Schema2{
+			Spec: &schema.Record{},
+		},
+	}
 }
 
 func (c *Client) CreateResource(node *proto.Instance) (*proto.Instance, error) {

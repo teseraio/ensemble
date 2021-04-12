@@ -70,7 +70,7 @@ func TestItemDecoding(t *testing.T) {
 				Groups: []*proto.ClusterSpec_Group{
 					{
 						Count: 1,
-						Config: map[string]string{
+						Params: map[string]string{
 							"a": "b",
 						},
 					},

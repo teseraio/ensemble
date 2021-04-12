@@ -137,10 +137,9 @@ func decodeClusterSpec(item *Item) (*any.Any, error) {
 	var groups []*proto.ClusterSpec_Group
 	for _, s := range spec.Groups {
 		groups = append(groups, &proto.ClusterSpec_Group{
-			Name:   s.Name,
 			Count:  int64(s.Replicas),
 			Type:   s.Type,
-			Config: s.Params,
+			Params: s.Params,
 		})
 	}
 	res := proto.MustMarshalAny(&proto.ClusterSpec{

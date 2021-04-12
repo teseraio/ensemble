@@ -4,36 +4,41 @@ import (
 	"fmt"
 
 	"github.com/teseraio/ensemble/operator/proto"
+	"github.com/teseraio/ensemble/schema"
 )
 
 // HandlerFactory is a factory for Handlers
 type HandlerFactory func() Handler
 
-// Handler is the interface that needs to be implemented by the backend
-type Handler interface {
-	// EvaluatePlan evaluates and modifies the execution plan
-	//EvaluatePlan(n []*proto.Instance) error
-
-	//EvaluateConfig(spec *proto.NodeSpec, config map[string]string) error
-
-	Initialize(n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error)
-	// A(clr *proto.Cluster, n []*proto.Node) error
-
-	Ready(t *proto.Instance) bool
-
-	// PostHook is executed when a node changes the state
-	// PostHook(*HookCtx) error
-
-	// Spec returns the specification for the cluster
+type Handler2 interface {
 	Spec() *Spec
-
-	// Client returns a connection with a specific node in the cluster
-	Client(node *proto.Instance) (interface{}, error)
+	Initialize(n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error)
 }
 
-// Executor is the interface required by the backends to execute
-type Executor interface {
-	Exec(n *proto.Instance, path string, cmd ...string) error
+// Handler is the interface that needs to be implemented by the backend
+type Handler interface {
+	// Initialize(n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error)
+	Ready(t *proto.Instance) bool
+
+	// Spec returns the specification for the cluster
+	// Spec() *Spec
+
+	// Name returns the name of the handler
+	Name() string
+
+	// Client returns a connection with a specific node in the cluster
+	// Client(node *proto.Instance) (interface{}, error)
+
+	// GetSchemas returns the schemas for the backend
+	GetSchemas() GetSchemasResponse
+
+	// ApplyNodes applies to the spec the changes required
+	ApplyNodes(n []*proto.Instance, cluster []*proto.Instance) ([]*proto.Instance, error)
+}
+
+type GetSchemasResponse struct {
+	Nodes     map[string]schema.Schema2
+	Resources map[string]schema.Schema2
 }
 
 // Spec returns the backend specification
@@ -60,6 +65,8 @@ type Nodetype struct {
 
 	// Config is the configuration fields for this node type
 	Config interface{}
+
+	Schema schema.Schema2
 
 	// Version is the default docker image for the node
 	Version string
@@ -91,6 +98,56 @@ type Resource interface {
 	Delete(conn interface{}) error
 	Reconcile(conn interface{}) error
 	Init(spec map[string]interface{}) error
+}
+
+type BaseOperator struct {
+	handler Handler2
+}
+
+func (b *BaseOperator) SetHandler(h Handler2) {
+	b.handler = h
+}
+
+func (b *BaseOperator) GetSchemas() GetSchemasResponse {
+	resp := GetSchemasResponse{
+		Nodes:     map[string]schema.Schema2{},
+		Resources: map[string]schema.Schema2{},
+	}
+	// build the node types
+	for k, v := range b.handler.Spec().Nodetypes {
+		resp.Nodes[k] = v.Schema
+	}
+	// build the resources
+	return resp
+}
+
+func (b *BaseOperator) ApplyNodes(place []*proto.Instance, cluster []*proto.Instance) ([]*proto.Instance, error) {
+	// initialite the instances with the group specs
+	placeInstances := []*proto.Instance{}
+	for _, ii := range place {
+		ii = ii.Copy()
+		grpSpec := b.handler.Spec().Nodetypes[ii.Group.Type]
+
+		ii.Spec.Image = grpSpec.Image
+		ii.Spec.Version = grpSpec.Version
+
+		hh, ok := b.handler.Spec().Handlers[ii.Group.Type]
+		if ok {
+			hh(ii.Spec, ii.Group)
+		}
+		placeInstances = append(placeInstances, ii)
+	}
+
+	// add the place instances too
+	cluster = append(cluster, placeInstances...)
+
+	// initialize each node
+	for _, i := range placeInstances {
+		if _, err := b.handler.Initialize(cluster, i); err != nil {
+			panic(err)
+		}
+	}
+	return placeInstances, nil
 }
 
 // BaseResource is a resource that can have multiple instances

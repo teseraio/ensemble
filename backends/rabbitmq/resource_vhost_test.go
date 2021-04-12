@@ -1,12 +1,6 @@
 package rabbitmq
 
-import (
-	"testing"
-
-	"github.com/teseraio/ensemble/operator/proto"
-	"github.com/teseraio/ensemble/testutil"
-)
-
+/*
 func TestVHost(t *testing.T) {
 	srv := testutil.TestOperator(t, Factory)
 	defer srv.Close()
@@ -37,3 +31,4 @@ func TestVHost(t *testing.T) {
 
 	srv.WaitForTask(uuid2)
 }
+*/
