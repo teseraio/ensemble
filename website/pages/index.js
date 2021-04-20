@@ -1,17 +1,23 @@
 import Nav from '../components/nav'
 import Button from '../components/button'
 import clsx from 'clsx';
+import fs from 'fs'
+
+import Features from "../lib/landing/features"
 
 export default function IndexPage() {
   return (
     <div className="text-xl">
-      <Nav />
       <Hero />
       <WhyEnsemble />
-      <Features />
+      <>
+      <Section>
+      <Features title={"Features"} subtitle={"xxxx"} features={featuresList}/>
+      </Section>
+      </>
+      <Features2 />
       <UseCases />
       <CTA />
-      <Footer />
     </div>
   )
 }
@@ -81,7 +87,7 @@ const featuresList = [
   }
 ]
 
-const Features = () => (
+const Features2 = () => (
   <Section>
     <h1 className="text-4xl font-bold text-center mb-8">
       {'Features'}
@@ -240,12 +246,4 @@ const UseCases = () => (
       ))}
     </div>
   </Section>
-)
-
-const Footer = () => (
-  <div style={{backgroundColor: "#1C1C1C"}}>
-    <div className="container mx-auto text-base py-5 text-white">
-      {'© 2020 Tesera'}
-    </div>
-  </div>
 )

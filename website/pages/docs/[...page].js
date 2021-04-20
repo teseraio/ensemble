@@ -1,19 +1,17 @@
 
-import { getSidebarSlugs, getData } from '../../lib/sidebar'
 import sidebarContent from "../../data/sidebar-docs.json"
-
-import DocsPage from '../../components/docs'
+import { getSidebarSlugs, getData, Docs } from '../../lib/docs'
 
 export default function Post({postData}) {
-    return <DocsPage postData={postData} sidebar={sidebarContent} />
+    return <Docs postData={postData} sidebar={sidebarContent} />
 }
 
 const docsPrefix = "/docs/"
 
 export async function getStaticProps({ params }) {
-    return getData(params.page, docsPrefix)
+    return getData(docsPrefix, params)
 }
 
 export async function getStaticPaths() {
-    return getSidebarSlugs(sidebarContent, docsPrefix)
+    return getSidebarSlugs(docsPrefix)
 }

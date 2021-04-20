@@ -16,6 +16,9 @@
     "next-mdx-remote": "^1.0.0",
     "react": "^16.13.1",
     "react-dom": "^16.13.1",
+    "remark": "^13.0.0",
+    "remark-html": "^13.0.1",
+    "remark-parse": "^9.0.0",
     "unist-util-is": "^4.0.3",
     "unist-util-map": "^2.0.1"
   },

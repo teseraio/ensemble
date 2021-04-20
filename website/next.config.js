@@ -3,7 +3,12 @@
 module.exports = {
     pageExtensions: ['js', 'jsx', 'mdx'],
 
-    webpack: (config) => {
+    webpack: (config, { isServer }) => {
+        if (!isServer) {
+            config.node = {
+                fs: "empty"
+            }
+        }
         config.module.rules.push({
             test: /\.svg$/,
             use: [

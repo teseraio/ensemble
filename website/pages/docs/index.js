@@ -1,12 +1,12 @@
 
-import DocsPage from '../../components/docs'
+import {Docs} from '../../lib/docs'
 import sidebarContent from "../../data/sidebar-docs.json"
 
 export default function FirstPost({sidebar}) {
   const postData = {
     title: 'Documentation',
   }
-  return <DocsPage index={Index} postData={postData} sidebar={sidebarContent}/>
+  return <Docs index={Index} postData={postData} sidebar={sidebarContent}/>
 }
 
 const Index = () => (
