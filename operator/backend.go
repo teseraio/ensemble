@@ -23,7 +23,7 @@ type Handler interface {
 	// Spec returns the specification for the cluster
 	// Spec() *Spec
 
-	// Name returns the name of the handler
+	// Name returns the name of the handler (TODO. it can be removed later)
 	Name() string
 
 	// Client returns a connection with a specific node in the cluster
@@ -43,7 +43,7 @@ type GetSchemasResponse struct {
 
 // Spec returns the backend specification
 type Spec struct {
-	Name      string
+	Name      string // out
 	Nodetypes map[string]Nodetype
 	Resources []Resource
 	Handlers  map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group)
@@ -64,7 +64,7 @@ type Nodetype struct {
 	Image string
 
 	// Config is the configuration fields for this node type
-	Config interface{}
+	Config interface{} // out
 
 	Schema schema.Schema2
 
@@ -160,3 +160,18 @@ func (b *BaseResource) Init(spec map[string]interface{}) error {
 }
 
 var ErrResourceNotFound = fmt.Errorf("resource not found")
+
+type CallbackRequest struct {
+	Client interface{}
+}
+
+func (c *CallbackRequest) Get(s string) interface{} {
+	return nil
+}
+
+type Resource2 struct {
+	Name     string
+	Schema   *schema.Record
+	DeleteFn func(req *CallbackRequest) error
+	ApplyFn  func(req *CallbackRequest) error
+}
