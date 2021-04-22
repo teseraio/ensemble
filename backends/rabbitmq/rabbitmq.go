@@ -5,6 +5,7 @@ import (
 	"github.com/teseraio/ensemble/lib/template"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
+	"github.com/teseraio/ensemble/schema"
 )
 
 const (
@@ -88,8 +89,8 @@ func (b *backend) Spec() *operator.Spec {
 				},
 			},
 		},
-		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group){
-			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group) {
+		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData){
+			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData) {
 				spec.Image = "rabbitmq"
 				spec.Version = "latest"
 			},

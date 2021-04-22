@@ -46,7 +46,7 @@ type Spec struct {
 	Name      string // out
 	Nodetypes map[string]Nodetype
 	Resources []Resource
-	Handlers  map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group)
+	Handlers  map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData)
 }
 
 func (s *Spec) GetResource(name string) (res Resource) {
@@ -131,9 +131,12 @@ func (b *BaseOperator) ApplyNodes(place []*proto.Instance, cluster []*proto.Inst
 		ii.Spec.Image = grpSpec.Image
 		ii.Spec.Version = grpSpec.Version
 
+		fmt.Println("-- grp params --")
+		fmt.Println(ii.Group.Params)
+
 		hh, ok := b.handler.Spec().Handlers[ii.Group.Type]
 		if ok {
-			hh(ii.Spec, ii.Group)
+			hh(ii.Spec, ii.Group, schema.NewResourceData(&grpSpec.Schema, ii.Group.Params))
 		}
 		placeInstances = append(placeInstances, ii)
 	}

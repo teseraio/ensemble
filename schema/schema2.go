@@ -13,6 +13,24 @@ type Schema2 struct {
 	Spec *Record
 }
 
+func (s *Schema2) Get(k string) (*Field, error) {
+	parts := strings.Split(k, ".")
+
+	rec := s.Spec
+	for {
+		var key string
+		key, parts = parts[0], parts[1:]
+
+		field, ok := rec.Fields[key]
+		if !ok {
+			return nil, fmt.Errorf("field %s not found", key)
+		}
+		if len(parts) == 0 {
+			return field, nil
+		}
+	}
+}
+
 func (s *Schema2) Validate(spec *proto.Spec) error {
 	fmt.Println("-- validate --")
 	fmt.Println(s.Spec)

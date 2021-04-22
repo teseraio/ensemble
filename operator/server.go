@@ -129,7 +129,7 @@ func (s *Server) upsertNodeAndEval(i *proto.Instance) error {
 }
 
 func (s *Server) updateStatus(op *proto.InstanceUpdate) error {
-	s.logger.Debug("update instance status", "id", op.ID, "cluster", op.Cluster)
+	s.logger.Debug("update instance status", "id", op.ID, "cluster", op.Cluster, "op", op)
 
 	i, err := s.State.LoadInstance(op.Cluster, op.ID)
 	if err != nil {

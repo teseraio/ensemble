@@ -19,6 +19,11 @@ func TestBootstrap(t *testing.T) {
 			Groups: []*proto.ClusterSpec_Group{
 				{
 					Count: 3,
+					Params: schema.MapToSpec(
+						map[string]interface{}{
+							"tickTime": "2000",
+						},
+					),
 					Resources: schema.MapToSpec(
 						map[string]interface{}{
 							"cpuShares": "1000",
