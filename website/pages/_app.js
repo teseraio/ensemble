@@ -1,8 +1,9 @@
 import '../styles/index.css'
+import '../lib/docs/styles/docs.css'
 
 import React from 'react'
 import Head from 'next/head'
-import Nav from "../lib/app/nav"
+import Header from "../lib/app/header"
 import Footer from "../lib/app/footer"
 import Link from 'next/link'
 
@@ -33,7 +34,7 @@ function MyApp({ Component, pageProps }) {
       <Head>
         <title>Ensemble</title>
       </Head>
-      <Nav Logo={Ensemble} links={links} />
+      <Header Logo={Ensemble} links={links} />
       <Component {...pageProps} />
       <Footer Link={Link} links={footer_links} icons={footer_icons}/>
     </>

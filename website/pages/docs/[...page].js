@@ -9,9 +9,15 @@ export default function Post({postData}) {
 const docsPrefix = "/docs/"
 
 export async function getStaticProps({ params }) {
+    console.log("-- params --")
+    console.log(params)
+    
     return getData(docsPrefix, params)
 }
 
 export async function getStaticPaths() {
-    return getSidebarSlugs(docsPrefix)
+    const xx =  getSidebarSlugs(docsPrefix)
+
+    console.log(JSON.stringify(xx))
+    return xx
 }

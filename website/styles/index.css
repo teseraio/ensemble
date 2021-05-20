@@ -40,6 +40,7 @@
   font-display: swap;
 }
 
+/*
 .btn-blue {
   @apply bg-blue-500 text-white font-bold py-2 px-4 rounded;
 }
@@ -200,6 +201,43 @@ h3 {
   font-weight: bold;
   margin-top:20px;
 }
+*/
+
+ul.experiences{
+  list-style: none;
+  margin:0;
+  padding:0;
+  position: relative;
+}
+
+ul.experiences:before{
+  content:"";
+  display: inline-block;
+  width: 2px;
+  background: red;
+  position: absolute;
+  left:25px;
+  top:5px;
+  height: calc(100% - 10px );
+}
+
+/*
+ul.experiences li{
+    position: relative;
+}
+
+ul.experiences li:before{
+      content:"";
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background: red;
+      position: absolute;
+      left: -18px;
+      top: 14px;
+      border-radius: 10px;
+}
+*/
 
 @import 'prism.css';
 

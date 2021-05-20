@@ -23,7 +23,7 @@
         {
             "name": "Databases",
             "prefix": "/docs/databases",
-            "routes": [
+            "children": [
                 {
                     "name": "Cassandra",
                     "href": "/docs/databases/cassandra"

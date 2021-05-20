@@ -5,7 +5,7 @@ import Link from 'next/link'
 
 const {useState} = React;
 
-export default function Sidebar({path, sidebar}) {
+function Sidebar({path, sidebar}) {
     path = ""
 
     return (
@@ -69,105 +69,82 @@ const Item = ({item, path}) => {
   )
 }
 
+/* This example requires Tailwind CSS v2.0+ */
+import { Disclosure } from '@headlessui/react'
 
-
-/*
-import Link from 'next/link'
-import React from 'react'
-import { useRouter } from 'next/router'
-import clsx from 'clsx';
-
-import Chevron from '../assets/chevron.svg'
-
-const {useState} = React;
-
-export default function Sidebar({sidebar}) {
-    return (
-        <div className="pt-10 overflow-y-hidden sidebar">
-            <ul>
-                {sidebar.map((route, indx) => {
-                    const {type} = route
-                    if (type == "title") {
-                        return <TitleSection key={indx} item={route} />
-                    } else if (type == "sep") {
-                        return <Separator />
-                    }
-                    return <Item key={indx} text={route.name} href={route.href} prefix={route.prefix} items={route.routes} />
-                })}
-            </ul>
-        </div>
-    )
+function classNames(...classes) {
+  return classes.filter(Boolean).join(' ')
 }
 
-const Separator = () => (
-    <div>{'Split'}</div>
-)
+export default function Example({sidebar}) {
+  return (
+    <div className="flex flex-col flex-grow pb-4 overflow-y-auto">
+      <div className="mt-4 mx-2 flex-grow flex flex-col">
+        <nav className="flex-1 px-2 space-y-1" aria-label="Sidebar">
+          {sidebar.map((item) =>
+            <Item22 item={item} />
+          )}
+        </nav>
+      </div>
+    </div>
+  )
+}
 
-const TitleSection = ({item}) => {
+
+function Item22({item}) {
+  if (!item.children) {
     return (
-        <h5
-            className="pt-3 pb-2 font-bold text-xl"
-        >
+      <div key={item.name}>
+      <a
+        href={item.href}
+        className={classNames(
+          item.current
+            ? 'bg-gray-100 text-gray-900'
+            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+          'group w-full flex items-center pl-2 py-2 text-sm font-medium rounded-md'
+        )}
+      >
+        {item.name}
+      </a>
+    </div>
+    )
+  }
+
+  return (
+    <Disclosure as="div" key={item.name} className="space-y-1">
+      {({ open }) => (
+        <>
+          <Disclosure.Button
+            className={classNames(
+              item.current
+                ? 'bg-gray-100 text-gray-900'
+                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+              'group w-full flex items-center pl-2 pr-1 py-2 text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500'
+            )}
+          >
             {item.name}
-        </h5>
-    )
-}
-
-const Item = ({text, href, prefix, items}) => {
-    const router = useRouter()
-    const path = router.asPath
-
-    // check if the route opens this sidebar
-    let checkPath = href
-    if (checkPath == undefined) {
-        checkPath = prefix
-    }
-    const isActive = path.startsWith(checkPath)
-    
-    // check if the sidebar route is open
-    const [isOpen, setIsOpen] = useState(isActive)
-    const buttonHandler = () => {
-        setIsOpen(current => !current)
-    }
-
-    return (
-        <li
-            id="nav"
-            className={clsx(
-                'relative',
-            )}
-        >
-            <div
-            className={clsx('pl-3',
-                {
-                    'text-main': isActive,
-                }
-            )}
+            <svg
+              className={classNames(
+                open ? 'text-gray-400 rotate-90' : 'text-gray-300',
+                'ml-auto h-5 w-5 transform group-hover:text-gray-400 transition-colors ease-in-out duration-150'
+              )}
+              viewBox="0 0 20 20"
+              aria-hidden="true"
             >
-            {items ? 
-                <span>
-                    <a className="cursor-pointer block" onClick={buttonHandler}>
-                        <Chevron className={clsx('absolute', {'rotate': isOpen})} style={{top: '17px', left: '5px'}}/>
-                        <span>{text}</span>
-                    </a>
-                </span>
-            : 
-                <Link href={href}>
-                    <a className="cursor-pointer">{text}</a>
-                </Link>
-            }
-            </div>
-            {items && isOpen &&
-                <ul
-                    className='pl-8 relative'
-                    style={{top: '-3px'}}
-                >
-                    {items.map((item, indx) => (
-                        <Item key={indx} text={item.name} href={item.href} items={item.routes} />
-                    ))}
-                </ul>
-            }
-        </li>
-    )
+              <path d="M6 6L14 10L6 14V6Z" fill="currentColor" />
+            </svg>
+          </Disclosure.Button>
+          <Disclosure.Panel className="space-y-1">
+            <ul className="experiences">
+              {item.children.map((subItem) => (
+                <li className="ml-10">
+                  <Item22 item={subItem} />
+                </li>
+              ))}
+            </ul>
+          </Disclosure.Panel>
+        </>
+      )}
+    </Disclosure>
+  )
 }
-*/

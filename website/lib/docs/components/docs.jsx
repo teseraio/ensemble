@@ -1,5 +1,6 @@
+
 import clsx from 'clsx';
-import React, { useState } from 'react';
+//import React, { useState } from 'react';
 import Link from 'next/link'
 
 import Sidebar from './sidebar'
@@ -83,7 +84,7 @@ export default function Docs({postData, index, sidebar}) {
 }
 */
 
-export default function Docs({postData, index, sidebar}) {
+function Docxs({postData, index, sidebar}) {
     let content = undefined;
     if (index != undefined) {
         content = index
@@ -229,3 +230,178 @@ const NavButton = ({isNavOpen, setOpenNav}) => (
   </button>
 )
 */
+
+
+/*
+  This example requires Tailwind CSS v2.0+ 
+  
+  This example requires some changes to your config:
+  
+  ```
+  // tailwind.config.js
+  module.exports = {
+    // ...
+    plugins: [
+      // ...
+      require('@tailwindcss/forms'),
+    ]
+  }
+  ```
+*/
+import { Menu, Popover } from '@headlessui/react'
+import { SearchIcon } from '@heroicons/react/solid'
+import { BellIcon } from '@heroicons/react/outline'
+
+/*
+const user = {
+  name: 'Chelsea Hagon',
+  handle: 'chelseahagon',
+  email: 'chelseahagon@example.com',
+  role: 'Human Resources Manager',
+  imageId: '1550525811-e5869dd03032',
+  imageUrl:
+    'https://images.unsplash.com/photo-1550525811-e5869dd03032?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
+}
+
+const userNavigation = [
+  { name: 'Your Profile', href: '#' },
+  { name: 'Settings', href: '#' },
+  { name: 'Sign out', href: '#' },
+]
+*/
+
+export default function Example({postData, main, sidebar}) {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  let content = undefined;
+  if (main != undefined) {
+      content = main
+  } else {
+      content = hydrate(postData.contentHtml, { })
+  }
+
+  console.log("-- sidebar --")
+  console.log(sidebar)
+
+  return (
+    <div className="">
+      <Transition.Root show={sidebarOpen} as={Fragment}>
+        <Dialog
+          as="div"
+          static
+          className="fixed inset-0 flex z-40 lg:hidden"
+          open={sidebarOpen}
+          onClose={setSidebarOpen}
+        >
+          <Transition.Child
+            as={Fragment}
+            enter="transition-opacity ease-linear duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="transition-opacity ease-linear duration-300"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <Dialog.Overlay className="fixed inset-0 bg-gray-600 bg-opacity-75" />
+          </Transition.Child>
+          <Transition.Child
+            as={Fragment}
+            enter="transition ease-in-out duration-300 transform"
+            enterFrom="-translate-x-full"
+            enterTo="translate-x-0"
+            leave="transition ease-in-out duration-300 transform"
+            leaveFrom="translate-x-0"
+            leaveTo="-translate-x-full"
+          >
+            <div className="fixed h-full flex-1 flex flex-col max-w-xs w-full bg-white focus:outline-none">
+              <Transition.Child
+                as={Fragment}
+                enter="ease-in-out duration-300"
+                enterFrom="opacity-0"
+                enterTo="opacity-100"
+                leave="ease-in-out duration-300"
+                leaveFrom="opacity-100"
+                leaveTo="opacity-0"
+              >
+                <div className="absolute top-0 right-0 -mr-12 pt-2">
+                  <button
+                    type="button"
+                    className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <span className="sr-only">Close sidebar</span>
+                    <XIcon className="h-6 w-6 text-white" aria-hidden="true" />
+                  </button>
+                </div>
+              </Transition.Child>
+              <div className="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
+                <Sidebar sidebar={sidebar.sidebar} />
+              </div>
+            </div>
+          </Transition.Child>
+          <div className="flex-shrink-0 w-14" aria-hidden="true">
+            {/* Force sidebar to shrink to fit close icon */}
+          </div>
+        </Dialog>
+      </Transition.Root>
+
+      <div className="py-6">
+        <div className="sm:px-6 lg:px-8 lg:grid lg:grid-cols-12 lg:gap-8">
+          <div className="hidden border-r lg:block lg:col-span-3 xl:col-span-2">
+            <nav aria-label="Sidebar" className="sticky top-28 divide-y divide-gray-300">
+              <Sidebar sidebar={sidebar.sidebar} />
+            </nav>
+          </div>
+
+          {/* Small screen open menu sidebar */}
+          <div className="lg:hidden">
+            <div className="flex items-center justify-between bg-gray-50 border-b border-gray-200 px-4 py-1.5">
+                <a
+                  type="button"
+                  className="-mr-3 h-12 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-900"
+                  onClick={() => setSidebarOpen(true)}
+                >
+                  <span >Open sidebar</span>
+                </a>
+            </div>
+          </div>
+
+          {/* Main content*/}
+          <main className="lg:col-span-9 xl:col-span-7 docs">
+
+            <h1>
+              <span className="mt-3 block text-3xl leading-8 font-extrabold tracking-tight text-gray-900 sm:text-4xl">
+                {postData.title}
+              </span>
+            </h1>
+
+            {content}
+          </main>
+
+          {/* Right sidebar */}
+          <aside className="hidden xl:block xl:col-span-3">
+            <div className="sticky top-28 space-y-4">{"C"}</div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* This example requires Tailwind CSS v2.0+ */
+import { Fragment, useState } from 'react'
+import { Dialog, Transition } from '@headlessui/react'
+import {
+  CalendarIcon,
+  HomeIcon,
+  MapIcon,
+  MenuIcon,
+  SearchCircleIcon,
+  SpeakerphoneIcon,
+  UserGroupIcon,
+  XIcon,
+} from '@heroicons/react/outline'
+
+function classNames(...classes) {
+  return classes.filter(Boolean).join(' ')
+}

@@ -6,7 +6,7 @@ export default function FirstPost({sidebar}) {
   const postData = {
     title: 'Documentation',
   }
-  return <Docs index={Index} postData={postData} sidebar={sidebarContent}/>
+  return <Docs main={Index} postData={postData} sidebar={sidebarContent}/>
 }
 
 const Index = () => (

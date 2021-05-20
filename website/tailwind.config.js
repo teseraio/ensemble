@@ -13,11 +13,20 @@ module.exports = {
         'white3': '#f4f4f4',
         'tgrey-black': "#cccccc",
         'tgrey-white': "#5e5e5e",
-        'main': '#6B1FFF'
+        'main': '#6B1FFF',
+        'ensemble': '#6B1FFF',
       },
+      /*
       inset: {
         '16': '4rem !important'
       },
+      */
+      backgroundImage: theme => ({
+        'use-cases': "url('/texture-squares.svg')",
+      }),
+    },
+    boxShadow: {
+      'use-cases': '7px 7px 0 0 rgba(50,50,50,.11)'
     },
     fontFamily: {
       sans: ['"Mada"', 'sans-serif']

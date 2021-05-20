@@ -43,6 +43,10 @@ export function getSidebarSlugs(subpath) {
   const fullPath = path.join(process.cwd(), contentFolder, subpath)
 
   const files = fs.readdirSync(fullPath)
+
+  console.log(fullPath)
+  console.log(JSON.stringify(files))
+
   const paths = files.filter(el => /\.mdx$/.test(el)).map(i => {
       return {
           params: {

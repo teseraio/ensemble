@@ -2,22 +2,16 @@ import Nav from '../components/nav'
 import Button from '../components/button'
 import clsx from 'clsx';
 import fs from 'fs'
-
-import Features from "../lib/landing/features"
+import Home from "../components/home"
+import Cta from "../lib/landing/cta"
+import Hero from "../lib/landing/hero"
 
 export default function IndexPage() {
   return (
     <div className="text-xl">
       <Hero />
-      <WhyEnsemble />
-      <>
-      <Section>
-      <Features title={"Features"} subtitle={"xxxx"} features={featuresList}/>
-      </Section>
-      </>
-      <Features2 />
-      <UseCases />
-      <CTA />
+      <Home/>
+      <Cta />
     </div>
   )
 }
@@ -30,6 +24,7 @@ const Section = ({className, children, padding=true}) => (
   </div>
 )
 
+/*
 const Hero = () => (
   <Section className="bg-main text-white" padding={false}>
     <div className="py-16 md:py-24">
@@ -46,6 +41,7 @@ const Hero = () => (
     </div>
   </Section>
 )
+*/
 
 import FHighAvailability from "../assets/features/Ensemble-high-availability.svg"
 import FKubernetes from "../assets/features/Ensemble-kubernetes.svg"
