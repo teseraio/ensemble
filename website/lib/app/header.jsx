@@ -16,6 +16,7 @@ import GithubWidget from "./github"
 
 import Tesera from "./tesera"
 
+/*
 const solutions = [
   {
     name: 'Analytics',
@@ -49,6 +50,9 @@ const solutions = [
     icon: DocumentReportIcon,
   },
 ]
+*/
+
+/*
 const resources = [
   {
     name: 'Help Center',
@@ -59,49 +63,85 @@ const resources = [
   { name: 'Events', description: 'See what meet-ups and other events we might be planning near you.', href: '#' },
   { name: 'Security', description: 'Understand how we take your privacy seriously.', href: '#' },
 ]
+*/
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ')
 }
 
+const resources = [
+  {
+    name: "Changelog",
+    href: "/changelog"
+  },
+  {
+    name: "Community",
+    href: "/community"
+  },
+  {
+    name: "Docs",
+    href: "/docs"
+  },
+  {
+    name: "Enterprise",
+    href: "/enterprise"
+  }
+]
+
 export default function Example() {
+  
+  var resources2 = [...resources];
+
+  // append enterprise
+  resources2.push({
+    name: "Enterprise",
+    href: "https://tesera.io"
+  })
+
+  // append github (always)
+  resources2.push({
+    name: "Github",
+    href: ""
+  })
+
+  // append download
+  resources2.push({
+    name: "Download",
+    href: ""
+  })
+
   return (
     <>
       <Tesera />
     <Popover className="bg-main sticky w-full top-0 z-10 text-white">
       {({ open }) => (
         <>
-          <div className="flex justify-between items-center px-4 py-6 sm:px-6 md:justify-start md:space-x-10">
+          <div className="flex justify-between items-center px-4 py-4 sm:px-6 lg:justify-start lg:space-x-10">
             <div>
               <a href="/" className="flex">
                 <span className="sr-only">Workflow</span>
                 <img
-                  className="h-8 w-auto"
+                  className="h-7 w-auto"
                   src="/logo-ensemble-white.svg"
                   alt=""
                 />
               </a>
             </div>
-            <div className="-mr-2 -my-2 md:hidden">
-              <Popover.Button className="bg-white rounded-md p-2 inline-flex items-center justify-center hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500">
+            <div className="-mr-2 -my-2 lg:hidden">
+              <Popover.Button className="bg-ensemble p-2 inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500">
                 <span className="sr-only">Open menu</span>
                 <MenuIcon className="h-6 w-6" aria-hidden="true" />
               </Popover.Button>
             </div>
-            <div className="hidden md:flex-1 md:flex md:items-center md:justify-between">
+            <div className="hidden lg:flex-1 lg:flex lg:items-center lg:justify-between">
               <Popover.Group as="nav" className="flex space-x-10">
-                <a href="/changelog" className="text-base font-medium">
-                  Changelog
-                </a>
-                <a href="/community" className="text-base font-medium">
-                  Community
-                </a>
-                <a href="/docs" className="text-base font-medium">
-                  Docs
-                </a>
-                <UseCases />
+                {resources.map((item, indx) => (
+                  <a href={item.href} key={indx} className="text-base font-medium">
+                    {item.name}
+                  </a>
+                ))}
               </Popover.Group>
-              <div className="flex items-center md:ml-10">
+              <div className="flex items-center lg:ml-10">
                 <GithubWidget repo="teseraio/ensemble" />
                 <a
                   href="#"
@@ -126,56 +166,29 @@ export default function Example() {
             <Popover.Panel
               focus
               static
-              className="absolute top-0 inset-x-0 p-2 transition transform origin-top-right md:hidden"
+              className="absolute top-0 inset-x-0 p-2 transition transform origin-top-right lg:hidden"
             >
-              <div className="rounded-lg shadow-lg ring-1 ring-black ring-opacity-5 bg-white divide-y-2 divide-gray-50">
+              <div className="ring-1 ring-black ring-opacity-5 bg-white divide-y-2 divide-gray-50">
                 <div className="pt-5 pb-6 px-5">
                   <div className="flex items-center justify-between">
                     <div>
                       <img
                         className="h-8 w-auto"
-                        src="https://tailwindui.com/img/logos/workflow-mark-indigo-600.svg"
-                        alt="Workflow"
+                        src="/logo-ensemble-black.svg"
+                        alt="Ensemble"
                       />
                     </div>
                     <div className="-mr-2">
-                      <Popover.Button className="bg-white rounded-md p-2 inline-flex items-center justify-center hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500">
+                      <Popover.Button className="bg-black p-2 inline-flex items-center justify-center hover:bg-white hover:text-black focus:outline-none">
                         <span className="sr-only">Close menu</span>
                         <XIcon className="h-6 w-6" aria-hidden="true" />
                       </Popover.Button>
                     </div>
                   </div>
-                  <div className="mt-6">
-                    <nav className="grid gap-6">
-                      {solutions.map((item) => (
-                        <a
-                          key={item.name}
-                          href={item.href}
-                          className="-m-3 p-3 flex items-center rounded-lg hover:bg-gray-50"
-                        >
-                          <div className="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-md bg-indigo-500 text-white">
-                            <item.icon className="h-6 w-6" aria-hidden="true" />
-                          </div>
-                          <div className="ml-4 text-base font-medium">{item.name}</div>
-                        </a>
-                      ))}
-                    </nav>
-                  </div>
                 </div>
                 <div className="py-6 px-5">
-                  <div className="grid grid-cols-2 gap-4">
-                    <a href="#" className="text-base font-medium text-gray-900 hover:text-gray-700">
-                      Pricing
-                    </a>
-
-                    <a href="#" className="text-base font-medium text-gray-900 hover:text-gray-700">
-                      Docs
-                    </a>
-
-                    <a href="#" className="text-base font-medium text-gray-900 hover:text-gray-700">
-                      Enterprise
-                    </a>
-                    {resources.map((item) => (
+                  <div className="grid grid-cols-1 gap-4">
+                    {resources2.map((item) => (
                       <a
                         key={item.name}
                         href={item.href}
@@ -184,20 +197,6 @@ export default function Example() {
                         {item.name}
                       </a>
                     ))}
-                  </div>
-                  <div className="mt-6">
-                    <a
-                      href="#"
-                      className="w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700"
-                    >
-                      Sign up
-                    </a>
-                    <p className="mt-6 text-center text-base font-medium text-gray-500">
-                      Existing customer?{' '}
-                      <a href="#" className="text-indigo-600 hover:text-indigo-500">
-                        Sign in
-                      </a>
-                    </p>
                   </div>
                 </div>
               </div>
@@ -209,13 +208,6 @@ export default function Example() {
     </>
   )
 }
-
-/*    position: sticky;
-    top: 0;
-    width: 100%;
-    z-index: 50;
-}
-*/
 
 const solutions2 = [
   {

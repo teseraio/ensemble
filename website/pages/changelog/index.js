@@ -1,10 +1,10 @@
 
-import {Changelog, processChangelog} from "../../lib/changelog"
+import {Changelog} from "@teseraio/tesera-oss"
 
 export default function Index(data) {
-    return <Changelog {...data} />
+    return <Changelog.Changelog {...data} />
 }
 
 export async function getStaticProps() {
-    return processChangelog()
+    return Changelog.processChangelog()
 }

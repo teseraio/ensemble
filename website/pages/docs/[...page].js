@@ -1,9 +1,11 @@
 
 import sidebarContent from "../../data/sidebar-docs.json"
-import { getSidebarSlugs, getData, Docs } from '../../lib/docs'
+
+import { Docs } from "@teseraio/tesera-oss"
+//import { getSidebarSlugs, getData, Docs } from '../../lib/docs'
 
 export default function Post({postData}) {
-    return <Docs postData={postData} sidebar={sidebarContent} />
+    return <Docs.Docs postData={postData} sidebar={sidebarContent} />
 }
 
 const docsPrefix = "/docs/"
@@ -12,11 +14,11 @@ export async function getStaticProps({ params }) {
     console.log("-- params --")
     console.log(params)
     
-    return getData(docsPrefix, params)
+    return Docs.getData(docsPrefix, params)
 }
 
 export async function getStaticPaths() {
-    const xx =  getSidebarSlugs(docsPrefix)
+    const xx =  Docs.getSidebarSlugs(docsPrefix)
 
     console.log(JSON.stringify(xx))
     return xx

@@ -17,12 +17,12 @@ import GithubWidget from "./github"
 export default function Example() {
   return (
 
-          <div className="bg-black text-white flex justify-between items-center px-4 py-6 sm:px-6 md:justify-start md:space-x-10">
+          <div className="bg-black text-white flex justify-between items-center px-4 py-4 sm:px-6 md:justify-start md:space-x-10">
             <div>
               <a href="/" className="flex">
                 <span className="sr-only">Workflow</span>
                 <img
-                  className="h-8 w-auto"
+                  className="h-7 w-auto"
                   src="/logo-tesera-white-cont.svg"
                   alt=""
                 />

@@ -1,15 +1,21 @@
 import '../styles/index.css'
 import '../lib/docs/styles/docs.css'
+import '../lib/changelog/styles/changelog.css'
 
 import React from 'react'
 import Head from 'next/head'
+
 import Header from "../lib/app/header"
 import Footer from "../lib/app/footer"
+
+import {ConsentManager} from "@teseraio/cookie-consent-manager"
+import {App} from "@teseraio/tesera-oss"
+
 import Link from 'next/link'
 
 import Ensemble from "../assets/logo-ensemble-white.svg";
 
-const links = [
+const navigation = [
   {
     title: "Use cases",
     href: "/use-cases",
@@ -34,9 +40,17 @@ function MyApp({ Component, pageProps }) {
       <Head>
         <title>Ensemble</title>
       </Head>
-      <Header Logo={Ensemble} links={links} />
+      <App.Header
+        logoWhite={"/logo-ensemble-white.svg"}
+        logoBlack={"/logo-ensemble-black.svg"}
+        navigation={navigation}
+        repo={'teseraio/ensemble'}
+      />
       <Component {...pageProps} />
-      <Footer Link={Link} links={footer_links} icons={footer_icons}/>
+      <ConsentManager
+        segmentWriteKey={"pGBpgRG6HG5pXv6sMMJqTVzC9ww8kjNQ"}
+      />
+      <App.Footer Link={Link} navigation={[]} social={[]} links={footer_links} icons={footer_icons}/>
     </>
   )
 }

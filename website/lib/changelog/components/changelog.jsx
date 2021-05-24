@@ -39,28 +39,26 @@ import { NewspaperIcon, PhoneIcon, SupportIcon } from '@heroicons/react/outline'
 
 export default function Example({vers}) {
   return (
-    <div className="bg-white text-black">
+    <div className="bg-white text-black changelog">
       {/* Header */}
       <div className="relative pb-32">
-        <div className="absolute inset-0">
-          <div className="absolute inset-0" style={{ mixBlendMode: 'multiply' }} aria-hidden="true" />
-        </div>
-        <div className="relative container max-w-7xl mx-auto py-24 px-4 sm:py-32 sm:px-6 lg:px-8">
-          <h1 className="text-4xl font-extrabold tracking-tight md:text-5xl lg:text-6xl">Changelog</h1>
+        <div className="relative container max-w-7xl mx-auto py-24 px-4 sm:py-24 sm:px-6 lg:px-8">
+          <h1 className="text-4xl font-extrabold tracking-tight text-black md:text-5xl lg:text-6xl">Changelog</h1>
           <p className="mt-6 max-w-3xl text-xl">
-            New improvements and changes on Ensemble
+            Varius facilisi mauris sed sit. Non sed et duis dui leo, vulputate id malesuada non. Cras aliquet purus dui
+            laoreet diam sed lacus, fames. Dui, amet, nec sit pulvinar.
           </p>
         </div>
       </div>
 
       {/* Overlapping cards */}
       <section
-        className="-mt-32 container max-w-7xl mx-auto relative"
+        className="-mt-32 container max-w-7xl mx-auto relative px-4"
         aria-labelledby="contact-heading"
       >
         {vers.map((item, indx) => (
-          <div key={indx} className="grid grid-cols-5">
-              <div className="hidden lg:block">
+          <div key={indx} className="grid grid-cols-5 border-t pt-16 pb-10">
+              <div className="hidden ml-5 lg:block">
                 {item.version}
               </div>
               <div className="col-span-5 lg:col-span-4 text-base">

@@ -1,12 +1,15 @@
 // next.config.js
 
-module.exports = {
+const withTM = require('next-transpile-modules')(['@teseraio/tesera-oss']);
+
+module.exports = withTM({
     pageExtensions: ['js', 'jsx', 'mdx'],
 
     webpack: (config, { isServer }) => {
         if (!isServer) {
             config.node = {
-                fs: "empty"
+                fs: "empty",
+                net: 'empty'
             }
         }
         config.module.rules.push({
@@ -22,4 +25,4 @@ module.exports = {
         });
       return config
     },
-}
+})

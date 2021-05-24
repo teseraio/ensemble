@@ -2,16 +2,16 @@ import Nav from '../components/nav'
 import Button from '../components/button'
 import clsx from 'clsx';
 import fs from 'fs'
-import Home from "../components/home"
-import Cta from "../lib/landing/cta"
-import Hero from "../lib/landing/hero"
+//import Home from "../components/home"
+//import Cta from "../lib/landing/cta"
+//import Hero from "../lib/landing/hero"
+import {Landing} from "@teseraio/tesera-oss"
 
 export default function IndexPage() {
   return (
     <div className="text-xl">
-      <Hero />
-      <Home/>
-      <Cta />
+     <Landing.Hero />
+     <Landing.Cta />
     </div>
   )
 }
