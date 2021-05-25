@@ -5,17 +5,25 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mitchellh/mapstructure"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
+	"github.com/teseraio/ensemble/schema"
 )
 
 type backend struct {
+	*operator.BaseOperator
 }
 
 // Factory is a factory method for the zookeeper backend
 func Factory() operator.Handler {
-	return &backend{}
+	b := &backend{}
+	b.BaseOperator = &operator.BaseOperator{}
+	b.BaseOperator.SetHandler(b)
+	return b
+}
+
+func (b *backend) Name() string {
+	return "zookeeper"
 }
 
 func (b *backend) Ready(t *proto.Instance) bool {
@@ -53,10 +61,6 @@ func getZkNodeSpec(node *proto.Instance, index uint64) string {
 	return fmt.Sprintf("server.%d=%s:2888:3888;2181", index, node.FullName())
 }
 
-type config struct {
-	TickTime uint64 `mapstructure:"tickTime"`
-}
-
 // Spec implements the Handler interface
 func (b *backend) Spec() *operator.Spec {
 	return &operator.Spec{
@@ -67,20 +71,20 @@ func (b *backend) Spec() *operator.Spec {
 				Version: "3.6",
 				Volumes: []*operator.Volume{},
 				Ports:   []*operator.Port{},
-				Config:  &config{},
+				Schema: schema.Schema2{
+					Spec: &schema.Record{
+						Fields: map[string]*schema.Field{
+							"tickTime": {
+								Type: schema.TypeString,
+							},
+						},
+					},
+				},
 			},
 		},
-		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group){
-			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group) {
-				var c *config
-				if err := mapstructure.WeakDecode(grp.Config, &c); err != nil {
-					panic(err)
-				}
-				if c != nil {
-					if c.TickTime != 0 {
-						spec.AddEnv("ZOO_TICK_TIME", strconv.Itoa(int(c.TickTime)))
-					}
-				}
+		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData){
+			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData) {
+				spec.AddEnv("ZOO_TICK_TIME", data.Get("tickTime").(string))
 			},
 		},
 	}

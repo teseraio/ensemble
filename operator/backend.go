@@ -4,53 +4,63 @@ import (
 	"fmt"
 
 	"github.com/teseraio/ensemble/operator/proto"
+	"github.com/teseraio/ensemble/schema"
 )
 
 // HandlerFactory is a factory for Handlers
 type HandlerFactory func() Handler
 
-// Handler is the interface that needs to be implemented by the backend
-type Handler interface {
-	// EvaluatePlan evaluates and modifies the execution plan
-	//EvaluatePlan(n []*proto.Instance) error
-
-	//EvaluateConfig(spec *proto.NodeSpec, config map[string]string) error
-
-	Initialize(n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error)
-	// A(clr *proto.Cluster, n []*proto.Node) error
-
-	Ready(t *proto.Instance) bool
-
-	// PostHook is executed when a node changes the state
-	// PostHook(*HookCtx) error
-
-	// Spec returns the specification for the cluster
+type Handler2 interface {
 	Spec() *Spec
-
-	// Client returns a connection with a specific node in the cluster
+	Initialize(n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error)
 	Client(node *proto.Instance) (interface{}, error)
 }
 
-// Executor is the interface required by the backends to execute
-type Executor interface {
-	Exec(n *proto.Instance, path string, cmd ...string) error
+// Handler is the interface that needs to be implemented by the backend
+type Handler interface {
+	// Initialize(n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error)
+	Ready(t *proto.Instance) bool
+
+	// Spec returns the specification for the cluster
+	// Spec() *Spec
+
+	// Name returns the name of the handler (TODO. it can be removed later)
+	Name() string
+
+	// Client returns a connection with a specific node in the cluster
+	// Client(node *proto.Instance) (interface{}, error)
+
+	// GetSchemas returns the schemas for the backend
+	GetSchemas() GetSchemasResponse
+
+	// ApplyNodes applies to the spec the changes required
+	ApplyNodes(n []*proto.Instance, cluster []*proto.Instance) ([]*proto.Instance, error)
+
+	ApplyResource(req *ApplyResourceRequest) error
+}
+
+const (
+	ApplyResourceRequestDelete    = "delete"
+	ApplyResourceRequestReconcile = "reconcile"
+)
+
+type ApplyResourceRequest struct {
+	Deployment *proto.Deployment
+	Resource   *proto.ResourceSpec
+	Action     string
+}
+
+type GetSchemasResponse struct {
+	Nodes     map[string]schema.Schema2
+	Resources map[string]schema.Schema2
 }
 
 // Spec returns the backend specification
 type Spec struct {
-	Name      string
+	Name      string // out
 	Nodetypes map[string]Nodetype
-	Resources []Resource
-	Handlers  map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group)
-}
-
-func (s *Spec) GetResource(name string) (res Resource) {
-	for _, i := range s.Resources {
-		if i.GetName() == name {
-			res = i
-		}
-	}
-	return
+	Resources []*Resource2
+	Handlers  map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData)
 }
 
 // Nodetype is a type of node for the Backend
@@ -59,7 +69,9 @@ type Nodetype struct {
 	Image string
 
 	// Config is the configuration fields for this node type
-	Config interface{}
+	Config interface{} // out
+
+	Schema schema.Schema2
 
 	// Version is the default docker image for the node
 	Version string
@@ -93,13 +105,115 @@ type Resource interface {
 	Init(spec map[string]interface{}) error
 }
 
-// BaseResource is a resource that can have multiple instances
-type BaseResource struct {
+type BaseOperator struct {
+	handler Handler2
 }
 
-// Init implements the Resource interface
-func (b *BaseResource) Init(spec map[string]interface{}) error {
+func (b *BaseOperator) SetHandler(h Handler2) {
+	b.handler = h
+}
+
+func (b *BaseOperator) GetSchemas() GetSchemasResponse {
+	resp := GetSchemasResponse{
+		Nodes:     map[string]schema.Schema2{},
+		Resources: map[string]schema.Schema2{},
+	}
+	// build the node types
+	for k, v := range b.handler.Spec().Nodetypes {
+		resp.Nodes[k] = v.Schema
+	}
+	// build the resources
+	for _, res := range b.handler.Spec().Resources {
+		resp.Resources[res.Name] = res.Schema
+	}
+	return resp
+}
+
+func (b *BaseOperator) ApplyNodes(place []*proto.Instance, cluster []*proto.Instance) ([]*proto.Instance, error) {
+	// initialite the instances with the group specs
+	placeInstances := []*proto.Instance{}
+	for _, ii := range place {
+		ii = ii.Copy()
+		grpSpec := b.handler.Spec().Nodetypes[ii.Group.Type]
+
+		ii.Image = grpSpec.Image
+		ii.Version = grpSpec.Version
+
+		hh, ok := b.handler.Spec().Handlers[ii.Group.Type]
+		if ok {
+			params := ii.Group.Params
+			if params == nil {
+				params = schema.MapToSpec(map[string]interface{}{})
+			}
+			hh(ii.Spec, ii.Group, schema.NewResourceData(&grpSpec.Schema, params))
+		}
+		placeInstances = append(placeInstances, ii)
+	}
+
+	// add the place instances too
+	cluster = append(cluster, placeInstances...)
+
+	// initialize each node
+	for _, i := range placeInstances {
+		if _, err := b.handler.Initialize(cluster, i); err != nil {
+			panic(err)
+		}
+	}
+	return placeInstances, nil
+}
+
+func (b *BaseOperator) Client(node *proto.Instance) (interface{}, error) {
+	return nil, nil
+}
+
+func (b *BaseOperator) ApplyResource(req *ApplyResourceRequest) error {
+	// get one of the clients
+	clt, err := b.handler.Client(req.Deployment.Instances[0])
+	if err != nil {
+		return err
+	}
+
+	// get resource
+	var resource *Resource2
+	for _, res := range b.handler.Spec().Resources {
+		if res.Name == req.Resource.Resource {
+			resource = res
+			break
+		}
+	}
+
+	// build the request
+	handlerReq := &CallbackRequest{
+		Client: clt,
+		Data:   schema.NewResourceData(&resource.Schema, req.Resource.Params),
+	}
+	if req.Action == ApplyResourceRequestReconcile {
+		err = resource.ApplyFn(handlerReq)
+	} else if req.Action == ApplyResourceRequestDelete {
+		err = resource.DeleteFn(handlerReq)
+	} else {
+		return fmt.Errorf("action not found '%s'", req.Action)
+	}
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 var ErrResourceNotFound = fmt.Errorf("resource not found")
+
+type CallbackRequest struct {
+	Client interface{}
+	Data   *schema.ResourceData
+}
+
+func (c *CallbackRequest) Get(s string) interface{} {
+	return c.Data.Get(s)
+}
+
+type Resource2 struct {
+	Name     string
+	Schema   schema.Schema2
+	DeleteFn func(req *CallbackRequest) error
+	ApplyFn  func(req *CallbackRequest) error
+}

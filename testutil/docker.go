@@ -18,10 +18,10 @@ import (
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
-	"github.com/mitchellh/mapstructure"
 	"github.com/teseraio/ensemble/lib/mount"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
+	"github.com/teseraio/ensemble/schema"
 )
 
 const networkName = "net1"
@@ -187,10 +187,15 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 	// We will use the 'net1' network interface for dns resolving
 	builder := node.Spec
 
-	if builder.Version == "" {
-		builder.Version = "latest"
+	version := node.Version
+	if version == "" {
+		version = "latest"
 	}
-	image := builder.Image + ":" + builder.Version
+	if node.Image == "" {
+		return "", fmt.Errorf("node image empty")
+	}
+	image := node.Image + ":" + version
+
 	name := node.FullName()
 
 	binds := []string{}
@@ -254,16 +259,7 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 
 	// decode computational resources
 	if node.Group != nil {
-		resConfig := c.Resources().(*Resource)
-		if err := mapstructure.WeakDecode(node.Group.Resources, &resConfig); err != nil {
-			return "", err
-		}
-		if resConfig != nil {
-			hostConfig.Resources = container.Resources{
-				CPUShares: int64(resConfig.CPUShares),
-				CPUCount:  int64(resConfig.CPUCount),
-			}
-		}
+		// TODO
 	}
 
 	netConfig := &network.NetworkingConfig{
@@ -323,6 +319,7 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 	return body.ID, nil
 }
 
+/*
 func (c *Client) DestroyAt() {
 	var handle string
 	for _, j := range c.resources {
@@ -343,14 +340,33 @@ func (c *Client) Destroy() {
 		panic(err)
 	}
 }
+*/
 
 type Resource struct {
 	CPUShares uint64 `mapstructure:"cpuShares"`
 	CPUCount  uint64 `mapstructure:"cpuCount"`
 }
 
-func (c *Client) Resources() interface{} {
-	return &Resource{}
+func (c *Client) Resources() operator.ProviderResources {
+	return operator.ProviderResources{
+		Resources: schema.Schema2{
+			Spec: &schema.Record{
+				Fields: map[string]*schema.Field{
+					"cpuShares": {
+						Type:     schema.TypeInt,
+						ForceNew: true,
+					},
+					"cpuCount": {
+						Type:     schema.TypeInt,
+						ForceNew: true,
+					},
+				},
+			},
+		},
+		Storage: schema.Schema2{
+			Spec: &schema.Record{},
+		},
+	}
 }
 
 func (c *Client) CreateResource(node *proto.Instance) (*proto.Instance, error) {

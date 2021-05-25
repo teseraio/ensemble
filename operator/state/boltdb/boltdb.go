@@ -155,6 +155,9 @@ func getSeqNumber(bkt *bolt.Bucket) (int64, error) {
 func (b *BoltDB) Apply(c *proto.Component) (int64, error) {
 	namespace := []byte(getProtoNamespace(c))
 
+	fmt.Println("__ APPLY ___")
+	fmt.Println(string(namespace))
+
 	tx, err := b.db.Begin(true)
 	if err != nil {
 		return 0, err

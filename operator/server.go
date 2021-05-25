@@ -2,21 +2,17 @@ package operator
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
-	"reflect"
 	"strings"
 	"time"
 
 	gproto "github.com/golang/protobuf/proto"
-	"github.com/mitchellh/mapstructure"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/operator/state"
-	"github.com/teseraio/ensemble/schema"
 	"google.golang.org/grpc"
 )
 
@@ -54,19 +50,18 @@ type Server struct {
 // NewServer starts an instance of the operator server
 func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	s := &Server{
-		config:   config,
-		logger:   logger,
-		Provider: config.Provider,
-		State:    config.State,
-		stopCh:   make(chan struct{}),
-		handlers: map[string]Handler{},
-		// deployments: map[string]*deploymentWatcher{},
+		config:    config,
+		logger:    logger,
+		Provider:  config.Provider,
+		State:     config.State,
+		stopCh:    make(chan struct{}),
+		handlers:  map[string]Handler{},
 		evalQueue: newEvalQueue(),
 	}
 
 	for _, factory := range config.HandlerFactories {
 		handler := factory()
-		s.handlers[strings.ToLower(handler.Spec().Name)] = handler
+		s.handlers[strings.ToLower(handler.Name())] = handler
 	}
 
 	s.service = &service{s: s}
@@ -129,7 +124,7 @@ func (s *Server) upsertNodeAndEval(i *proto.Instance) error {
 }
 
 func (s *Server) updateStatus(op *proto.InstanceUpdate) error {
-	s.logger.Debug("update instance status", "id", op.ID, "cluster", op.Cluster)
+	s.logger.Debug("update instance status", "id", op.ID, "cluster", op.Cluster, "op", op)
 
 	i, err := s.State.LoadInstance(op.Cluster, op.ID)
 	if err != nil {
@@ -262,26 +257,20 @@ func (s *Server) handleResource(dep *proto.Deployment, comp *proto.Component) er
 		return err
 	}
 
-	// take any of the nodes in the cluster to connect
-	clt, err := handler.Client(dep.Instances[0])
-	if err != nil {
-		return err
-	}
+	fmt.Println("_ HANDLE RESOURCE _")
 
-	resSpec := handler.Spec().GetResource(spec.Resource)
-	if resSpec == nil {
+	schema, ok := handler.GetSchemas().Resources[spec.Resource]
+	if !ok {
 		return fmt.Errorf("resource not found %s", spec.Resource)
 	}
-	newResource, params, err := decodeResource(resSpec, spec.Params)
-	if err != nil {
-		return err
-	}
-	if err := newResource.Init(params); err != nil {
-		return err
+	if err := schema.Validate(spec.Params); err != nil {
+		panic(err)
 	}
 
+	fmt.Println(comp.Id, comp.Name)
+
 	if comp.Sequence != 1 {
-		pastComp, err := s.State.GetComponent("proto.ResourceSpec", comp.Id, comp.Sequence-1)
+		pastComp, err := s.State.GetComponent("proto-ResourceSpec", comp.Name, comp.Sequence-1)
 		if err != nil {
 			return err
 		}
@@ -290,33 +279,45 @@ func (s *Server) handleResource(dep *proto.Deployment, comp *proto.Component) er
 			return err
 		}
 
-		forceNew, err := isForceNew(resSpec, &spec, &oldSpec)
-		if err != nil {
-			return err
-		}
-		if forceNew {
-			// delete object
-			removeResource, _, err := decodeResource(resSpec, oldSpec.Params)
+		diff := schema.Diff(spec.Params, oldSpec.Params)
+
+		// check if any of the diffs requires force-new
+		forceNew := false
+		for name := range diff {
+			field, err := schema.Get(name)
 			if err != nil {
 				return err
 			}
-			if err := removeResource.Delete(clt); err != nil {
+			if field.ForceNew {
+				forceNew = true
+			}
+		}
+		if forceNew {
+			req := &ApplyResourceRequest{
+				Deployment: dep,
+				Action:     ApplyResourceRequestDelete,
+				Resource:   &spec,
+			}
+			if err := handler.ApplyResource(req); err != nil {
 				return err
 			}
 		}
 	}
 
+	var action string
 	if comp.Action == proto.Component_DELETE {
-		if err := newResource.Delete(clt); err != nil {
-			return err
-		}
+		action = ApplyResourceRequestDelete
 	} else {
-		if err := newResource.Reconcile(clt); err != nil {
-			return err
-		}
+		action = ApplyResourceRequestReconcile
 	}
+	req := &ApplyResourceRequest{
+		Deployment: dep,
+		Action:     action,
+		Resource:   &spec,
+	}
+	handler.ApplyResource(req)
 
-	if err := s.State.Finalize(comp.Id); err != nil {
+	if err := s.State.Finalize(dep.Name); err != nil {
 		return err
 	}
 	return nil
@@ -431,15 +432,8 @@ func (s *Server) taskQueue4() {
 
 		if len(r.res.place) != 0 {
 			// create a cluster object to initialize the instances
-			cluster := []*proto.Instance{}
-			for _, i := range dep.Instances {
-				cluster = append(cluster, i)
-			}
-
-			// initialite the instances with the group specs
 			placeInstances := []*proto.Instance{}
 			for _, i := range r.res.place {
-
 				var name string
 				if i.instance == nil {
 					name = i.name
@@ -456,28 +450,14 @@ func (s *Server) taskQueue4() {
 				ii.Status = proto.Instance_PENDING
 				ii.Canary = i.update
 
-				grpSpec := handler.Spec().Nodetypes[ii.Group.Type]
-
-				ii.Spec.Image = grpSpec.Image
-				ii.Spec.Version = grpSpec.Version
-
-				hh, ok := handler.Spec().Handlers[ii.Group.Type]
-				if ok {
-					hh(ii.Spec, ii.Group)
-				}
 				placeInstances = append(placeInstances, ii)
 			}
 
-			// add the place instances too
-			cluster = append(cluster, placeInstances...)
-
-			// initialize each node
-			for _, i := range placeInstances {
-				if _, err := handler.Initialize(cluster, i); err != nil {
-					panic(err)
-				}
-				updates = append(updates, i)
+			placeInstances, err = handler.ApplyNodes(placeInstances, dep.Instances)
+			if err != nil {
+				panic(err)
 			}
+			updates = append(updates, placeInstances...)
 		}
 
 		plan := &schedulerPlan{
@@ -562,68 +542,4 @@ func (s *Server) submitPlan(p *schedulerPlan) error {
 func (s *Server) getHandler(name string) (Handler, bool) {
 	h, ok := s.handlers[strings.ToLower(name)]
 	return h, ok
-}
-
-func isForceNew(r Resource, old, new *proto.ResourceSpec) (bool, error) {
-	var oldParams map[string]interface{}
-	if err := json.Unmarshal([]byte(old.Params), &oldParams); err != nil {
-		return false, err
-	}
-	var newParams map[string]interface{}
-	if err := json.Unmarshal([]byte(new.Params), &newParams); err != nil {
-		return false, err
-	}
-
-	// determine which fields are correct
-	forcedFields := schema.ReadByTag(r, "force-new")
-
-	for _, field := range forcedFields {
-		oldVal, _ := schema.GetKey(oldParams, field)
-		newVal, _ := schema.GetKey(newParams, field)
-
-		if !reflect.DeepEqual(oldVal, newVal) {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func getResourceInstance(resource Resource) Resource {
-	val := reflect.New(reflect.TypeOf(resource)).Elem().Interface()
-	schema.Decode(map[string]interface{}{}, &val) // this id done to create the pointer with a value
-	return val.(Resource)
-}
-
-func decodeResource(resource Resource, rawParams string) (Resource, map[string]interface{}, error) {
-	var params map[string]interface{}
-	if err := json.Unmarshal([]byte(rawParams), &params); err != nil {
-		return nil, nil, err
-	}
-	val := reflect.New(reflect.TypeOf(resource)).Elem().Interface()
-	if err := schema.Decode(params, &val); err != nil {
-		return nil, nil, err
-	}
-	resource = val.(Resource)
-	return resource, params, nil
-}
-
-func validateResources(output interface{}, input map[string]string) error {
-	val := reflect.New(reflect.TypeOf(output)).Elem().Interface()
-	var md mapstructure.Metadata
-	config := &mapstructure.DecoderConfig{
-		Metadata:         &md,
-		Result:           &val,
-		WeaklyTypedInput: true,
-	}
-	decoder, err := mapstructure.NewDecoder(config)
-	if err != nil {
-		return err
-	}
-	if err := decoder.Decode(input); err != nil {
-		return err
-	}
-	if len(md.Unused) != 0 {
-		return fmt.Errorf("unused keys %s", strings.Join(md.Unused, ","))
-	}
-	return nil
 }

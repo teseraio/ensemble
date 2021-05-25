@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/teseraio/ensemble/operator/proto"
+	"github.com/teseraio/ensemble/schema"
 )
 
 var (
@@ -34,7 +35,12 @@ type Provider interface {
 
 	// Resources returns a struct that defines the node resources
 	// that can be configured for this provider
-	Resources() interface{}
+	Resources() ProviderResources
+}
+
+type ProviderResources struct {
+	Resources schema.Schema2
+	Storage   schema.Schema2
 }
 
 // ProviderFactory is a factory method to create factories

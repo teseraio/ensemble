@@ -5,16 +5,20 @@ import (
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
-const (
-	schedulerKey = "scheduler"
-)
-
 type backend struct {
+	*operator.BaseOperator
 }
 
 // Factory is a factory method for the zookeeper backend
 func Factory() operator.Handler {
-	return &backend{}
+	b := &backend{}
+	b.BaseOperator = &operator.BaseOperator{}
+	b.BaseOperator.SetHandler(b)
+	return b
+}
+
+func (b *backend) Name() string {
+	return "Dask"
 }
 
 func (b *backend) Ready(t *proto.Instance) bool {
@@ -43,11 +47,6 @@ func (b *backend) Initialize(n []*proto.Instance, target *proto.Instance) (*prot
 		}
 	}
 	return nil, nil
-}
-
-// Client implements the Handler interface
-func (b *backend) Client(node *proto.Instance) (interface{}, error) {
-	panic("X")
 }
 
 // Spec implements the Handler interface

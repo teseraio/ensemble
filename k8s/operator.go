@@ -2,12 +2,12 @@ package k8s
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/mitchellh/mapstructure"
 	"github.com/teseraio/ensemble/operator/proto"
+	"github.com/teseraio/ensemble/schema"
 )
 
 type APIGroupList struct {
@@ -127,7 +127,7 @@ func decodeClusterSpec(item *Item) (*any.Any, error) {
 			Type     string
 			Name     string
 			Replicas uint64
-			Params   map[string]string
+			Params   map[string]interface{}
 		}
 	}
 	if err := mapstructure.Decode(item.Spec, &spec); err != nil {
@@ -136,12 +136,14 @@ func decodeClusterSpec(item *Item) (*any.Any, error) {
 
 	var groups []*proto.ClusterSpec_Group
 	for _, s := range spec.Groups {
-		groups = append(groups, &proto.ClusterSpec_Group{
-			Name:   s.Name,
-			Count:  int64(s.Replicas),
-			Type:   s.Type,
-			Config: s.Params,
-		})
+		grp := &proto.ClusterSpec_Group{
+			Count: int64(s.Replicas),
+			Type:  s.Type,
+		}
+		if len(s.Params) != 0 {
+			grp.Params = schema.MapToSpec(s.Params)
+		}
+		groups = append(groups, grp)
 	}
 	res := proto.MustMarshalAny(&proto.ClusterSpec{
 		Backend: spec.Backend.Name,
@@ -162,18 +164,13 @@ func decodeResourceSpec(item *Item) (*any.Any, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	var raw []byte
-	if len(spec.Params) != 0 {
-		raw, err = json.Marshal(spec.Params)
-		if err != nil {
-			return nil, err
-		}
-	}
-	res := proto.MustMarshalAny(&proto.ResourceSpec{
+	res := &proto.ResourceSpec{
 		Cluster:  spec.Cluster,
 		Resource: spec.Resource,
-		Params:   string(raw),
-	})
-	return res, nil
+	}
+	if len(spec.Params) != 0 {
+		res.Params = schema.MapToSpec(spec.Params)
+	}
+	anyRes := proto.MustMarshalAny(res)
+	return anyRes, nil
 }

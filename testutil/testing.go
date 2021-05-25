@@ -46,9 +46,9 @@ func TestPodBarArgs(t *testing.T, p operator.Provider) {
 		ID:      uuid.UUID(),
 		Cluster: "xx11",
 		Name:    "yy22",
+		Image:   "busybox",
 		Spec: &proto.NodeSpec{
-			Image: "busybox",
-			Cmd:   []string{"xxx"},
+			Cmd: []string{"xxx"},
 		},
 	}
 	if _, err := p.CreateResource(i); err != nil {
@@ -74,8 +74,8 @@ func TestPodJobFailed(t *testing.T, p operator.Provider) {
 		ID:      uuid.UUID(),
 		Cluster: "xx11",
 		Name:    "yy22",
+		Image:   "busybox",
 		Spec: &proto.NodeSpec{
-			Image: "busybox",
 			// it stops gracefully
 			Cmd: []string{"sleep", "2"},
 		},
@@ -100,9 +100,8 @@ func TestPodLifecycle(t *testing.T, p operator.Provider) {
 		ID:      id,
 		Cluster: "c11",
 		Name:    "d22",
-		Spec: &proto.NodeSpec{
-			Image: "nginx",
-		},
+		Image:   "nginx",
+		Spec:    &proto.NodeSpec{},
 	}
 
 	if _, err := p.CreateResource(i); err != nil {
@@ -150,8 +149,8 @@ func TestPodFiles(t *testing.T, p operator.Provider) {
 		ID:      id,
 		Cluster: "c11",
 		Name:    uuid.UUID(),
+		Image:   "nginx",
 		Spec: &proto.NodeSpec{
-			Image: "nginx",
 			Files: files,
 		},
 	}
@@ -182,9 +181,8 @@ func TestPodMount(t *testing.T, p operator.Provider) {
 		ID:      id,
 		Cluster: "c11",
 		Name:    uuid.UUID(),
-		Spec: &proto.NodeSpec{
-			Image: "nginx",
-		},
+		Image:   "nginx",
+		Spec:    &proto.NodeSpec{},
 		Mounts: []*proto.Instance_Mount{
 			{
 				Name: "one",
@@ -254,9 +252,8 @@ func TestDNS(t *testing.T, p operator.Provider) {
 		ID:      uuid.UUID(),
 		Cluster: "c11",
 		Name:    uuid.UUID(),
-		Spec: &proto.NodeSpec{
-			Image: "nginx",
-		},
+		Image:   "nginx",
+		Spec:    &proto.NodeSpec{},
 	}
 
 	if _, err := p.CreateResource(target); err != nil {
@@ -276,9 +273,8 @@ func TestDNS(t *testing.T, p operator.Provider) {
 		ID:      uuid.UUID(),
 		Cluster: "c11",
 		Name:    uuid.UUID(),
-		Spec: &proto.NodeSpec{
-			Image: "nginx",
-		},
+		Image:   "nginx",
+		Spec:    &proto.NodeSpec{},
 	}
 
 	if _, err := p.CreateResource(source); err != nil {

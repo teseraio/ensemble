@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/teseraio/ensemble/lib/template"
 	"github.com/teseraio/ensemble/operator/proto"
+	"github.com/teseraio/ensemble/schema"
 )
 
 func createOpCRDs(t *testing.T, p *Provider) func() {
@@ -70,9 +72,9 @@ func TestItemDecoding(t *testing.T) {
 				Groups: []*proto.ClusterSpec_Group{
 					{
 						Count: 1,
-						Config: map[string]string{
+						Params: schema.MapToSpec(map[string]interface{}{
 							"a": "b",
-						},
+						}),
 					},
 				},
 			},
@@ -98,7 +100,9 @@ func TestItemDecoding(t *testing.T) {
 			spec: &proto.ResourceSpec{
 				Cluster:  "c",
 				Resource: "r",
-				Params:   "{\"a\":\"b\"}",
+				Params: schema.MapToSpec(map[string]interface{}{
+					"a": "b",
+				}),
 			},
 		},
 	}
@@ -153,6 +157,10 @@ func TestItemDecoding(t *testing.T) {
 
 		expected := proto.MustMarshalAny(c.spec)
 		if !bytes.Equal(expected.Value, spec.Value) {
+
+			fmt.Println(spec)
+			fmt.Println(proto.MustMarshalAny(c.spec))
+
 			t.Fatal("bad")
 		}
 

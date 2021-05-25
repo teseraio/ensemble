@@ -3,42 +3,38 @@ package rabbitmq
 import (
 	rabbithole "github.com/michaelklishin/rabbit-hole/v2"
 	"github.com/teseraio/ensemble/operator"
+	"github.com/teseraio/ensemble/schema"
 )
 
-// VHost is a Rabbitmq vhost
-type VHost struct {
-	operator.BaseResource `schema:",squash"`
+func vhost() *operator.Resource2 {
+	return &operator.Resource2{
+		Name: "VHost",
+		Schema: schema.Schema2{
+			Spec: &schema.Record{
+				Fields: map[string]*schema.Field{
+					"name": {
+						Type:     schema.TypeString,
+						Required: true,
+						ForceNew: true,
+					},
+				},
+			},
+		},
+		DeleteFn: func(req *operator.CallbackRequest) error {
+			client := req.Client.(*rabbithole.Client)
 
-	// Name is the name of the vhost
-	Name string
-}
+			if _, err := client.DeleteVhost(req.Get("name").(string)); err != nil {
+				return err
+			}
+			return nil
+		},
+		ApplyFn: func(req *operator.CallbackRequest) error {
+			client := req.Client.(*rabbithole.Client)
 
-// GetName implements the Resource intrface
-func (v *VHost) GetName() string {
-	return "VHost"
-}
-
-// Get implements the Resource interface
-func (v *VHost) Get(req interface{}) error {
-	return nil
-}
-
-// Delete implements the Resource interface
-func (v *VHost) Delete(req interface{}) error {
-	client := req.(*rabbithole.Client)
-
-	if _, err := client.DeleteVhost(v.Name); err != nil {
-		return err
+			if _, err := client.PutVhost(req.Get("name").(string), rabbithole.VhostSettings{}); err != nil {
+				return err
+			}
+			return nil
+		},
 	}
-	return nil
-}
-
-// Reconcile implements the Resource interface
-func (v *VHost) Reconcile(req interface{}) error {
-	client := req.(*rabbithole.Client)
-
-	if _, err := client.PutVhost(v.Name, rabbithole.VhostSettings{}); err != nil {
-		return err
-	}
-	return nil
 }

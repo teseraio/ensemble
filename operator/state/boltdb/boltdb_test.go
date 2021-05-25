@@ -71,7 +71,13 @@ func TestBoltdbFinalizeMultipleResources(t *testing.T) {
 		Name: "B",
 		Spec: proto.MustMarshalAny(&proto.ResourceSpec{
 			Cluster: "A",
-			Params:  "{2}",
+			Params: proto.BlockSpec(&proto.Spec_Block{
+				Attrs: map[string]*proto.Spec{
+					"a": proto.LiteralSpec(&proto.Spec_Literal{
+						Value: "a",
+					}),
+				},
+			}),
 		}),
 	})
 	assert.Equal(t, rID2, int64(2))

@@ -5,6 +5,7 @@ import (
 	"github.com/teseraio/ensemble/lib/template"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
+	"github.com/teseraio/ensemble/schema"
 )
 
 const (
@@ -17,11 +18,19 @@ const (
 )
 
 type backend struct {
+	*operator.BaseOperator
 }
 
 // Factory returns a factory method for the zookeeper backend
 func Factory() operator.Handler {
-	return &backend{}
+	b := &backend{}
+	b.BaseOperator = &operator.BaseOperator{}
+	b.BaseOperator.SetHandler(b)
+	return b
+}
+
+func (b *backend) Name() string {
+	return "Rabbitmq"
 }
 
 const rabbitmqConfFile = `
@@ -78,18 +87,19 @@ func (b *backend) Spec() *operator.Spec {
 				Ports:   []*operator.Port{
 					// http-api 15672
 				},
+				Schema: schema.Schema2{
+					Spec: &schema.Record{},
+				},
 			},
 		},
-		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group){
-			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group) {
-				spec.Image = "rabbitmq"
-				spec.Version = "latest"
+		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData){
+			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData) {
 			},
 		},
-		Resources: []operator.Resource{
-			&User{},
-			&Exchange{},
-			&VHost{},
+		Resources: []*operator.Resource2{
+			user(),
+			exchange(),
+			vhost(),
 		},
 	}
 }

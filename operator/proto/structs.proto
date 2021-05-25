@@ -79,11 +79,11 @@ message ClusterSpec {
     repeated Group groups = 4;
 
     message Group {
-        string name = 1;
         int64 count = 2;
         string type = 3;
-        map<string, string> config = 4;
-        map<string, string> resources = 5;
+        Spec params = 4;
+        Spec resources = 5;
+        Spec storage = 6;
     }
 
     int64 sequence = 5;
@@ -98,13 +98,25 @@ message ResourceSpec {
     string resource = 2;
 
     // params are the params to configure the resource (in JSON)
-    string params = 3;
+    Spec params = 3;
+}
+
+message Spec {
+    oneof block {
+        Block block_value = 1;
+        Literal literal = 2;
+    }
+
+    message Literal {
+        string value = 1;
+    }
+    
+    message Block {
+        map<string, Spec> attrs = 1;
+    }
 }
 
 message NodeSpec {
-    string image = 1;
-    string version = 2;
-
     map<string, string> env = 3;
     repeated File files = 4;
     repeated string cmd = 5;
@@ -216,6 +228,10 @@ message Instance {
 
     Reschedule reschedule = 16;
     
+    string image = 17;
+    
+    string version = 18;
+
     repeated Mount mounts = 30;
 
     message Reschedule {

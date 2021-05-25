@@ -3,6 +3,7 @@
 
 FEATURES:
 
+- operator/schema: Use a new schema format to represent database and provider configuration and resources.
 - operator/cluster: handle resource configuration (cpu, mem...) defined by the Provider for nodes in the cluster.
 - operator/cluster: handle configuration for nodes in the cluster.
 
