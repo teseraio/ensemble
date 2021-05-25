@@ -259,18 +259,7 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 
 	// decode computational resources
 	if node.Group != nil {
-		/*
-			resConfig := c.Resources().(*Resource)
-			if err := mapstructure.WeakDecode(node.Group.Resources, &resConfig); err != nil {
-				return "", err
-			}
-			if resConfig != nil {
-				hostConfig.Resources = container.Resources{
-					CPUShares: int64(resConfig.CPUShares),
-					CPUCount:  int64(resConfig.CPUCount),
-				}
-			}
-		*/
+		// TODO
 	}
 
 	netConfig := &network.NetworkingConfig{
