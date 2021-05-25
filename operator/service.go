@@ -2,7 +2,6 @@ package operator
 
 import (
 	"context"
-	"fmt"
 
 	gproto "github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/empty"
@@ -20,18 +19,12 @@ func (s *service) Apply(ctx context.Context, component *proto.Component) (*proto
 	// Apply the component
 	component.Id = uuid.UUID()
 
-	fmt.Println("---xxxx--")
-	fmt.Println(component)
-
 	var spec proto.ClusterSpec
 	if err := gproto.Unmarshal(component.Spec.Value, &spec); err != nil {
 		panic(err)
 	}
 
-	fmt.Println("-- spec --")
-	fmt.Println(spec)
-
-	providerSpec := s.s.Provider.Resources()
+	// providerSpec := s.s.Provider.Resources()
 
 	for _, grp := range spec.Groups {
 		if grp.Storage == nil {
@@ -40,18 +33,7 @@ func (s *service) Apply(ctx context.Context, component *proto.Component) (*proto
 		if grp.Resources == nil {
 			grp.Resources = proto.EmptySpec()
 		}
-
-		fmt.Println("-- grp --")
-		fmt.Println(grp)
-		fmt.Println(grp.Resources)
-		fmt.Println(providerSpec.Resources)
-
-		fmt.Println(providerSpec.Resources.Validate(grp.Resources))
-
-		fmt.Println("-- storage --")
-		fmt.Println(providerSpec.Storage)
-		fmt.Println(grp.Storage)
-		fmt.Println(providerSpec.Storage.Validate(grp.Storage))
+		// TODO: Validate with provider spec
 	}
 
 	seq, err := s.s.State.Apply(component)

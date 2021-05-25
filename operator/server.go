@@ -2,21 +2,17 @@ package operator
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
-	"reflect"
 	"strings"
 	"time"
 
 	gproto "github.com/golang/protobuf/proto"
-	"github.com/mitchellh/mapstructure"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/operator/state"
-	"github.com/teseraio/ensemble/schema"
 	"google.golang.org/grpc"
 )
 
@@ -324,66 +320,6 @@ func (s *Server) handleResource(dep *proto.Deployment, comp *proto.Component) er
 	if err := s.State.Finalize(dep.Name); err != nil {
 		return err
 	}
-
-	/*
-		// take any of the nodes in the cluster to connect
-		clt, err := handler.Client(dep.Instances[0])
-		if err != nil {
-			return err
-		}
-
-		resSpec := handler.Spec().GetResource(spec.Resource)
-		if resSpec == nil {
-			return fmt.Errorf("resource not found %s", spec.Resource)
-		}
-		newResource, params, err := decodeResource(resSpec, spec.Params)
-		if err != nil {
-			return err
-		}
-		if err := newResource.Init(params); err != nil {
-			return err
-		}
-
-		if comp.Sequence != 1 {
-			pastComp, err := s.State.GetComponent("proto.ResourceSpec", comp.Id, comp.Sequence-1)
-			if err != nil {
-				return err
-			}
-			var oldSpec proto.ResourceSpec
-			if err := gproto.Unmarshal(pastComp.Spec.Value, &oldSpec); err != nil {
-				return err
-			}
-
-			forceNew, err := isForceNew(resSpec, &spec, &oldSpec)
-			if err != nil {
-				return err
-			}
-			if forceNew {
-				// delete object
-				removeResource, _, err := decodeResource(resSpec, oldSpec.Params)
-				if err != nil {
-					return err
-				}
-				if err := removeResource.Delete(clt); err != nil {
-					return err
-				}
-			}
-		}
-
-		if comp.Action == proto.Component_DELETE {
-			if err := newResource.Delete(clt); err != nil {
-				return err
-			}
-		} else {
-			if err := newResource.Reconcile(clt); err != nil {
-				return err
-			}
-		}
-
-		if err := s.State.Finalize(comp.Id); err != nil {
-			return err
-		}
-	*/
 	return nil
 }
 
@@ -439,9 +375,6 @@ func (s *Server) taskQueue4() {
 		if err != nil {
 			panic(err)
 		}
-
-		fmt.Println(s.handlers)
-		fmt.Println(dep.Backend)
 
 		handler, ok := s.getHandler(dep.Backend)
 		if !ok {
@@ -609,70 +542,4 @@ func (s *Server) submitPlan(p *schedulerPlan) error {
 func (s *Server) getHandler(name string) (Handler, bool) {
 	h, ok := s.handlers[strings.ToLower(name)]
 	return h, ok
-}
-
-/*
-func isForceNew(r Resource, old, new *proto.ResourceSpec) (bool, error) {
-	var oldParams map[string]interface{}
-	if err := json.Unmarshal([]byte(old.Params), &oldParams); err != nil {
-		return false, err
-	}
-	var newParams map[string]interface{}
-	if err := json.Unmarshal([]byte(new.Params), &newParams); err != nil {
-		return false, err
-	}
-
-	// determine which fields are correct
-	forcedFields := schema.ReadByTag(r, "force-new")
-
-	for _, field := range forcedFields {
-		oldVal, _ := schema.GetKey(oldParams, field)
-		newVal, _ := schema.GetKey(newParams, field)
-
-		if !reflect.DeepEqual(oldVal, newVal) {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-*/
-
-func getResourceInstance(resource Resource) Resource {
-	val := reflect.New(reflect.TypeOf(resource)).Elem().Interface()
-	schema.Decode(map[string]interface{}{}, &val) // this id done to create the pointer with a value
-	return val.(Resource)
-}
-
-func decodeResource(resource Resource, rawParams string) (Resource, map[string]interface{}, error) {
-	var params map[string]interface{}
-	if err := json.Unmarshal([]byte(rawParams), &params); err != nil {
-		return nil, nil, err
-	}
-	val := reflect.New(reflect.TypeOf(resource)).Elem().Interface()
-	if err := schema.Decode(params, &val); err != nil {
-		return nil, nil, err
-	}
-	resource = val.(Resource)
-	return resource, params, nil
-}
-
-func validateResources(output interface{}, input map[string]string) error {
-	val := reflect.New(reflect.TypeOf(output)).Elem().Interface()
-	var md mapstructure.Metadata
-	config := &mapstructure.DecoderConfig{
-		Metadata:         &md,
-		Result:           &val,
-		WeaklyTypedInput: true,
-	}
-	decoder, err := mapstructure.NewDecoder(config)
-	if err != nil {
-		return err
-	}
-	if err := decoder.Decode(input); err != nil {
-		return err
-	}
-	if len(md.Unused) != 0 {
-		return fmt.Errorf("unused keys %s", strings.Join(md.Unused, ","))
-	}
-	return nil
 }

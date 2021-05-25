@@ -141,10 +141,6 @@ func (b *BaseOperator) ApplyNodes(place []*proto.Instance, cluster []*proto.Inst
 
 		hh, ok := b.handler.Spec().Handlers[ii.Group.Type]
 		if ok {
-			fmt.Println("-- params --")
-			fmt.Println(ii.Group.Params)
-			fmt.Println(grpSpec.Schema)
-
 			params := ii.Group.Params
 			if params == nil {
 				params = schema.MapToSpec(map[string]interface{}{})
@@ -185,9 +181,6 @@ func (b *BaseOperator) ApplyResource(req *ApplyResourceRequest) error {
 			break
 		}
 	}
-
-	fmt.Println("-- params --")
-	fmt.Println(req.Resource.Params)
 
 	// build the request
 	handlerReq := &CallbackRequest{

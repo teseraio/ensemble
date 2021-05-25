@@ -101,17 +101,14 @@ func TestEncodePod(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !reflect.DeepEqual(expected[c.Name], found) {
-			out1 := prettyPrint(expected[c.Name].(map[string]interface{}))
-			out2 := prettyPrint(found)
-			fmt.Println(out1)
-			fmt.Println(out2)
-			// fmt.Println(string(raw))
+			prettyPrint(expected[c.Name].(map[string]interface{}))
+			prettyPrint(found)
 			t.Fatal("bad")
 		}
 	}
 }
 
-func prettyPrint(data map[string]interface{}) string {
+func prettyPrint(data map[string]interface{}) {
 	raw, _ := json.MarshalIndent(data, "", "    ")
-	return string(raw)
+	fmt.Println(string(raw))
 }
