@@ -1,6 +1,7 @@
 package k8s
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 
@@ -8,11 +9,30 @@ import (
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
+type mountFile struct {
+	Key  string `json:"key"`
+	Path string `json:"path"`
+}
+
+type mountFiles []*mountFile
+
+func (m mountFiles) Len() int {
+	return len(m)
+}
+
+func (m mountFiles) Swap(i, j int) {
+	m[i], m[j] = m[j], m[i]
+}
+
+func (m mountFiles) Less(i, j int) bool {
+	return m[i].Key < m[j].Key
+}
+
 // MarshalPod marshals a pod
 func MarshalPod(i *proto.Instance) ([]byte, error) {
 	builder := i.Spec
 
-	version := builder.Version
+	version := i.Version
 	if version == "" {
 		version = "latest"
 	}
@@ -30,7 +50,7 @@ func MarshalPod(i *proto.Instance) ([]byte, error) {
 	obj := map[string]interface{}{
 		"ID":       i.ID,
 		"Name":     i.Name,
-		"Image":    builder.Image,
+		"Image":    i.Image,
 		"Version":  version,
 		"Env":      builder.Env,
 		"Files":    builder.Files,
@@ -75,16 +95,17 @@ func MarshalPod(i *proto.Instance) ([]byte, error) {
 			})
 
 			// we need to mount all the files to the specific locations
-			items := []interface{}{}
+			items := mountFiles{}
 			for name := range pnt.Files {
 				relPath := strings.TrimPrefix(name, pnt.Path)
 				relPath = strings.TrimPrefix(relPath, "/")
 
-				items = append(items, map[string]interface{}{
-					"key":  cleanPath(name),
-					"path": relPath,
+				items = append(items, &mountFile{
+					Key:  cleanPath(name),
+					Path: relPath,
 				})
 			}
+			sort.Sort(items)
 
 			// create the volume as a config reference
 			volumes = append(volumes, map[string]interface{}{

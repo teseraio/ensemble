@@ -3,6 +3,7 @@ package boltdb
 import (
 	"container/heap"
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -118,16 +119,20 @@ func (t *taskQueue) finalize(clusterID string) (*task, bool) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
+	fmt.Println("_ FINALIZE CC", clusterID)
+
 	var item *task
 	for _, i := range t.items {
 		if i.clusterID == clusterID {
 			if i.ready {
+				fmt.Println("AA")
 				return nil, false
 			}
 			item = i
 		}
 	}
 	if item == nil {
+		fmt.Println("BB")
 		return nil, false
 	}
 

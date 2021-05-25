@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"reflect"
 	"testing"
@@ -19,6 +20,9 @@ func TestTemplate(t *testing.T) {
 			"example1",
 			"generic",
 			map[string]interface{}{
+				"Domain": "",
+				"Kind":   "",
+				"Name":   "",
 				"Status": map[string]interface{}{
 					"observedGeneration": "1",
 				},
@@ -53,6 +57,8 @@ func TestTemplate(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !reflect.DeepEqual(expected, found) {
+			fmt.Println(expected)
+			fmt.Println(found)
 			t.Fatal("bad")
 		}
 	}

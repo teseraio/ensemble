@@ -28,14 +28,16 @@ func (s *Schema2) Get(k string) (*Field, error) {
 		if len(parts) == 0 {
 			return field, nil
 		}
+		// there are more parts, it must be a map
+		obj, ok := field.Type.(*Record)
+		if !ok {
+			return nil, fmt.Errorf("its not a record")
+		}
+		rec = obj
 	}
 }
 
 func (s *Schema2) Validate(spec *proto.Spec) error {
-	fmt.Println("-- validate --")
-	fmt.Println(s.Spec)
-	fmt.Println(spec)
-
 	return validate(s.Spec, spec)
 }
 

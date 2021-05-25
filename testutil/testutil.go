@@ -34,6 +34,7 @@ func (t *TestServer) Apply(c *proto.Component) string {
 	return cc.Id
 }
 
+/*
 func (t *TestServer) DestroyAt() {
 	t.docker.DestroyAt()
 }
@@ -41,6 +42,7 @@ func (t *TestServer) DestroyAt() {
 func (t *TestServer) Destroy() {
 	t.docker.Destroy()
 }
+*/
 
 func (t *TestServer) WaitForTask(id string) {
 	ch := t.state.Wait(id)

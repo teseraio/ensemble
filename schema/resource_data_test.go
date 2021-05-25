@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,10 +22,7 @@ func TestResourceData(t *testing.T) {
 			"a": "1",
 		},
 	}
-
-	fmt.Println(rsc)
-
-	fmt.Println(rsc.Get("a"))
+	assert.Equal(t, rsc.Get("a").(string), "1")
 }
 
 func TestFlattenSpec(t *testing.T) {

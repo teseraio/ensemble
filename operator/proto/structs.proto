@@ -117,9 +117,6 @@ message Spec {
 }
 
 message NodeSpec {
-    string image = 1;
-    string version = 2;
-
     map<string, string> env = 3;
     repeated File files = 4;
     repeated string cmd = 5;
@@ -231,6 +228,10 @@ message Instance {
 
     Reschedule reschedule = 16;
     
+    string image = 17;
+    
+    string version = 18;
+
     repeated Mount mounts = 30;
 
     message Reschedule {

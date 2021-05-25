@@ -84,27 +84,7 @@ func (b *backend) Spec() *operator.Spec {
 		},
 		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData){
 			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData) {
-				/*
-					var c *config
-					if err := mapstructure.WeakDecode(grp.Params, &c); err != nil {
-						panic(err)
-					}
-
-					fmt.Println("-- c --")
-					fmt.Println(c.TickTime)
-				*/
-
 				spec.AddEnv("ZOO_TICK_TIME", data.Get("tickTime").(string))
-
-				/*
-					fmt.Println(data.Get("tickTime"))
-
-					if c != nil {
-						if c.TickTime != 0 {
-							spec.AddEnv("ZOO_TICK_TIME", strconv.Itoa(int(c.TickTime)))
-						}
-					}
-				*/
 			},
 		},
 	}

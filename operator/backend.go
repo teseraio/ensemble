@@ -13,6 +13,7 @@ type HandlerFactory func() Handler
 type Handler2 interface {
 	Spec() *Spec
 	Initialize(n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error)
+	Client(node *proto.Instance) (interface{}, error)
 }
 
 // Handler is the interface that needs to be implemented by the backend
@@ -34,6 +35,19 @@ type Handler interface {
 
 	// ApplyNodes applies to the spec the changes required
 	ApplyNodes(n []*proto.Instance, cluster []*proto.Instance) ([]*proto.Instance, error)
+
+	ApplyResource(req *ApplyResourceRequest) error
+}
+
+const (
+	ApplyResourceRequestDelete    = "delete"
+	ApplyResourceRequestReconcile = "reconcile"
+)
+
+type ApplyResourceRequest struct {
+	Deployment *proto.Deployment
+	Resource   *proto.ResourceSpec
+	Action     string
 }
 
 type GetSchemasResponse struct {
@@ -45,17 +59,8 @@ type GetSchemasResponse struct {
 type Spec struct {
 	Name      string // out
 	Nodetypes map[string]Nodetype
-	Resources []Resource
+	Resources []*Resource2
 	Handlers  map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData)
-}
-
-func (s *Spec) GetResource(name string) (res Resource) {
-	for _, i := range s.Resources {
-		if i.GetName() == name {
-			res = i
-		}
-	}
-	return
 }
 
 // Nodetype is a type of node for the Backend
@@ -118,6 +123,9 @@ func (b *BaseOperator) GetSchemas() GetSchemasResponse {
 		resp.Nodes[k] = v.Schema
 	}
 	// build the resources
+	for _, res := range b.handler.Spec().Resources {
+		resp.Resources[res.Name] = res.Schema
+	}
 	return resp
 }
 
@@ -128,15 +136,20 @@ func (b *BaseOperator) ApplyNodes(place []*proto.Instance, cluster []*proto.Inst
 		ii = ii.Copy()
 		grpSpec := b.handler.Spec().Nodetypes[ii.Group.Type]
 
-		ii.Spec.Image = grpSpec.Image
-		ii.Spec.Version = grpSpec.Version
-
-		fmt.Println("-- grp params --")
-		fmt.Println(ii.Group.Params)
+		ii.Image = grpSpec.Image
+		ii.Version = grpSpec.Version
 
 		hh, ok := b.handler.Spec().Handlers[ii.Group.Type]
 		if ok {
-			hh(ii.Spec, ii.Group, schema.NewResourceData(&grpSpec.Schema, ii.Group.Params))
+			fmt.Println("-- params --")
+			fmt.Println(ii.Group.Params)
+			fmt.Println(grpSpec.Schema)
+
+			params := ii.Group.Params
+			if params == nil {
+				params = schema.MapToSpec(map[string]interface{}{})
+			}
+			hh(ii.Spec, ii.Group, schema.NewResourceData(&grpSpec.Schema, params))
 		}
 		placeInstances = append(placeInstances, ii)
 	}
@@ -153,12 +166,44 @@ func (b *BaseOperator) ApplyNodes(place []*proto.Instance, cluster []*proto.Inst
 	return placeInstances, nil
 }
 
-// BaseResource is a resource that can have multiple instances
-type BaseResource struct {
+func (b *BaseOperator) Client(node *proto.Instance) (interface{}, error) {
+	return nil, nil
 }
 
-// Init implements the Resource interface
-func (b *BaseResource) Init(spec map[string]interface{}) error {
+func (b *BaseOperator) ApplyResource(req *ApplyResourceRequest) error {
+	// get one of the clients
+	clt, err := b.handler.Client(req.Deployment.Instances[0])
+	if err != nil {
+		return err
+	}
+
+	// get resource
+	var resource *Resource2
+	for _, res := range b.handler.Spec().Resources {
+		if res.Name == req.Resource.Resource {
+			resource = res
+			break
+		}
+	}
+
+	fmt.Println("-- params --")
+	fmt.Println(req.Resource.Params)
+
+	// build the request
+	handlerReq := &CallbackRequest{
+		Client: clt,
+		Data:   schema.NewResourceData(&resource.Schema, req.Resource.Params),
+	}
+	if req.Action == ApplyResourceRequestReconcile {
+		err = resource.ApplyFn(handlerReq)
+	} else if req.Action == ApplyResourceRequestDelete {
+		err = resource.DeleteFn(handlerReq)
+	} else {
+		return fmt.Errorf("action not found '%s'", req.Action)
+	}
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -166,15 +211,16 @@ var ErrResourceNotFound = fmt.Errorf("resource not found")
 
 type CallbackRequest struct {
 	Client interface{}
+	Data   *schema.ResourceData
 }
 
 func (c *CallbackRequest) Get(s string) interface{} {
-	return nil
+	return c.Data.Get(s)
 }
 
 type Resource2 struct {
 	Name     string
-	Schema   *schema.Record
+	Schema   schema.Schema2
 	DeleteFn func(req *CallbackRequest) error
 	ApplyFn  func(req *CallbackRequest) error
 }

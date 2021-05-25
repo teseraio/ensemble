@@ -1,9 +1,16 @@
 package rabbitmq
 
-/*
+import (
+	"testing"
+
+	"github.com/teseraio/ensemble/operator/proto"
+	"github.com/teseraio/ensemble/schema"
+	"github.com/teseraio/ensemble/testutil"
+)
+
 func TestVHost(t *testing.T) {
 	srv := testutil.TestOperator(t, Factory)
-	defer srv.Close()
+	// defer srv.Close()
 
 	uuid1 := srv.Apply(&proto.Component{
 		Name: "A",
@@ -23,12 +30,25 @@ func TestVHost(t *testing.T) {
 		Spec: proto.MustMarshalAny(&proto.ResourceSpec{
 			Cluster:  "A",
 			Resource: "VHost",
-			Params: `{
-				"name": "B"
-			}`,
+			Params: schema.MapToSpec(map[string]interface{}{
+				"name": "B",
+			}),
 		}),
 	})
 
 	srv.WaitForTask(uuid2)
+
+	// force new the vhost
+	uuid3 := srv.Apply(&proto.Component{
+		Name: "B",
+		Spec: proto.MustMarshalAny(&proto.ResourceSpec{
+			Cluster:  "A",
+			Resource: "VHost",
+			Params: schema.MapToSpec(map[string]interface{}{
+				"name": "C",
+			}),
+		}),
+	})
+
+	srv.WaitForTask(uuid3)
 }
-*/

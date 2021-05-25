@@ -3,55 +3,48 @@ package rabbitmq
 import (
 	rabbithole "github.com/michaelklishin/rabbit-hole/v2"
 	"github.com/teseraio/ensemble/operator"
+	"github.com/teseraio/ensemble/schema"
 )
 
-// User is a user in Rabbitmq
-type User struct {
-	operator.BaseResource `schema:",squash"`
+func user() *operator.Resource2 {
+	return &operator.Resource2{
+		Name: "User",
+		Schema: schema.Schema2{
+			Spec: &schema.Record{
+				Fields: map[string]*schema.Field{
+					"username": {
+						Type:     schema.TypeString,
+						ForceNew: true,
+						Required: true,
+					},
+					"password": {
+						Type:     schema.TypeString,
+						Required: true,
+					},
+				},
+			},
+		},
+		DeleteFn: func(req *operator.CallbackRequest) error {
+			client := req.Client.(*rabbithole.Client)
 
-	// Username is the name of the user
-	Username string `schema:",force-new"`
+			if _, err := client.DeleteUser(req.Get("username").(string)); err != nil {
+				return err
+			}
+			return nil
+		},
+		ApplyFn: func(req *operator.CallbackRequest) error {
+			client := req.Client.(*rabbithole.Client)
 
-	// Password is the password of the user
-	Password string
-}
+			username := req.Get("username").(string)
+			settings := rabbithole.UserSettings{
+				Name:     username,
+				Password: req.Get("password").(string),
+			}
+			if _, err := client.PutUser(username, settings); err != nil {
+				return err
+			}
 
-// GetName implements the Resource interface
-func (u *User) GetName() string {
-	return "User"
-}
-
-// Delete implements the User interface
-func (u *User) Delete(req interface{}) error {
-	client := req.(*rabbithole.Client)
-
-	if _, err := client.DeleteUser(u.Username); err != nil {
-		return err
+			return nil
+		},
 	}
-	return nil
-}
-
-// Get implements the Resource interface
-func (u *User) Get(id string, req interface{}) error {
-	client := req.(*rabbithole.Client)
-
-	u.Username = id
-	if _, err := client.GetUser(id); err != nil {
-		return operator.ErrResourceNotFound
-	}
-	return nil
-}
-
-// Reconcile implements the Resource interface
-func (u *User) Reconcile(req interface{}) error {
-	client := req.(*rabbithole.Client)
-
-	settings := rabbithole.UserSettings{
-		Name:     u.Username,
-		Password: u.Password,
-	}
-	if _, err := client.PutUser(u.Username, settings); err != nil {
-		return err
-	}
-	return nil
 }

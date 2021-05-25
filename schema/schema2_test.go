@@ -8,6 +8,28 @@ import (
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
+func TestSchema2Get(t *testing.T) {
+	schema := &Schema2{
+		Spec: &Record{
+			Fields: map[string]*Field{
+				"a": {
+					Type: TypeInt,
+				},
+				"b": {
+					Type: &Record{
+						Fields: map[string]*Field{
+							"c": {
+								Type: TypeString,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	fmt.Println(schema.Get("b.c"))
+}
+
 func TestSchema2Diff(t *testing.T) {
 	cases := []struct {
 		Schema Schema2

@@ -42,10 +42,9 @@ func TestEncodePod(t *testing.T) {
 				ID:      "a",
 				Cluster: "b",
 				Name:    "a",
-				Spec: &proto.NodeSpec{
-					Image:   "image",
-					Version: "latest",
-				},
+				Image:   "image",
+				Version: "latest",
+				Spec:    &proto.NodeSpec{},
 			},
 			Name: "example1",
 		},
@@ -54,10 +53,9 @@ func TestEncodePod(t *testing.T) {
 				ID:      "id",
 				Cluster: "b",
 				Name:    "c",
-				Spec: &proto.NodeSpec{
-					Image:   "image",
-					Version: "latest",
-				},
+				Image:   "image",
+				Version: "latest",
+				Spec:    &proto.NodeSpec{},
 				Mounts: []*proto.Instance_Mount{
 					{
 						Name: "mount1",
@@ -72,9 +70,9 @@ func TestEncodePod(t *testing.T) {
 				ID:      "id",
 				Cluster: "b",
 				Name:    "c",
+				Image:   "image",
+				Version: "latest",
 				Spec: &proto.NodeSpec{
-					Image:   "image",
-					Version: "latest",
 					Files: []*proto.NodeSpec_File{
 						{
 							Name:    "/data/a",
@@ -103,14 +101,17 @@ func TestEncodePod(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !reflect.DeepEqual(expected[c.Name], found) {
-			prettyPrint(expected[c.Name].(map[string]interface{}))
-			prettyPrint(found)
+			out1 := prettyPrint(expected[c.Name].(map[string]interface{}))
+			out2 := prettyPrint(found)
+			fmt.Println(out1)
+			fmt.Println(out2)
+			// fmt.Println(string(raw))
 			t.Fatal("bad")
 		}
 	}
 }
 
-func prettyPrint(data map[string]interface{}) {
+func prettyPrint(data map[string]interface{}) string {
 	raw, _ := json.MarshalIndent(data, "", "    ")
-	fmt.Println(string(raw))
+	return string(raw)
 }

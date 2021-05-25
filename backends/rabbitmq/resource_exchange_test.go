@@ -1,9 +1,16 @@
 package rabbitmq
 
-/*
+import (
+	"testing"
+
+	"github.com/teseraio/ensemble/operator/proto"
+	"github.com/teseraio/ensemble/schema"
+	"github.com/teseraio/ensemble/testutil"
+)
+
 func TestExchange(t *testing.T) {
 	srv := testutil.TestOperator(t, Factory)
-	defer srv.Close()
+	// defer srv.Close()
 
 	uuid1 := srv.Apply(&proto.Component{
 		Name: "A",
@@ -26,9 +33,9 @@ func TestExchange(t *testing.T) {
 		Spec: proto.MustMarshalAny(&proto.ResourceSpec{
 			Cluster:  "A",
 			Resource: "VHost",
-			Params: `{
-						"name": "v"
-					}`,
+			Params: schema.MapToSpec(map[string]interface{}{
+				"name": "v",
+			}),
 		}),
 	})
 
@@ -40,16 +47,15 @@ func TestExchange(t *testing.T) {
 		Spec: proto.MustMarshalAny(&proto.ResourceSpec{
 			Cluster:  "A",
 			Resource: "Exchange",
-			Params: `{
-						"name": "e",
-						"vhost": "v",
-						"settings": {
-							"type": "fanout"
-						}
-					}`,
+			Params: schema.MapToSpec(map[string]interface{}{
+				"name":  "e",
+				"vhost": "v",
+				"settings": map[string]interface{}{
+					"type": "fanout",
+				},
+			}),
 		}),
 	})
 
 	srv.WaitForTask(uuid3)
 }
-*/

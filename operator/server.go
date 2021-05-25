@@ -54,13 +54,12 @@ type Server struct {
 // NewServer starts an instance of the operator server
 func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	s := &Server{
-		config:   config,
-		logger:   logger,
-		Provider: config.Provider,
-		State:    config.State,
-		stopCh:   make(chan struct{}),
-		handlers: map[string]Handler{},
-		// deployments: map[string]*deploymentWatcher{},
+		config:    config,
+		logger:    logger,
+		Provider:  config.Provider,
+		State:     config.State,
+		stopCh:    make(chan struct{}),
+		handlers:  map[string]Handler{},
 		evalQueue: newEvalQueue(),
 	}
 
@@ -262,18 +261,20 @@ func (s *Server) handleResource(dep *proto.Deployment, comp *proto.Component) er
 		return err
 	}
 
-	fmt.Println(handler)
+	fmt.Println("_ HANDLE RESOURCE _")
 
 	schema, ok := handler.GetSchemas().Resources[spec.Resource]
 	if !ok {
 		return fmt.Errorf("resource not found %s", spec.Resource)
 	}
+	if err := schema.Validate(spec.Params); err != nil {
+		panic(err)
+	}
 
-	fmt.Println("-- schema --")
-	fmt.Println(schema)
+	fmt.Println(comp.Id, comp.Name)
 
 	if comp.Sequence != 1 {
-		pastComp, err := s.State.GetComponent("proto.ResourceSpec", comp.Id, comp.Sequence-1)
+		pastComp, err := s.State.GetComponent("proto-ResourceSpec", comp.Name, comp.Sequence-1)
 		if err != nil {
 			return err
 		}
@@ -284,10 +285,44 @@ func (s *Server) handleResource(dep *proto.Deployment, comp *proto.Component) er
 
 		diff := schema.Diff(spec.Params, oldSpec.Params)
 
-		fmt.Println("-- diff --")
-		fmt.Println(diff)
+		// check if any of the diffs requires force-new
+		forceNew := false
+		for name := range diff {
+			field, err := schema.Get(name)
+			if err != nil {
+				return err
+			}
+			if field.ForceNew {
+				forceNew = true
+			}
+		}
+		if forceNew {
+			req := &ApplyResourceRequest{
+				Deployment: dep,
+				Action:     ApplyResourceRequestDelete,
+				Resource:   &spec,
+			}
+			if err := handler.ApplyResource(req); err != nil {
+				return err
+			}
+		}
+	}
 
-		panic("x")
+	var action string
+	if comp.Action == proto.Component_DELETE {
+		action = ApplyResourceRequestDelete
+	} else {
+		action = ApplyResourceRequestReconcile
+	}
+	req := &ApplyResourceRequest{
+		Deployment: dep,
+		Action:     action,
+		Resource:   &spec,
+	}
+	handler.ApplyResource(req)
+
+	if err := s.State.Finalize(dep.Name); err != nil {
+		return err
 	}
 
 	/*
@@ -404,6 +439,9 @@ func (s *Server) taskQueue4() {
 		if err != nil {
 			panic(err)
 		}
+
+		fmt.Println(s.handlers)
+		fmt.Println(dep.Backend)
 
 		handler, ok := s.getHandler(dep.Backend)
 		if !ok {

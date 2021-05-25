@@ -10,11 +10,19 @@ var (
 )
 
 type backend struct {
+	*operator.BaseOperator
 }
 
 // Factory returns a factory method for the zookeeper backend
 func Factory() operator.Handler {
-	return &backend{}
+	b := &backend{}
+	b.BaseOperator = &operator.BaseOperator{}
+	b.BaseOperator.SetHandler(b)
+	return b
+}
+
+func (b *backend) Name() string {
+	return "Cassandra"
 }
 
 func (b *backend) Ready(t *proto.Instance) bool {
@@ -52,7 +60,7 @@ func (b *backend) Spec() *operator.Spec {
 				Ports:   []*operator.Port{},
 			},
 		},
-		Resources: []operator.Resource{},
+		Resources: []*operator.Resource2{},
 	}
 }
 

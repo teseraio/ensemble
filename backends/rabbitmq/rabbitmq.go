@@ -87,18 +87,19 @@ func (b *backend) Spec() *operator.Spec {
 				Ports:   []*operator.Port{
 					// http-api 15672
 				},
+				Schema: schema.Schema2{
+					Spec: &schema.Record{},
+				},
 			},
 		},
 		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData){
 			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData) {
-				spec.Image = "rabbitmq"
-				spec.Version = "latest"
 			},
 		},
-		Resources: []operator.Resource{
-			&User{},
-			&Exchange{},
-			&VHost{},
+		Resources: []*operator.Resource2{
+			user(),
+			exchange(),
+			vhost(),
 		},
 	}
 }

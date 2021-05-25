@@ -155,6 +155,9 @@ func getSeqNumber(bkt *bolt.Bucket) (int64, error) {
 func (b *BoltDB) Apply(c *proto.Component) (int64, error) {
 	namespace := []byte(getProtoNamespace(c))
 
+	fmt.Println("__ APPLY ___")
+	fmt.Println(string(namespace))
+
 	tx, err := b.db.Begin(true)
 	if err != nil {
 		return 0, err
@@ -239,6 +242,8 @@ func (b *BoltDB) Apply(c *proto.Component) (int64, error) {
 }
 
 func (b *BoltDB) GetComponent(namespace, name string, sequence int64) (*proto.Component, error) {
+	fmt.Printf("Get component %s %s %d\n", namespace, name, sequence)
+
 	tx, err := b.db.Begin(false)
 	if err != nil {
 		return nil, err
@@ -247,6 +252,11 @@ func (b *BoltDB) GetComponent(namespace, name string, sequence int64) (*proto.Co
 
 	componentsBkt := tx.Bucket(componentsBucket)
 	namespaceBkt := componentsBkt.Bucket([]byte(namespace))
+
+	fmt.Println("-- namespace --")
+	fmt.Println(namespace)
+	fmt.Println(namespaceBkt)
+	fmt.Println(name)
 
 	compBkt := namespaceBkt.Bucket([]byte(name))
 	seqBkt := compBkt.Bucket(seqKey)
@@ -338,6 +348,9 @@ func (b *BoltDB) Finalize(id string) error {
 	if err := tx.Commit(); err != nil {
 		return err
 	}
+
+	fmt.Println("_ WAIT DONE _")
+	fmt.Println(tt.Component.Id)
 
 	// notify any wait channels
 	b.waitChLock.Lock()

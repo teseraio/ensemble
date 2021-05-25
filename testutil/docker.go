@@ -187,10 +187,15 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 	// We will use the 'net1' network interface for dns resolving
 	builder := node.Spec
 
-	if builder.Version == "" {
-		builder.Version = "latest"
+	version := node.Version
+	if version == "" {
+		version = "latest"
 	}
-	image := builder.Image + ":" + builder.Version
+	if node.Image == "" {
+		return "", fmt.Errorf("node image empty")
+	}
+	image := node.Image + ":" + version
+
 	name := node.FullName()
 
 	binds := []string{}
@@ -325,6 +330,7 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 	return body.ID, nil
 }
 
+/*
 func (c *Client) DestroyAt() {
 	var handle string
 	for _, j := range c.resources {
@@ -345,6 +351,7 @@ func (c *Client) Destroy() {
 		panic(err)
 	}
 }
+*/
 
 type Resource struct {
 	CPUShares uint64 `mapstructure:"cpuShares"`
