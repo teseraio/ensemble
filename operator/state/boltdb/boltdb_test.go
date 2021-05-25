@@ -94,49 +94,6 @@ func TestBoltdbFinalizeMultipleResources(t *testing.T) {
 	assert.Equal(t, comp.Sequence, int64(2))
 }
 
-func TestBoltdbApply(t *testing.T) {
-	config := map[string]interface{}{
-		"path": "/tmp/db-" + uuid.UUID(),
-	}
-	st, err := Factory(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	db := st.(*BoltDB)
-
-	cID, _ := db.Apply(&proto.Component{
-		Id:     "id1",
-		Name:   "A",
-		Action: proto.Component_CREATE,
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-			Backend: "backend1",
-		}),
-	})
-	assert.Equal(t, cID, int64(1))
-
-	// the sequence is not updated
-	cID2, _ := db.Apply(&proto.Component{
-		Id:     "id2",
-		Name:   "A",
-		Action: proto.Component_CREATE,
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-			Backend: "backend1",
-		}),
-	})
-	assert.Equal(t, cID2, int64(0))
-
-	// remove the component
-	cID3, _ := db.Apply(&proto.Component{
-		Id:     "id2",
-		Name:   "A",
-		Action: proto.Component_DELETE,
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-			Backend: "backend1",
-		}),
-	})
-	assert.Equal(t, cID3, int64(2))
-}
-
 func TestGetComponent(t *testing.T) {
 	config := map[string]interface{}{
 		"path": "/tmp/db-" + uuid.UUID(),
@@ -188,4 +145,67 @@ func TestListDeployments(t *testing.T) {
 
 	assert.Equal(t, deps[0].Name, "a")
 	assert.Equal(t, deps[1].Name, "b")
+}
+
+func TestBoltdbApply(t *testing.T) {
+	config := map[string]interface{}{
+		"path": "/tmp/db-" + uuid.UUID(),
+	}
+	st, err := Factory(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := st.(*BoltDB)
+
+	comp := &proto.Component{
+		Id:     "id1",
+		Name:   "A",
+		Action: proto.Component_CREATE,
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			Backend: "backend1",
+		}),
+	}
+
+	var seq int64
+	{
+		seq, err = db.Apply(comp)
+		assert.NoError(t, err)
+		assert.Equal(t, seq, int64(1))
+	}
+
+	{
+		// sequence does not advance because the comp is the same
+		seq, err = db.Apply(comp)
+		assert.NoError(t, err)
+		assert.Equal(t, seq, int64(0))
+	}
+
+	{
+		comp = comp.Copy()
+		comp.Action = proto.Component_DELETE
+
+		seq, err = db.Apply(comp)
+		assert.NoError(t, err)
+		assert.Equal(t, seq, int64(2))
+	}
+
+	{
+		// if the component is deleted we need to create it first
+		_, err = db.Apply(comp)
+		assert.Error(t, err)
+	}
+
+	{
+		comp = comp.Copy()
+		comp.Action = proto.Component_CREATE
+
+		seq, err = db.Apply(comp)
+		assert.NoError(t, err)
+		assert.Equal(t, seq, int64(3))
+	}
+
+	lastSeq, lastApplied, err := db.getComponentIndexes("proto-ClusterSpec", "A")
+	assert.NoError(t, err)
+	assert.Equal(t, lastSeq, int64(3))
+	assert.Equal(t, lastApplied, int64(1))
 }

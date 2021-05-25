@@ -29,9 +29,15 @@ var (
 	// versioned indexes
 	clusterIndex = []byte("indx_cluster")
 
-	metaKey  = []byte("meta")
 	indexKey = []byte("index")
 	seqKey   = []byte("seq")
+
+	// deployment key
+	depKey = []byte("meta")
+
+	// keys for the components table
+	lastAppliedKey = []byte("meta")
+	lastSeqKey     = []byte("lastSeq")
 )
 
 // Factory is the factory method for the Boltdb backend
@@ -110,7 +116,7 @@ func (b *BoltDB) initialize() error {
 				bkt := compBkt.Bucket(k)
 				seqBkt := bkt.Bucket(seqKey)
 
-				seq, err := getSeqNumber(bkt)
+				seq, err := getSeqNumber(bkt, lastAppliedKey)
 				if err != nil {
 					return err
 				}
@@ -141,10 +147,17 @@ func (b *BoltDB) Close() error {
 	return b.db.Close()
 }
 
-func getSeqNumber(bkt *bolt.Bucket) (int64, error) {
+func putSeqNumber(bkt *bolt.Bucket, key []byte, num int64) error {
+	if err := bkt.Put(key, []byte(fmt.Sprintf("%d", num))); err != nil {
+		return err
+	}
+	return nil
+}
+
+func getSeqNumber(bkt *bolt.Bucket, key []byte) (int64, error) {
 	seq := 0
 	var err error
-	if raw := bkt.Get(metaKey); raw != nil {
+	if raw := bkt.Get(key); raw != nil {
 		if seq, err = strconv.Atoi(string(raw)); err != nil {
 			return 0, err
 		}
@@ -152,11 +165,36 @@ func getSeqNumber(bkt *bolt.Bucket) (int64, error) {
 	return int64(seq), nil
 }
 
+func (b *BoltDB) getComponentIndexes(namespace, name string) (int64, int64, error) {
+	tx, err := b.db.Begin(false)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer tx.Rollback()
+
+	componentsBkt := tx.Bucket(componentsBucket)
+	namespaceBkt := componentsBkt.Bucket([]byte(namespace))
+	if namespaceBkt == nil {
+		return 0, 0, fmt.Errorf("namespace %s does not exists", namespace)
+	}
+	componentBucket := namespaceBkt.Bucket([]byte(name))
+	if componentBucket == nil {
+		return 0, 0, fmt.Errorf("component %s does not exists", name)
+	}
+
+	lastSeq, err := getSeqNumber(componentBucket, lastSeqKey)
+	if err != nil {
+		return 0, 0, err
+	}
+	lastAppliedSeq, err := getSeqNumber(componentBucket, lastAppliedKey)
+	if err != nil {
+		return 0, 0, err
+	}
+	return lastSeq, lastAppliedSeq, nil
+}
+
 func (b *BoltDB) Apply(c *proto.Component) (int64, error) {
 	namespace := []byte(getProtoNamespace(c))
-
-	fmt.Println("__ APPLY ___")
-	fmt.Println(string(namespace))
 
 	tx, err := b.db.Begin(true)
 	if err != nil {
@@ -184,8 +222,8 @@ func (b *BoltDB) Apply(c *proto.Component) (int64, error) {
 		return 0, err
 	}
 
-	// get sequence number, TODO: this only allows two values stored
-	seq, err := getSeqNumber(componentBucket)
+	// get the last sequence number for the component
+	lastSeq, err := getSeqNumber(componentBucket, lastSeqKey)
 	if err != nil {
 		return 0, err
 	}
@@ -198,13 +236,22 @@ func (b *BoltDB) Apply(c *proto.Component) (int64, error) {
 
 	// get the current version
 	old := proto.Component{}
-	if seq != 0 {
-		if err := dbGet(seqBkt, seqID(int64(seq)), &old); err != nil {
+	if lastSeq != 0 {
+		if err := dbGet(seqBkt, seqID(int64(lastSeq)), &old); err != nil {
 			return 0, err
 		}
-		if c.Action == proto.Component_CREATE {
-			if bytes.Equal(old.Spec.Value, c.Spec.Value) {
-				return 0, nil
+		if old.Action == proto.Component_DELETE {
+			// we only expect create object
+			if c.Action != proto.Component_CREATE {
+				return 0, fmt.Errorf("the component is deleted, only create expected but found %s", old.Action)
+			}
+		} else if old.Action == proto.Component_CREATE {
+			// if its not delete, we need to make sure we dont try to
+			// save the same spec
+			if c.Action != proto.Component_DELETE {
+				if bytes.Equal(old.Spec.Value, c.Spec.Value) {
+					return 0, nil
+				}
 			}
 		}
 	} else {
@@ -214,9 +261,9 @@ func (b *BoltDB) Apply(c *proto.Component) (int64, error) {
 	}
 
 	// update the sequence number in the component
-	c.Sequence = int64(seq) + 1
+	c.Sequence = int64(lastSeq) + 1
 
-	if old.Status != proto.Component_PENDING {
+	if old.Status != proto.Component_PENDING && old.Status != proto.Component_QUEUED {
 		// push this component to the pending queue
 		clusterID, err := proto.ClusterIDFromComponent(c)
 		if err != nil {
@@ -225,14 +272,20 @@ func (b *BoltDB) Apply(c *proto.Component) (int64, error) {
 		b.queue.add(clusterID, c)
 
 		c.Status = proto.Component_PENDING
-		if err := componentBucket.Put(metaKey, []byte(fmt.Sprintf("%d", c.Sequence))); err != nil {
+
+		// update the new componetn being applied
+		if err := putSeqNumber(componentBucket, lastAppliedKey, c.Sequence); err != nil {
 			return 0, err
 		}
 	} else {
 		c.Status = proto.Component_QUEUED
 	}
 
+	// store the object and the next sequence index
 	if err := dbPut(seqBkt, seqID(c.Sequence), c); err != nil {
+		return 0, err
+	}
+	if err := putSeqNumber(componentBucket, lastSeqKey, c.Sequence); err != nil {
 		return 0, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -304,7 +357,7 @@ func (b *BoltDB) Finalize(id string) error {
 	namespaceBkt := componentsBkt.Bucket(namespace)
 	componentBkt := namespaceBkt.Bucket([]byte(tt.Component.Name))
 
-	seq, err := getSeqNumber(componentBkt)
+	seq, err := getSeqNumber(componentBkt, lastAppliedKey)
 	if err != nil {
 		return err
 	}
@@ -336,6 +389,11 @@ func (b *BoltDB) Finalize(id string) error {
 		}
 	} else {
 		b.queue.add(tt.clusterID, &nextComp)
+
+		// update the sequence number
+		if err := putSeqNumber(componentBkt, lastAppliedKey, nextComp.Sequence); err != nil {
+			return err
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -424,7 +482,7 @@ func (b *BoltDB) loadDeploymentImpl(depsBkt *bolt.Bucket, id string) (*proto.Dep
 	c := &proto.Deployment{
 		Instances: []*proto.Instance{},
 	}
-	if err := dbGet(depBkt, metaKey, c); err != nil {
+	if err := dbGet(depBkt, depKey, c); err != nil {
 		if err == errNotFound {
 			return nil, fmt.Errorf("meta key not found")
 		}
@@ -465,7 +523,7 @@ func (b *BoltDB) UpdateDeployment(d *proto.Deployment) error {
 	dd := d.Copy()
 	dd.Instances = nil
 
-	if err := dbPut(depBkt, metaKey, dd); err != nil {
+	if err := dbPut(depBkt, depKey, dd); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {

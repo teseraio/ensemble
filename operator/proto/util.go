@@ -33,6 +33,10 @@ func Equal(p0, p1 proto.Message) bool {
 	return bytes.Equal(m0, m1)
 }
 
+func (c *Component) Copy() *Component {
+	return proto.Clone(c).(*Component)
+}
+
 func (c *ClusterSpec) Copy() *ClusterSpec {
 	return proto.Clone(c).(*ClusterSpec)
 }
