@@ -1,6 +1,6 @@
 // next.config.js
 
-const withTM = require('next-transpile-modules')(['@teseraio/tesera-oss']);
+const withTM = require('next-transpile-modules')(['@teseraio/tesera-oss', '@teseraio/oss-react-changelog', '@teseraio/oss-react-docs', '@teseraio/oss-react-landing', '@teseraio/oss-react-app', '@teseraio/oss-react-community', '@teseraio/cookie-consent-manager']);
 
 module.exports = withTM({
     pageExtensions: ['js', 'jsx', 'mdx'],

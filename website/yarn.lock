@@ -2449,10 +2449,10 @@
     reduce-css-calc "^2.1.8"
     resolve "^1.20.0"
 
-"@teseraio/cookie-consent-manager@1.0.3":
-  version "1.0.3"
-  resolved "https://registry.yarnpkg.com/@teseraio/cookie-consent-manager/-/cookie-consent-manager-1.0.3.tgz#4c2dca5158aab2c80012f0d708ab8e5ce81e166b"
-  integrity sha512-zvTqLKToAfRGlZhcmngKA6mRLeVs+FIihs2GweJ9gPHpsLxFQXGfGjO6lJJ8ZbEP3rvXyFroFexw3zlyTH3jmg==
+"@teseraio/cookie-consent-manager@1.0.4":
+  version "1.0.4"
+  resolved "https://registry.yarnpkg.com/@teseraio/cookie-consent-manager/-/cookie-consent-manager-1.0.4.tgz#615158aa2bbfe9b881ba2f69e8e9c517d4e8db93"
+  integrity sha512-geCAVMvMmP1gzEFwuL4JeqViJgbqOJswKGI2cU3+NyYgm9cmQUfi7bst/ijVq4NU6PSsemq8vHOGollnfYNebA==
   dependencies:
     "@analytics/segment" "^1.1.0"
     "@headlessui/react" "^1.1.1"
@@ -2469,6 +2469,48 @@
     postcss "^7"
     rollup "^2.48.0"
     rollup-plugin-postcss "^4.0.0"
+
+"@teseraio/oss-react-app@^0.0.3":
+  version "0.0.3"
+  resolved "https://registry.yarnpkg.com/@teseraio/oss-react-app/-/oss-react-app-0.0.3.tgz#8ece15e740b7ecb487cd7c757d88d26d0d6e0b65"
+  integrity sha512-XgrkgEfopmk+TmO7In0lRT3htbapPpj+SwXwGDuKSU3hfil/G6xUpVEDVvENec/MXblEKktvthYK0QW57GhHpA==
+  dependencies:
+    "@headlessui/react" "^1.1.1"
+    "@heroicons/react" "^1.0.1"
+
+"@teseraio/oss-react-changelog@^0.0.4":
+  version "0.0.4"
+  resolved "https://registry.yarnpkg.com/@teseraio/oss-react-changelog/-/oss-react-changelog-0.0.4.tgz#8f2f29d528c5c0c02a69a2dcc71ba577ae4f2d5b"
+  integrity sha512-QAy6mpvxwCbq5buJLHRxPpg16VvjNoOlrfN5FN4zjgQQ1h77ajksBnmq6/Rq9CsmWolAPuyVPZ0jwFX6Zc3/0Q==
+  dependencies:
+    remark "^13.0.0"
+    remark-html "^13.0.1"
+    remark-parse "^9.0.0"
+
+"@teseraio/oss-react-community@0.0.2":
+  version "0.0.2"
+  resolved "https://registry.yarnpkg.com/@teseraio/oss-react-community/-/oss-react-community-0.0.2.tgz#23d8ecbc97bbfd13e8e7bd74b181ffb9938f59be"
+  integrity sha512-nPEg76+nLcGtekAEZEs9ecgZYKKNQxCAk2ehRy4z6bj2YqFy2D+RCHO5rQnWQqLIM7lGWmsatH25P6DMZ0SepQ==
+
+"@teseraio/oss-react-docs@0.0.5":
+  version "0.0.5"
+  resolved "https://registry.yarnpkg.com/@teseraio/oss-react-docs/-/oss-react-docs-0.0.5.tgz#1740b54e25d4d5be443af12c6849f1dff207accc"
+  integrity sha512-4J55qt4UoBSb71c3NxOfo09ar4b9OS8hA2A58wMghjZmL/vKviNEJZeKGJEz0f1KDzxdkwBE7ix5XfIehhDDXA==
+  dependencies:
+    "@headlessui/react" "^1.1.1"
+    "@heroicons/react" "^1.0.1"
+    "@mapbox/rehype-prism" "^0.5.0"
+    clsx "^1.1.1"
+    gray-matter "^4.0.2"
+    next-mdx-remote "^1.0.0"
+
+"@teseraio/oss-react-landing@0.0.5":
+  version "0.0.5"
+  resolved "https://registry.yarnpkg.com/@teseraio/oss-react-landing/-/oss-react-landing-0.0.5.tgz#3bbf9b48940eacf82c6441fadaaae5f9aeca4b2c"
+  integrity sha512-QctuhpYR9xxMWYftC2JDjroAw4niK0JXD8WbmdwRtSCooZfwWvO8iBspvabGwli8355qN4nIYar7QObVADfICA==
+  dependencies:
+    "@headlessui/react" "^1.1.1"
+    "@heroicons/react" "^1.0.1"
 
 "@teseraio/tesera-oss@1.0.1":
   version "1.0.1"

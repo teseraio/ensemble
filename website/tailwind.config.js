@@ -13,8 +13,8 @@ module.exports = {
         'white3': '#f4f4f4',
         'tgrey-black': "#cccccc",
         'tgrey-white': "#5e5e5e",
-        'main': '#6B1FFF',
-        'ensemble': '#6B1FFF',
+        'main': '#00d1b1',
+        'ensemble': '#00d1b1',
       },
       /*
       inset: {

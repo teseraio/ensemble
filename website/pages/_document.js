@@ -22,16 +22,3 @@ class MyDocument extends Document {
 }
 
 export default MyDocument
-
-/*
-          <script async src="https://www.googletagmanager.com/gtag/js?id=UA-177950338-2"></script>
-          <script dangerouslySetInnerHTML={
-              { __html: `
-              window.dataLayer = window.dataLayer || [];
-              function gtag(){dataLayer.push(arguments);}
-              gtag('js', new Date());
-              gtag('config', 'UA-177950338-2');
-              `}
-          }>
-          </script>
-*/

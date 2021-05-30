@@ -1,48 +1,36 @@
 import '../styles/index.css'
-import '../lib/docs/styles/docs.css'
-import '../lib/changelog/styles/changelog.css'
+import "@teseraio/oss-react-changelog/lib/styles/changelog.css"
+import "@teseraio/oss-react-docs/lib/styles/docs.css"
+import "@teseraio/oss-react-docs/lib/styles/prysm.css"
 
 import React from 'react'
-import Head from 'next/head'
 
-import Header from "../lib/app/header"
-import Footer from "../lib/app/footer"
-
-import {ConsentManager} from "@teseraio/cookie-consent-manager"
-import {App} from "@teseraio/tesera-oss"
-
-import Link from 'next/link'
-
-import Ensemble from "../assets/logo-ensemble-white.svg";
+import {ConsentManager, openConsentManager} from "@teseraio/cookie-consent-manager"
+import App from "@teseraio/oss-react-app"
 
 const navigation = [
   {
-    title: "Use cases",
-    href: "/use-cases",
-  },
-  {
-    title: "Changelog",
+    name: "Changelog",
     href: "/changelog"
   },
   {
-    title: "Docs",
+    name: "Community",
+    href: "/community"
+  },
+  {
+    name: "Docs",
     href: "/docs"
   },
   {
-    title: "Community",
-    href: "/community"
-  },
+    name: "Enterprise",
+    href: "/enterprise"
+  }
 ]
 
 function MyApp({ Component, pageProps }) {
   return (
     <>
-      <Head>
-        <title>Ensemble</title>
-      </Head>
       <App.Header
-        logoWhite={"/logo-ensemble-white.svg"}
-        logoBlack={"/logo-ensemble-black.svg"}
         navigation={navigation}
         repo={'teseraio/ensemble'}
       />
@@ -50,47 +38,36 @@ function MyApp({ Component, pageProps }) {
       <ConsentManager
         segmentWriteKey={"pGBpgRG6HG5pXv6sMMJqTVzC9ww8kjNQ"}
       />
-      <App.Footer Link={Link} navigation={[]} social={[]} links={footer_links} icons={footer_icons}/>
+      <App.Footer navigation={footer_links} />
     </>
   )
 }
 
 const footer_links = [
   {
-    text: "About",
-    href: "/about"
+    name: "Changelog",
+    href: "/changelog"
   },
   {
-    text: "Blog",
-    href: "/blog"
+    name: "Docs",
+    href: "/docs"
   },
   {
-    text: "Jobs",
-    href: "/jobs"
+    name: "Community",
+    href: "/community"
   },
   {
-    text: "Press",
-    href: "/press"
+    name: "Enterprise",
+    href: "https://tesera.io"
   },
-  {
-    text: "Accessibility",
-    href: "/accessibility"
-  },
-]
-
-const footer_icons = [
   {
     name: "Github",
-    href: ""
+    href: "https://github.com/teseraio/ensemble"
   },
   {
-    name: "Twitter",
-    href: ""
+    name: "Cookie manager",
+    onClick: openConsentManager,
   },
-  {
-    name: "Facebook",
-    href: ""
-  }
 ]
 
 export default MyApp
