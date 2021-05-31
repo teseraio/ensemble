@@ -148,3 +148,10 @@ const features = [
       icon: FUpdates,
     },
   ]
+
+Home.getInitialProps = ({ req }) => {
+  return {
+    title: "Home",
+    onBrand: false
+  }
+}

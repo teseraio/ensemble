@@ -28,9 +28,16 @@ const navigation = [
 ]
 
 function MyApp({ Component, pageProps }) {
+  const {onBrand} = pageProps;
+
+  console.log("-- on brand --")
+  console.log(onBrand)
+
   return (
     <>
       <App.Header
+        onBrand={onBrand != undefined ? onBrand : true}
+        current={''}
         navigation={navigation}
         repo={'teseraio/ensemble'}
       />

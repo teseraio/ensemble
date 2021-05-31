@@ -1,3 +1,7 @@
+:root {
+  --color-primary: #5a8dff;
+}
+
 @tailwind base;
 
 /* Write your own custom base styles here */

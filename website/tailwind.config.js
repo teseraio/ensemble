@@ -3,7 +3,7 @@ module.exports = {
     removeDeprecatedGapUtilities: true,
     purgeLayersByDefault: true,
   },
-  purge: ['./components/**/*.{js,ts,jsx,tsx}', './pages/**/*.{js,ts,jsx,tsx}'],
+  // purge: ['./components/**/*.{js,ts,jsx,tsx}', './pages/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
       colors: {
@@ -13,8 +13,7 @@ module.exports = {
         'white3': '#f4f4f4',
         'tgrey-black': "#cccccc",
         'tgrey-white': "#5e5e5e",
-        'main': '#00d1b1',
-        'ensemble': '#00d1b1',
+        'main': 'var(--color-primary)',
       },
       /*
       inset: {
