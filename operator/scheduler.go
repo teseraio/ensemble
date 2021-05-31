@@ -12,6 +12,46 @@ type schedState interface {
 	GetClusterSpec(id string, sequence int64) (*proto.ClusterSpec, *proto.Component, error)
 }
 
+type Harness struct {
+	Plan       *proto.Plan
+	Deployment *proto.Deployment
+	Handler    Handler
+	Spec       *proto.ClusterSpec
+}
+
+type NodeExpect struct {
+	Env map[string]string
+}
+
+func (h *Harness) ExpectNodeUpdate(e []NodeExpect) {
+
+}
+
+func (h *Harness) SubmitPlan(plan *proto.Plan) error {
+	h.Plan = plan
+	return nil
+}
+
+func (h *Harness) LoadDeployment(id string) (*proto.Deployment, error) {
+	return h.Deployment, nil
+}
+
+func (h *Harness) GetHandler(id string) (Handler, error) {
+	return h.Handler, nil
+}
+
+func (h *Harness) GetClusterSpec(id string, sequence int64) (*proto.ClusterSpec, *proto.Component, error) {
+	return h.Spec, &proto.Component{}, nil
+}
+
+type Scheduler interface {
+	Process(eval *proto.Evaluation) error
+}
+
+func NewScheduler(state schedState) Scheduler {
+	return &scheduler{state: state}
+}
+
 type scheduler struct {
 	state schedState
 }
