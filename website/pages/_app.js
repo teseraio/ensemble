@@ -4,6 +4,7 @@ import "@teseraio/oss-react-docs/lib/styles/docs.css"
 import "@teseraio/oss-react-docs/lib/styles/prysm.css"
 
 import React from 'react'
+import Head from 'next/head'
 
 import {ConsentManager, openConsentManager} from "@teseraio/cookie-consent-manager"
 import App from "@teseraio/oss-react-app"
@@ -28,13 +29,21 @@ const navigation = [
 ]
 
 function MyApp({ Component, pageProps }) {
-  const {onBrand} = pageProps;
+  const {
+    onBrand,
+    title
+  } = pageProps;
 
   console.log("-- on brand --")
   console.log(onBrand)
 
   return (
     <>
+      {title &&
+        <Head>
+          <title>{title} | Ensemble - Data plane for database orchestration</title>
+        </Head>
+      }
       <App.Header
         onBrand={onBrand != undefined ? onBrand : true}
         current={''}
