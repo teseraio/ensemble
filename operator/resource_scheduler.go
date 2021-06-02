@@ -13,15 +13,12 @@ type resourceScheduler struct {
 
 func (r *resourceScheduler) Process(eval *proto.Evaluation) error {
 
-	var spec proto.ResourceSpec
-	if err := gproto.Unmarshal(comp.Spec.Value, &spec); err != nil {
+	// get the required data
+	comp, err := r.state.GetComponentByID(eval.CompId)
+	if err != nil {
 		return err
 	}
-	if dep == nil {
-		return fmt.Errorf("deployment does not exists")
-	}
-
-	dep, err := r.state.LoadDeployment(spec.Cluster)
+	dep, err := r.state.LoadDeployment(eval.ClusterID)
 	if err != nil {
 		return err
 	}
@@ -30,20 +27,23 @@ func (r *resourceScheduler) Process(eval *proto.Evaluation) error {
 		return err
 	}
 
-	fmt.Println("_ HANDLE RESOURCE _")
+	// decode resource spec
+	var spec proto.ResourceSpec
+	if err := gproto.Unmarshal(comp.Spec.Value, &spec); err != nil {
+		return err
+	}
 
+	// validate schema (TODO: Validate at the apply state)
 	schema, ok := handler.GetSchemas().Resources[spec.Resource]
 	if !ok {
 		return fmt.Errorf("resource not found %s", spec.Resource)
 	}
 	if err := schema.Validate(spec.Params); err != nil {
-		panic(err)
+		return err
 	}
 
-	fmt.Println(comp.Id, comp.Name)
-
 	if comp.Sequence != 1 {
-		pastComp, err := s.State.GetComponent("proto-ResourceSpec", comp.Name, comp.Sequence-1)
+		pastComp, err := r.state.GetComponentByID(comp.PrevId)
 		if err != nil {
 			return err
 		}
@@ -89,10 +89,6 @@ func (r *resourceScheduler) Process(eval *proto.Evaluation) error {
 		Resource:   &spec,
 	}
 	handler.ApplyResource(req)
-
-	if err := s.State.Finalize(dep.Name); err != nil {
-		return err
-	}
 
 	return nil
 }

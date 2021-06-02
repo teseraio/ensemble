@@ -50,6 +50,8 @@ message Component {
     // metadata of the component
     map<string, string> metadata = 8;
 
+    string prevId = 9;
+
     enum Status {
         UNKNOWN = 0;
         PENDING = 1;
@@ -139,6 +141,8 @@ message Deployment {
     int64 sequence = 4;
 
     string backend = 5;
+
+    string compId = 6;
 }
 
 message InstanceUpdate {
@@ -259,6 +263,10 @@ message Evaluation {
 
     string clusterID = 4;
 
+    string compId = 5;
+
+    string type = 6;
+    
     enum Status {
         PENDING   = 0;
         COMPLETE  = 1;

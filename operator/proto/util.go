@@ -11,6 +11,11 @@ import (
 )
 
 const (
+	EvaluationTypeCluster  = "cluster"
+	EvaluationTypeResource = "resource"
+)
+
+const (
 	DeploymentDone    = "done"
 	DeploymentRunning = "running"
 	DeploymentFailed  = "failed"

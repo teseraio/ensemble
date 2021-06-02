@@ -1,6 +1,7 @@
 package operator
 
 import (
+	gproto "github.com/golang/protobuf/proto"
 	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
 )
@@ -8,8 +9,8 @@ import (
 type schedState interface {
 	SubmitPlan(*proto.Plan) error
 	LoadDeployment(id string) (*proto.Deployment, error)
+	GetComponentByID(id string) (*proto.Component, error)
 	GetHandler(id string) (Handler, error)
-	GetClusterSpec(id string, sequence int64) (*proto.ClusterSpec, *proto.Component, error)
 }
 
 type Harness struct {
@@ -62,13 +63,17 @@ func (s *scheduler) Process(eval *proto.Evaluation) error {
 	if err != nil {
 		return err
 	}
-
 	handler, err := s.state.GetHandler(dep.Backend)
 	if err != nil {
 		return err
 	}
-	spec, comp, err := s.state.GetClusterSpec(dep.Name, dep.Sequence)
+
+	comp, err := s.state.GetComponentByID(dep.CompId)
 	if err != nil {
+		return err
+	}
+	spec := &proto.ClusterSpec{}
+	if err := gproto.Unmarshal(comp.Spec.Value, spec); err != nil {
 		return err
 	}
 

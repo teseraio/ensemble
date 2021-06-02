@@ -10,7 +10,7 @@ func TestScheduler_Place(t *testing.T) {
 	eval := &proto.Evaluation{}
 
 	sched := &scheduler{
-		state: &mockState{},
+		state: nil,
 	}
 	sched.Process(eval)
 }
