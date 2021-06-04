@@ -1579,13 +1579,6 @@
     magic-string "^0.25.7"
     resolve "^1.17.0"
 
-"@rollup/plugin-json@^4.1.0":
-  version "4.1.0"
-  resolved "https://registry.yarnpkg.com/@rollup/plugin-json/-/plugin-json-4.1.0.tgz#54e09867ae6963c593844d8bd7a9c718294496f3"
-  integrity sha512-yfLbTdNS6amI/2OpmbiBoW12vngr5NW2jCJVZSBEz+H5KfUJZ2M7sDjk0U6GOOdCWFVScShte29o9NezJ53TPw==
-  dependencies:
-    "@rollup/pluginutils" "^3.0.8"
-
 "@rollup/plugin-node-resolve@^11.0.1":
   version "11.2.1"
   resolved "https://registry.yarnpkg.com/@rollup/plugin-node-resolve/-/plugin-node-resolve-11.2.1.tgz#82aa59397a29cd4e13248b106e6a4a1880362a60"
@@ -1598,7 +1591,7 @@
     is-module "^1.0.0"
     resolve "^1.19.0"
 
-"@rollup/pluginutils@^3.0.8", "@rollup/pluginutils@^3.1.0":
+"@rollup/pluginutils@^3.1.0":
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/@rollup/pluginutils/-/pluginutils-3.1.0.tgz#706b4524ee6dc8b103b3c995533e5ad680c02b9b"
   integrity sha512-GksZ6pr6TpIjHm8h9lSQ8pi8BE9VeubNT0OMJ3B5uZJ8pz73NPiqOtCog/x2/QzM1ENChPKxMDhiQuRHsqc+lg==
@@ -2449,10 +2442,10 @@
     reduce-css-calc "^2.1.8"
     resolve "^1.20.0"
 
-"@teseraio/cookie-consent-manager@1.0.4":
-  version "1.0.4"
-  resolved "https://registry.yarnpkg.com/@teseraio/cookie-consent-manager/-/cookie-consent-manager-1.0.4.tgz#615158aa2bbfe9b881ba2f69e8e9c517d4e8db93"
-  integrity sha512-geCAVMvMmP1gzEFwuL4JeqViJgbqOJswKGI2cU3+NyYgm9cmQUfi7bst/ijVq4NU6PSsemq8vHOGollnfYNebA==
+"@teseraio/cookie-consent-manager@1.0.6":
+  version "1.0.6"
+  resolved "https://registry.yarnpkg.com/@teseraio/cookie-consent-manager/-/cookie-consent-manager-1.0.6.tgz#05c064cd789db740c8566f1e24fc43bfb162c724"
+  integrity sha512-lm6hhIFTWFpfBHvolzSw4cQGQFKq8csWNvdrlfj9RsyvZ3QduMNHpIDncR/7RTESLM8BBxu69nrWVTKtgy+ENg==
   dependencies:
     "@analytics/segment" "^1.1.0"
     "@headlessui/react" "^1.1.1"
@@ -2470,32 +2463,32 @@
     rollup "^2.48.0"
     rollup-plugin-postcss "^4.0.0"
 
-"@teseraio/oss-react-app@^0.0.4":
-  version "0.0.4"
-  resolved "https://registry.yarnpkg.com/@teseraio/oss-react-app/-/oss-react-app-0.0.4.tgz#e28ada1c27880d177f8d651c1351e6eea5883b4b"
-  integrity sha512-Z4zyNSZ4BoFsQd0wTF2U/ia78OzufI44eohQois3QW5jBELDFewOefjamf+EQHbJNZbOHdqlewhuONOsn27ToA==
-  dependencies:
-    "@headlessui/react" "^1.1.1"
-    "@heroicons/react" "^1.0.1"
-
-"@teseraio/oss-react-changelog@^0.0.5":
+"@teseraio/oss-react-app@^0.0.5":
   version "0.0.5"
-  resolved "https://registry.yarnpkg.com/@teseraio/oss-react-changelog/-/oss-react-changelog-0.0.5.tgz#2b54a0c7658f64009574ad2c083bc605117ca94e"
-  integrity sha512-aYBvDm1N8I5dB+DSHSplmxCbK1w81YJvfVsmCqp7A9w+sFCMh7gqMfMxiwVkItw5NaQD2sMb3G4VMHFpHq7vlQ==
+  resolved "https://registry.yarnpkg.com/@teseraio/oss-react-app/-/oss-react-app-0.0.5.tgz#98952697e5a2b26d256bdbd5b129b0ea288a5888"
+  integrity sha512-vdX1PhY0eTGDvgoKgyrzbd9ThAWm/I66lXli6+bsUt4X92TwKlBviJfAkCjL8syFY2AEOfSqHNqTejDgPy2ROA==
+  dependencies:
+    "@headlessui/react" "^1.1.1"
+    "@heroicons/react" "^1.0.1"
+
+"@teseraio/oss-react-changelog@^0.0.6":
+  version "0.0.6"
+  resolved "https://registry.yarnpkg.com/@teseraio/oss-react-changelog/-/oss-react-changelog-0.0.6.tgz#fc961713483ce3a9d7fcdeb87983c39558cfd7c8"
+  integrity sha512-oFQCVKlxbPPE215lIZQ3QWgaDddtQp7zISj181vogoU2Rm1ZBgOsVD8P3oKdRM5TgyN8QvZYz5uP6LvSGVAoUQ==
   dependencies:
     remark "^13.0.0"
     remark-html "^13.0.1"
     remark-parse "^9.0.0"
 
-"@teseraio/oss-react-community@0.0.4":
-  version "0.0.4"
-  resolved "https://registry.yarnpkg.com/@teseraio/oss-react-community/-/oss-react-community-0.0.4.tgz#df69936748e5611d7b4040203f4400cf63e20d88"
-  integrity sha512-qU6435lKFy1DxiYKuKo4jmbMhTA40WGEqyxCJhXJM29soGatI2XEBIaw0a+5r4EV51s5hl44buNvKRnXoJv+Mw==
+"@teseraio/oss-react-community@0.0.5":
+  version "0.0.5"
+  resolved "https://registry.yarnpkg.com/@teseraio/oss-react-community/-/oss-react-community-0.0.5.tgz#1abf90b8fb321e71575202a24cbf8eb46bc49895"
+  integrity sha512-V4xL1VYRx4PIOEDK+j9no33d9SmQuaZjx1SVm4jwpDeIGQbr/RW0oPEjQcP2uTo/xW6Hl+5Fpj2g5zNFyAQgxw==
 
-"@teseraio/oss-react-docs@0.0.6":
-  version "0.0.6"
-  resolved "https://registry.yarnpkg.com/@teseraio/oss-react-docs/-/oss-react-docs-0.0.6.tgz#cc35be6f33bc3ba3839d656246ae4367abcc47a4"
-  integrity sha512-aToflhnDXzg0ivPZIMqoHA3ZfkhtZ4Rr0PkdJ9J2YvQr9DMv3wETfCmhd3w8RO3vTegE6YC7Qv/F5+sNfKHzgw==
+"@teseraio/oss-react-docs@0.0.10":
+  version "0.0.10"
+  resolved "https://registry.yarnpkg.com/@teseraio/oss-react-docs/-/oss-react-docs-0.0.10.tgz#1e1be7a4b8cab822b5b6c994eaba03705845e27b"
+  integrity sha512-NTM4Y0djr73azG6oeg1Npd80Xy4SsMHMXqGI7A4W+tNmNOn5PJVfTsIT2ByYMEPH8CnVoCBppdVq6ax7AzeZlg==
   dependencies:
     "@headlessui/react" "^1.1.1"
     "@heroicons/react" "^1.0.1"
@@ -2504,38 +2497,13 @@
     gray-matter "^4.0.2"
     next-mdx-remote "^1.0.0"
 
-"@teseraio/oss-react-landing@0.0.6":
-  version "0.0.6"
-  resolved "https://registry.yarnpkg.com/@teseraio/oss-react-landing/-/oss-react-landing-0.0.6.tgz#c86d2f1da8ce8f16329c4f4c8e424217614701f6"
-  integrity sha512-o6p6CRGpypab2kqYNQToc1gfZuSq68/N4BCNOI0nsRYaFKaDMzNHq3etVbKMqXvZuhomkdizqa8ExkymTR1dEQ==
+"@teseraio/oss-react-landing@0.0.10":
+  version "0.0.10"
+  resolved "https://registry.yarnpkg.com/@teseraio/oss-react-landing/-/oss-react-landing-0.0.10.tgz#5aaf729ff1b7b90c35dfaf20cebb6d1a680e16f7"
+  integrity sha512-quwRZMV1lE2DduxRrIJHdmS8W8MZhw4r0MKV2SJKQbJCaSAnDPCbR/a6EZRoTZ3vl1r6Pw2lPseLKqdQtqRZxw==
   dependencies:
     "@headlessui/react" "^1.1.1"
     "@heroicons/react" "^1.0.1"
-
-"@teseraio/tesera-oss@1.0.1":
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/@teseraio/tesera-oss/-/tesera-oss-1.0.1.tgz#5a1f9d1ca999fd61c00809f54e87dd2c2e997a59"
-  integrity sha512-IGueZF0fRM8ymzePPqZ/SezF2MlOCYlA24E6zCMKux7PoCwGDNDdGiYJLwPKUAahlU2wILhLLyCyUFbR8fQelQ==
-  dependencies:
-    "@headlessui/react" "^1.1.1"
-    "@heroicons/react" "^1.0.1"
-    "@mapbox/rehype-prism" "^0.5.0"
-    "@rollup/plugin-babel" "^5.2.2"
-    "@rollup/plugin-commonjs" "^17.0.0"
-    "@rollup/plugin-json" "^4.1.0"
-    "@rollup/plugin-node-resolve" "^11.0.1"
-    "@svgr/webpack" "^5.5.0"
-    "@tailwindcss/postcss7-compat" "^2.1.2"
-    autoprefixer "^9"
-    clsx "^1.1.1"
-    gray-matter "^4.0.2"
-    next-mdx-remote "^1.0.0"
-    postcss "^7"
-    remark "^13.0.0"
-    remark-html "^13.0.1"
-    remark-parse "^9.0.0"
-    rollup "^2.48.0"
-    rollup-plugin-postcss "^4.0.0"
 
 "@types/braces@*":
   version "3.0.0"

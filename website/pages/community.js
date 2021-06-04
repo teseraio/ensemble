@@ -1,42 +1,44 @@
 
 import Community from "@teseraio/oss-react-community"
-import { NewspaperIcon, PhoneIcon, SupportIcon } from '@heroicons/react/outline'
-import Head from 'next/head'
+import { CubeIcon, ChatAlt2Icon, ChatIcon } from '@heroicons/react/outline'
 
 const supportLinks = [
     {
         name: 'Community Forum',
-        href: '#',
-        hrefText: 'Contact us',
+        href: 'https://discord.gg/A5QrF6sC',
+        hrefText: 'Ask a question',
         description:
-            'Varius facilisi mauris sed sit. Non sed et duis dui leo, vulputate id malesuada non. Cras aliquet purus dui laoreet diam sed lacus, fames.',
-        icon: PhoneIcon,
+            'Join our Discord community to learn about our latest announcements, chat with the devs and connect with other Ensemble users.',
+        icon: ChatAlt2Icon,
     },
     {
         name: 'Office hours',
-        href: '#',
-        hrefText: 'Contact us',
+        href: 'https://calendly.com/ferran-tesera/ensemble-office-hours',
+        hrefText: 'Talk with the devs',
         description:
-            'Varius facilisi mauris sed sit. Non sed et duis dui leo, vulputate id malesuada non. Cras aliquet purus dui laoreet diam sed lacus, fames.',
-        icon: SupportIcon,
+            'If you are stuck with the deployment, wondering how to create your own backend or want to know more about our roadmap, stop by and we will be happy to talk with you.',
+        icon: ChatIcon,
     },
     {
         name: 'Github',
-        href: '#',
-        hrefText: 'Contact us',
+        href: 'https://github.com/teseraio/ensemble',
+        hrefText: 'Check repository',
         description:
-            'Varius facilisi mauris sed sit. Non sed et duis dui leo, vulputate id malesuada non. Cras aliquet purus dui laoreet diam sed lacus, fames.',
-        icon: NewspaperIcon,
+            'Use Github to track the development and report any bugs. If you have any general question, use the forum instead.',
+        icon: CubeIcon,
     },
 ]
 
 export default function IndexPage() {
     return (
         <div>
-            <Head>
-                <title key="title">Community | Ensemble</title>
-            </Head>
             <Community supportLinks={supportLinks} />
         </div>
     )
+}
+
+IndexPage.getInitialProps = ({ req }) => {
+    return {
+      title: "Community"
+    }
 }

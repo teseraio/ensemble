@@ -14,3 +14,9 @@ const Index = () => (
     {'Index'}
   </div>
 )
+
+FirstPost.getInitialProps = ({ req }) => {
+  return {
+    title: "Docs"
+  }
+}

@@ -18,8 +18,6 @@ Kubernetes deployment with the [k8s artifact](/docs/cli/k8s-artifacts) command.
 - --level=level. Set the log level of the server. Defaults to INFO.
 - --debug: Enables debug mode. Defaults to false.
 
----
-
 ## k8s artifacts
 
 Print all the YAML Kubernetes resources required to run Ensemble
@@ -53,8 +51,6 @@ Stop the operator but keep the CRDs.
 $ ensemble k8s artifacts --service | kubectl delete -f - 
 ```
 
----
-
 ## k8s init
 
 Helper command to print a YAML description of a cluster.
@@ -76,8 +72,6 @@ Create a Zookeeper cluster with 3 nodes
 ```shell
 $ ensemble k8s init --name zk1 --backend zookeeper --replicas 3 > zk1.yaml
 ```
-
----
 
 ## version
 

@@ -5,11 +5,16 @@ import "@teseraio/oss-react-docs/lib/styles/prysm.css"
 
 import React from 'react'
 import Head from 'next/head'
+import { useRouter } from 'next/router'
 
 import {ConsentManager, openConsentManager} from "@teseraio/cookie-consent-manager"
 import App from "@teseraio/oss-react-app"
 
 const navigation = [
+  {
+    name: "Docs",
+    href: "/docs"
+  },
   {
     name: "Changelog",
     href: "/changelog"
@@ -17,26 +22,17 @@ const navigation = [
   {
     name: "Community",
     href: "/community"
-  },
-  {
-    name: "Docs",
-    href: "/docs"
-  },
-  {
-    name: "Enterprise",
-    href: "/enterprise"
   }
 ]
 
 function MyApp({ Component, pageProps }) {
+  const router = useRouter()
+
   const {
     onBrand,
     title
   } = pageProps;
-
-  console.log("-- on brand --")
-  console.log(onBrand)
-
+  
   return (
     <>
       {title &&
@@ -46,7 +42,7 @@ function MyApp({ Component, pageProps }) {
       }
       <App.Header
         onBrand={onBrand != undefined ? onBrand : true}
-        current={''}
+        current={router.asPath}
         navigation={navigation}
         repo={'teseraio/ensemble'}
       />
@@ -73,7 +69,7 @@ const footer_links = [
     href: "/community"
   },
   {
-    name: "Enterprise",
+    name: "Tesera",
     href: "https://tesera.io"
   },
   {

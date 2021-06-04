@@ -1,6 +1,12 @@
-// next.config.js
 
-const withTM = require('next-transpile-modules')(['@teseraio/tesera-oss', '@teseraio/oss-react-changelog', '@teseraio/oss-react-docs', '@teseraio/oss-react-landing', '@teseraio/oss-react-app', '@teseraio/oss-react-community', '@teseraio/cookie-consent-manager']);
+const withTM = require('next-transpile-modules')([
+    '@teseraio/oss-react-changelog',
+    '@teseraio/oss-react-docs',
+    '@teseraio/oss-react-landing',
+    '@teseraio/oss-react-app',
+    '@teseraio/oss-react-community',
+    '@teseraio/cookie-consent-manager'
+]);
 
 module.exports = withTM({
     pageExtensions: ['js', 'jsx', 'mdx'],
@@ -24,5 +30,15 @@ module.exports = withTM({
             ],
         });
       return config
+    },
+
+    async redirects() {
+        return [
+            {
+                source: '/docs',
+                destination: '/docs/get-started',
+                permanent: true,
+            },
+        ]      
     },
 })

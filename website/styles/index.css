@@ -11,6 +11,7 @@
 /* Stop purging. */
 
 /* Write your own custom component styles here */
+@import "./use-cases.css";
 
 @font-face {
   font-family: "Mada";

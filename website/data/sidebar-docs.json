@@ -22,7 +22,7 @@
         },
         {
             "name": "Databases",
-            "prefix": "/docs/databases",
+            "href": "/docs/databases",
             "children": [
                 {
                     "name": "Cassandra",
