@@ -79,11 +79,11 @@ message ClusterSpec {
     repeated Group groups = 4;
 
     message Group {
+        string name = 1;
         int64 count = 2;
         string type = 3;
-        Spec params = 4;
-        Spec resources = 5;
-        Spec storage = 6;
+        map<string, string> config = 4;
+        map<string, string> resources = 5;
     }
 
     int64 sequence = 5;
@@ -98,22 +98,7 @@ message ResourceSpec {
     string resource = 2;
 
     // params are the params to configure the resource (in JSON)
-    Spec params = 3;
-}
-
-message Spec {
-    oneof block {
-        Block block_value = 1;
-        Literal literal = 2;
-    }
-
-    message Literal {
-        string value = 1;
-    }
-    
-    message Block {
-        map<string, Spec> attrs = 1;
-    }
+    string params = 3;
 }
 
 message NodeSpec {

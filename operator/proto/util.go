@@ -177,28 +177,3 @@ func ParseIndex(n string) (uint64, error) {
 	}
 	return uint64(index), nil
 }
-
-func BlockSpec(block *Spec_Block) *Spec {
-	return &Spec{
-		Block: &Spec_BlockValue{
-			BlockValue: block,
-		},
-	}
-}
-
-// LiteralSpec wraps the literal and returns a spec.
-func LiteralSpec(l *Spec_Literal) *Spec {
-	return &Spec{
-		Block: &Spec_Literal_{
-			Literal: l,
-		},
-	}
-}
-
-func EmptySpec() *Spec {
-	return &Spec{
-		Block: &Spec_BlockValue{
-			BlockValue: &Spec_Block{},
-		},
-	}
-}

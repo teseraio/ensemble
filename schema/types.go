@@ -67,9 +67,6 @@ type Field struct {
 
 	// Required specifies if the field is required
 	Required bool
-
-	// ForceNew describes whether a change in the field requires delete the old one
-	ForceNew bool
 }
 
 // Type implements the Type interface

@@ -66,7 +66,7 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 
 	for _, factory := range config.HandlerFactories {
 		handler := factory()
-		s.handlers[strings.ToLower(handler.Name())] = handler
+		s.handlers[strings.ToLower(handler.Spec().Name)] = handler
 	}
 
 	s.service = &service{s: s}
@@ -262,15 +262,23 @@ func (s *Server) handleResource(dep *proto.Deployment, comp *proto.Component) er
 		return err
 	}
 
-	fmt.Println(handler)
-
-	schema, ok := handler.GetSchemas().Resources[spec.Resource]
-	if !ok {
-		return fmt.Errorf("resource not found %s", spec.Resource)
+	// take any of the nodes in the cluster to connect
+	clt, err := handler.Client(dep.Instances[0])
+	if err != nil {
+		return err
 	}
 
-	fmt.Println("-- schema --")
-	fmt.Println(schema)
+	resSpec := handler.Spec().GetResource(spec.Resource)
+	if resSpec == nil {
+		return fmt.Errorf("resource not found %s", spec.Resource)
+	}
+	newResource, params, err := decodeResource(resSpec, spec.Params)
+	if err != nil {
+		return err
+	}
+	if err := newResource.Init(params); err != nil {
+		return err
+	}
 
 	if comp.Sequence != 1 {
 		pastComp, err := s.State.GetComponent("proto.ResourceSpec", comp.Id, comp.Sequence-1)
@@ -282,73 +290,35 @@ func (s *Server) handleResource(dep *proto.Deployment, comp *proto.Component) er
 			return err
 		}
 
-		diff := schema.Diff(spec.Params, oldSpec.Params)
-
-		fmt.Println("-- diff --")
-		fmt.Println(diff)
-
-		panic("x")
+		forceNew, err := isForceNew(resSpec, &spec, &oldSpec)
+		if err != nil {
+			return err
+		}
+		if forceNew {
+			// delete object
+			removeResource, _, err := decodeResource(resSpec, oldSpec.Params)
+			if err != nil {
+				return err
+			}
+			if err := removeResource.Delete(clt); err != nil {
+				return err
+			}
+		}
 	}
 
-	/*
-		// take any of the nodes in the cluster to connect
-		clt, err := handler.Client(dep.Instances[0])
-		if err != nil {
+	if comp.Action == proto.Component_DELETE {
+		if err := newResource.Delete(clt); err != nil {
 			return err
 		}
-
-		resSpec := handler.Spec().GetResource(spec.Resource)
-		if resSpec == nil {
-			return fmt.Errorf("resource not found %s", spec.Resource)
-		}
-		newResource, params, err := decodeResource(resSpec, spec.Params)
-		if err != nil {
+	} else {
+		if err := newResource.Reconcile(clt); err != nil {
 			return err
 		}
-		if err := newResource.Init(params); err != nil {
-			return err
-		}
+	}
 
-		if comp.Sequence != 1 {
-			pastComp, err := s.State.GetComponent("proto.ResourceSpec", comp.Id, comp.Sequence-1)
-			if err != nil {
-				return err
-			}
-			var oldSpec proto.ResourceSpec
-			if err := gproto.Unmarshal(pastComp.Spec.Value, &oldSpec); err != nil {
-				return err
-			}
-
-			forceNew, err := isForceNew(resSpec, &spec, &oldSpec)
-			if err != nil {
-				return err
-			}
-			if forceNew {
-				// delete object
-				removeResource, _, err := decodeResource(resSpec, oldSpec.Params)
-				if err != nil {
-					return err
-				}
-				if err := removeResource.Delete(clt); err != nil {
-					return err
-				}
-			}
-		}
-
-		if comp.Action == proto.Component_DELETE {
-			if err := newResource.Delete(clt); err != nil {
-				return err
-			}
-		} else {
-			if err := newResource.Reconcile(clt); err != nil {
-				return err
-			}
-		}
-
-		if err := s.State.Finalize(comp.Id); err != nil {
-			return err
-		}
-	*/
+	if err := s.State.Finalize(comp.Id); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -461,8 +431,15 @@ func (s *Server) taskQueue4() {
 
 		if len(r.res.place) != 0 {
 			// create a cluster object to initialize the instances
+			cluster := []*proto.Instance{}
+			for _, i := range dep.Instances {
+				cluster = append(cluster, i)
+			}
+
+			// initialite the instances with the group specs
 			placeInstances := []*proto.Instance{}
 			for _, i := range r.res.place {
+
 				var name string
 				if i.instance == nil {
 					name = i.name
@@ -479,14 +456,28 @@ func (s *Server) taskQueue4() {
 				ii.Status = proto.Instance_PENDING
 				ii.Canary = i.update
 
+				grpSpec := handler.Spec().Nodetypes[ii.Group.Type]
+
+				ii.Spec.Image = grpSpec.Image
+				ii.Spec.Version = grpSpec.Version
+
+				hh, ok := handler.Spec().Handlers[ii.Group.Type]
+				if ok {
+					hh(ii.Spec, ii.Group)
+				}
 				placeInstances = append(placeInstances, ii)
 			}
 
-			placeInstances, err = handler.ApplyNodes(placeInstances, dep.Instances)
-			if err != nil {
-				panic(err)
+			// add the place instances too
+			cluster = append(cluster, placeInstances...)
+
+			// initialize each node
+			for _, i := range placeInstances {
+				if _, err := handler.Initialize(cluster, i); err != nil {
+					panic(err)
+				}
+				updates = append(updates, i)
 			}
-			updates = append(updates, placeInstances...)
 		}
 
 		plan := &schedulerPlan{
@@ -573,7 +564,6 @@ func (s *Server) getHandler(name string) (Handler, bool) {
 	return h, ok
 }
 
-/*
 func isForceNew(r Resource, old, new *proto.ResourceSpec) (bool, error) {
 	var oldParams map[string]interface{}
 	if err := json.Unmarshal([]byte(old.Params), &oldParams); err != nil {
@@ -597,7 +587,6 @@ func isForceNew(r Resource, old, new *proto.ResourceSpec) (bool, error) {
 	}
 	return false, nil
 }
-*/
 
 func getResourceInstance(resource Resource) Resource {
 	val := reflect.New(reflect.TypeOf(resource)).Elem().Interface()

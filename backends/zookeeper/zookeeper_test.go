@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/teseraio/ensemble/operator/proto"
-	"github.com/teseraio/ensemble/schema"
 	"github.com/teseraio/ensemble/testutil"
 )
 
@@ -19,11 +18,6 @@ func TestBootstrap(t *testing.T) {
 			Groups: []*proto.ClusterSpec_Group{
 				{
 					Count: 3,
-					Resources: schema.MapToSpec(
-						map[string]interface{}{
-							"cpuShares": "1000",
-						},
-					),
 				},
 			},
 		}),
@@ -38,11 +32,9 @@ func TestBootstrap(t *testing.T) {
 			Groups: []*proto.ClusterSpec_Group{
 				{
 					Count: 3,
-					Params: schema.MapToSpec(
-						map[string]interface{}{
-							"tickTime": "3000",
-						},
-					),
+					Config: map[string]string{
+						"tickTime": "3000",
+					},
 				},
 			},
 		}),

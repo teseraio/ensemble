@@ -11,9 +11,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/teseraio/ensemble/lib/mount"
-	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
-	"github.com/teseraio/ensemble/schema"
 	"google.golang.org/grpc"
 )
 
@@ -127,11 +125,11 @@ func (p *Provider) Start() error {
 	return nil
 }
 
-func (p *Provider) Resources() operator.ProviderResources {
-	return operator.ProviderResources{
-		Resources: schema.Schema2{},
-		Storage:   schema.Schema2{},
-	}
+type Resource struct {
+}
+
+func (p *Provider) Resources() interface{} {
+	return &Resource{}
 }
 
 func (p *Provider) WatchUpdates() chan *proto.InstanceUpdate {

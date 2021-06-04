@@ -8,27 +8,11 @@ import (
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
-type updateFn func(new, old *proto.ClusterSpec_Group) bool
-
-func diffUpdateFn(grp *proto.ClusterSpec_Group, other *proto.ClusterSpec_Group) bool {
-	if !reflect.DeepEqual(grp.Params, other.Params) {
-		return true
-	}
-	if !reflect.DeepEqual(grp.Resources, other.Resources) {
-		return true
-	}
-	if !reflect.DeepEqual(grp.Storage, other.Storage) {
-		return true
-	}
-	return false
-}
-
 type reconciler struct {
-	delete   bool
-	dep      *proto.Deployment
-	spec     *proto.ClusterSpec
-	res      *reconcileResult
-	updateFn updateFn
+	delete bool
+	dep    *proto.Deployment
+	spec   *proto.ClusterSpec
+	res    *reconcileResult
 }
 
 type allocSet []*proto.Instance
@@ -276,9 +260,6 @@ func min(i, j int) int {
 }
 
 func (r *reconciler) Compute() {
-	if r.updateFn == nil {
-		r.updateFn = diffUpdateFn
-	}
 	r.res = &reconcileResult{}
 
 	if r.delete {
@@ -389,7 +370,7 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 
 	// destructive updates (TODO: inplace updates)
 	var destructive allocSet
-	destructive, untainted = computeUpdates(r.spec, grp, untainted, r.updateFn)
+	destructive, untainted = computeUpdates(r.spec, grp, untainted)
 
 	// rolling update
 	updates := []instanceStopResult{}
@@ -447,14 +428,14 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 	return isComplete
 }
 
-func computeUpdates(spec *proto.ClusterSpec, grp *proto.ClusterSpec_Group, alloc allocSet, updateFn updateFn) (destructive allocSet, untainted allocSet) {
+func computeUpdates(spec *proto.ClusterSpec, grp *proto.ClusterSpec_Group, alloc allocSet) (destructive allocSet, untainted allocSet) {
 	untainted = allocSet{}
 	destructive = allocSet{}
 
 	for _, i := range alloc {
 		if spec.Sequence != i.Sequence {
 			// check if the changes are destructive
-			if updateFn(grp, i.Group) {
+			if areDiff(grp, i.Group) {
 				destructive = append(destructive, i)
 			} else {
 				untainted = append(untainted, i)
@@ -464,4 +445,14 @@ func computeUpdates(spec *proto.ClusterSpec, grp *proto.ClusterSpec_Group, alloc
 		}
 	}
 	return
+}
+
+func areDiff(grp *proto.ClusterSpec_Group, other *proto.ClusterSpec_Group) bool {
+	if !reflect.DeepEqual(grp.Config, other.Config) {
+		return true
+	}
+	if !reflect.DeepEqual(grp.Resources, other.Resources) {
+		return true
+	}
+	return false
 }

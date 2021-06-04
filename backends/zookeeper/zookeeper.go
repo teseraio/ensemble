@@ -8,23 +8,14 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
-	"github.com/teseraio/ensemble/schema"
 )
 
 type backend struct {
-	*operator.BaseOperator
 }
 
 // Factory is a factory method for the zookeeper backend
 func Factory() operator.Handler {
-	b := &backend{}
-	b.BaseOperator = &operator.BaseOperator{}
-	b.BaseOperator.SetHandler(b)
-	return b
-}
-
-func (b *backend) Name() string {
-	return "zookeeper"
+	return &backend{}
 }
 
 func (b *backend) Ready(t *proto.Instance) bool {
@@ -77,21 +68,12 @@ func (b *backend) Spec() *operator.Spec {
 				Volumes: []*operator.Volume{},
 				Ports:   []*operator.Port{},
 				Config:  &config{},
-				Schema: schema.Schema2{
-					Spec: &schema.Record{
-						Fields: map[string]*schema.Field{
-							"tickTime": {
-								Type: schema.TypeString,
-							},
-						},
-					},
-				},
 			},
 		},
 		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group){
 			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group) {
 				var c *config
-				if err := mapstructure.WeakDecode(grp.Params, &c); err != nil {
+				if err := mapstructure.WeakDecode(grp.Config, &c); err != nil {
 					panic(err)
 				}
 				if c != nil {

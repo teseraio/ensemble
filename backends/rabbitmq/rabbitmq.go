@@ -17,19 +17,11 @@ const (
 )
 
 type backend struct {
-	*operator.BaseOperator
 }
 
 // Factory returns a factory method for the zookeeper backend
 func Factory() operator.Handler {
-	b := &backend{}
-	b.BaseOperator = &operator.BaseOperator{}
-	b.BaseOperator.SetHandler(b)
-	return b
-}
-
-func (b *backend) Name() string {
-	return "Rabbitmq"
+	return &backend{}
 }
 
 const rabbitmqConfFile = `
