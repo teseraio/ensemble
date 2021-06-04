@@ -1,19 +1,33 @@
 
-import { getSidebarSlugs, getData } from '../../lib/sidebar'
 import sidebarContent from "../../data/sidebar-docs.json"
-
-import DocsPage from '../../components/docs'
+import Docs from "@teseraio/oss-react-docs"
+import { useRouter } from 'next/router'
 
 export default function Post({postData}) {
-    return <DocsPage postData={postData} sidebar={sidebarContent} />
+    const router = useRouter()
+
+    return (
+        <div>
+            <Docs.Docs current={router.asPath} postData={postData} sidebar={sidebarContent} />
+        </div>
+    )
 }
 
-const docsPrefix = "/docs/"
+const docsPrefix = "/docs"
 
 export async function getStaticProps({ params }) {
-    return getData(params.page, docsPrefix)
+    console.log("-- params --")
+    console.log(params)
+    
+    return Docs.getData(docsPrefix, params, "Docs - ")
 }
 
 export async function getStaticPaths() {
-    return getSidebarSlugs(sidebarContent, docsPrefix)
+    const xx =  Docs.getSidebarSlugs(docsPrefix)
+
+    console.log("-- xxxxxx --")
+    console.log(xx)
+    
+    console.log(JSON.stringify(xx))
+    return xx
 }

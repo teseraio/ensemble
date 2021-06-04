@@ -22,8 +22,8 @@
         },
         {
             "name": "Databases",
-            "prefix": "/docs/databases",
-            "routes": [
+            "href": "/docs/databases",
+            "children": [
                 {
                     "name": "Cassandra",
                     "href": "/docs/databases/cassandra"

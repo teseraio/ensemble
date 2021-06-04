@@ -1,12 +1,12 @@
 
-import DocsPage from '../../components/docs'
+import Docs from "@teseraio/oss-react-docs"
 import sidebarContent from "../../data/sidebar-docs.json"
 
 export default function FirstPost({sidebar}) {
   const postData = {
     title: 'Documentation',
   }
-  return <DocsPage index={Index} postData={postData} sidebar={sidebarContent}/>
+  return <Docs.Docs main={Index} postData={postData} sidebar={sidebarContent}/>
 }
 
 const Index = () => (
@@ -14,3 +14,9 @@ const Index = () => (
     {'Index'}
   </div>
 )
+
+FirstPost.getInitialProps = ({ req }) => {
+  return {
+    title: "Docs"
+  }
+}

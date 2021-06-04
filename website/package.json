@@ -4,27 +4,47 @@
   "scripts": {
     "dev": "next",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "storybook": "start-storybook -p 6006",
+    "build-storybook": "build-storybook"
   },
   "dependencies": {
+    "@headlessui/react": "^1.1.1",
+    "@heroicons/react": "^1.0.1",
     "@mapbox/rehype-prism": "^0.5.0",
     "@sindresorhus/slugify": "^1.1.0",
     "@svgr/webpack": "^5.5.0",
+    "@teseraio/cookie-consent-manager": "1.0.6",
+    "@teseraio/oss-react-app": "^0.0.6",
+    "@teseraio/oss-react-changelog": "^0.0.6",
+    "@teseraio/oss-react-community": "0.0.5",
+    "@teseraio/oss-react-docs": "0.0.10",
+    "@teseraio/oss-react-landing": "0.0.10",
+    "autoprefixer": "^9",
     "clsx": "^1.1.1",
     "gray-matter": "^4.0.2",
-    "next": "latest",
+    "next": "10.0.6",
     "next-mdx-remote": "^1.0.0",
+    "next-transpile-modules": "^7.2.0",
+    "postcss": "^7",
     "react": "^16.13.1",
     "react-dom": "^16.13.1",
+    "remark": "^13.0.0",
+    "remark-html": "^13.0.1",
+    "remark-parse": "^9.0.0",
+    "tailwindcss": "npm:@tailwindcss/postcss7-compat",
     "unist-util-is": "^4.0.3",
     "unist-util-map": "^2.0.1"
   },
   "devDependencies": {
     "@babel/core": "^7.12.3",
+    "@storybook/addon-actions": "^6.2.9",
+    "@storybook/addon-essentials": "^6.2.9",
+    "@storybook/addon-links": "^6.2.9",
+    "@storybook/react": "^6.2.9",
     "babel-loader": "^8.1.0",
     "postcss-flexbugs-fixes": "4.2.1",
-    "postcss-preset-env": "^6.7.0",
-    "tailwindcss": "^1.7.4"
+    "postcss-preset-env": "^6.7.0"
   },
   "license": "MIT"
 }
