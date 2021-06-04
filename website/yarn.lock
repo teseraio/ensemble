@@ -2463,10 +2463,10 @@
     rollup "^2.48.0"
     rollup-plugin-postcss "^4.0.0"
 
-"@teseraio/oss-react-app@^0.0.5":
-  version "0.0.5"
-  resolved "https://registry.yarnpkg.com/@teseraio/oss-react-app/-/oss-react-app-0.0.5.tgz#98952697e5a2b26d256bdbd5b129b0ea288a5888"
-  integrity sha512-vdX1PhY0eTGDvgoKgyrzbd9ThAWm/I66lXli6+bsUt4X92TwKlBviJfAkCjL8syFY2AEOfSqHNqTejDgPy2ROA==
+"@teseraio/oss-react-app@^0.0.6":
+  version "0.0.6"
+  resolved "https://registry.yarnpkg.com/@teseraio/oss-react-app/-/oss-react-app-0.0.6.tgz#aad72ca0c88f1f5235e8e7073f9722f8a143a4fe"
+  integrity sha512-5hly8rL5KONUlHLZEfT/2Pof00F5BrfemOcDYU++ElYYq4rhnzQsEQU7bN5geCw+KDqJYv9Cv1BTD3oPIFLE6g==
   dependencies:
     "@headlessui/react" "^1.1.1"
     "@heroicons/react" "^1.0.1"

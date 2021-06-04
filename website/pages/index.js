@@ -24,7 +24,7 @@ export default function Home() {
             }}
             content={(<>
               <span className="block">Ready to dive in?</span>
-              <span className="block text-xl font-medium">Use Kubernetes to deploy databases on any cloud or on-premise.</span>
+              <span className="tracking-normal block text-xl font-medium">Use Kubernetes to deploy databases on any cloud or on-premise.</span>
             </>)}
           />
         </>
