@@ -127,6 +127,8 @@ func MapToSpec(m map[string]interface{}) *proto.Spec {
 }
 
 func validate(t Type, s *proto.Spec) error {
+	fmt.Println("-- validate --")
+
 	switch obj := t.(type) {
 	case *Record:
 		attrs := s.Block.(*proto.Spec_BlockValue).BlockValue.Attrs
