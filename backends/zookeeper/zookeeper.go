@@ -75,7 +75,8 @@ func (b *backend) Spec() *operator.Spec {
 					Spec: &schema.Record{
 						Fields: map[string]*schema.Field{
 							"tickTime": {
-								Type: schema.TypeString,
+								Type:    schema.TypeString,
+								Default: "2000",
 							},
 						},
 					},

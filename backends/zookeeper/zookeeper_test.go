@@ -21,7 +21,7 @@ func TestBootstrap(t *testing.T) {
 					Count: 3,
 					Params: schema.MapToSpec(
 						map[string]interface{}{
-							"tickTime": "2000",
+							// "tickTime": "2000",
 						},
 					),
 					Resources: schema.MapToSpec(
