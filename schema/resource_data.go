@@ -7,10 +7,19 @@ import (
 )
 
 func NewResourceData(sch *Schema2, data *proto.Spec) *ResourceData {
-	return &ResourceData{
+	r := &ResourceData{
 		sch:     sch,
 		flatmap: flatten(data),
 	}
+	// fill in default values
+	for k, f := range sch.Spec.Fields {
+		if f.Default != "" {
+			if _, ok := r.flatmap[k]; !ok {
+				r.flatmap[k] = f.Default
+			}
+		}
+	}
+	return r
 }
 
 type ResourceData struct {

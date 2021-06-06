@@ -70,6 +70,9 @@ type Field struct {
 
 	// ForceNew describes whether a change in the field requires delete the old one
 	ForceNew bool
+
+	// Default value for the field
+	Default string
 }
 
 // Type implements the Type interface
