@@ -381,6 +381,8 @@ func (s *Server) taskQueue4() {
 			panic("bad")
 		}
 
+		schemas := handler.GetSchemas()
+
 		// get the spec for the cluster
 		comp, err := s.State.GetComponent("proto-ClusterSpec", dep.Name, dep.Sequence)
 		if err != nil {
@@ -394,6 +396,19 @@ func (s *Server) taskQueue4() {
 		// we need this here because is not set before in the spec
 		spec.Name = eval.ClusterID
 		spec.Sequence = dep.Sequence
+
+		// validate inputs
+		for _, grp := range spec.Groups {
+			grpSchema, ok := schemas.Nodes[grp.Type]
+			if !ok {
+				s.logger.Error("group not found", "name", grp.Type)
+				return
+			}
+			if err := grpSchema.Validate(grp.Params); err != nil {
+				s.logger.Error("failed to validate schema", "err", err)
+				return
+			}
+		}
 
 		r := &reconciler{
 			delete: comp.Action == proto.Component_DELETE,
