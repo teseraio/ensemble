@@ -182,8 +182,6 @@ message Plan {
 
     repeated Instance nodeUpdate = 4;
 
-    repeated Instance nodeInplace = 5;
-
     string status = 6;
 }
 

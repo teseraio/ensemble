@@ -1,6 +1,10 @@
 package operator
 
 import (
+	"bytes"
+	"fmt"
+	"text/template"
+
 	gproto "github.com/golang/protobuf/proto"
 	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
@@ -17,15 +21,60 @@ type Harness struct {
 	Plan       *proto.Plan
 	Deployment *proto.Deployment
 	Handler    Handler
-	Spec       *proto.ClusterSpec
+	Scheduler  Scheduler
+	Component  *proto.Component
 }
 
 type NodeExpect struct {
 	Env map[string]string
 }
 
-func (h *Harness) ExpectNodeUpdate(e []NodeExpect) {
+func Assert(dep *proto.Deployment, n *proto.Instance, expected NodeExpect) {
 
+	applyTmpl := func() func(v string) string {
+		obj := map[string]interface{}{}
+		for _, i := range dep.Instances {
+			indx, err := proto.ParseIndex(i.Name)
+			if err != nil {
+				panic(err)
+			}
+			obj[fmt.Sprintf("Node%d", indx)] = i.Name
+		}
+		return func(v string) string {
+			t, err := template.New("").Parse(v)
+			if err != nil {
+				panic(err)
+			}
+			buf1 := new(bytes.Buffer)
+			if err = t.Execute(buf1, obj); err != nil {
+				panic(err)
+			}
+			return buf1.String()
+		}
+	}
+
+	tmpl := applyTmpl()
+
+	// env vars
+	for k, v := range expected.Env {
+		if n.Spec.Env[k] != tmpl(v) {
+			panic("BAD")
+		}
+	}
+}
+
+func (h *Harness) ApplyDep() *proto.Deployment {
+	dep := h.Deployment.Copy()
+
+	for _, n := range h.Plan.NodeUpdate {
+		dep.Instances = append(dep.Instances, n)
+	}
+
+	return dep
+}
+
+func (h *Harness) GetComponentByID(id string) (*proto.Component, error) {
+	return h.Component, nil
 }
 
 func (h *Harness) SubmitPlan(plan *proto.Plan) error {
@@ -41,8 +90,11 @@ func (h *Harness) GetHandler(id string) (Handler, error) {
 	return h.Handler, nil
 }
 
-func (h *Harness) GetClusterSpec(id string, sequence int64) (*proto.ClusterSpec, *proto.Component, error) {
-	return h.Spec, &proto.Component{}, nil
+func (h *Harness) ApplySched(comp *proto.Component) *proto.Deployment {
+	h.Component = comp
+	h.Scheduler.Process(&proto.Evaluation{})
+	h.Deployment = h.ApplyDep()
+	return h.Deployment
 }
 
 type Scheduler interface {
@@ -79,8 +131,9 @@ func (s *scheduler) Process(eval *proto.Evaluation) error {
 
 	// we need this here because is not set before in the spec
 	spec.Name = eval.ClusterID
-	spec.Sequence = dep.Sequence
+	spec.Sequence = comp.Sequence // XXXXXXXXXXXXXXXXX
 
+	fmt.Println("-- com p")
 	r := &reconciler{
 		delete: comp.Action == proto.Component_DELETE,
 		dep:    dep,
@@ -89,9 +142,8 @@ func (s *scheduler) Process(eval *proto.Evaluation) error {
 	r.Compute()
 
 	plan := &proto.Plan{
-		EvalID:      eval.Id,
-		NodeUpdate:  []*proto.Instance{},
-		NodeInplace: []*proto.Instance{},
+		EvalID:     eval.Id,
+		NodeUpdate: []*proto.Instance{},
 	}
 
 	// out instances
@@ -99,7 +151,7 @@ func (s *scheduler) Process(eval *proto.Evaluation) error {
 		ii := i.Copy()
 		ii.Status = proto.Instance_OUT
 
-		plan.NodeInplace = append(plan.NodeInplace, ii)
+		plan.NodeUpdate = append(plan.NodeUpdate, ii)
 	}
 
 	// promote instances
@@ -107,7 +159,7 @@ func (s *scheduler) Process(eval *proto.Evaluation) error {
 		ii := i.Copy()
 		ii.Canary = false
 
-		plan.NodeInplace = append(plan.NodeInplace, ii)
+		plan.NodeUpdate = append(plan.NodeUpdate, ii)
 	}
 
 	// stop instances
