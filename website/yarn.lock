@@ -2442,10 +2442,10 @@
     reduce-css-calc "^2.1.8"
     resolve "^1.20.0"
 
-"@teseraio/cookie-consent-manager@1.0.6":
-  version "1.0.6"
-  resolved "https://registry.yarnpkg.com/@teseraio/cookie-consent-manager/-/cookie-consent-manager-1.0.6.tgz#05c064cd789db740c8566f1e24fc43bfb162c724"
-  integrity sha512-lm6hhIFTWFpfBHvolzSw4cQGQFKq8csWNvdrlfj9RsyvZ3QduMNHpIDncR/7RTESLM8BBxu69nrWVTKtgy+ENg==
+"@teseraio/cookie-consent-manager@1.0.7":
+  version "1.0.7"
+  resolved "https://registry.yarnpkg.com/@teseraio/cookie-consent-manager/-/cookie-consent-manager-1.0.7.tgz#7a06795b53f19855af42e444fc6b3050438f134c"
+  integrity sha512-cCFw9ri+xmsQ5kgrud8zKT9qT2vS9jgXClvBK/16shlFyEQLcpxMQYjUx/WVoFc2mdhhOlW3SMITlFlLTta6eQ==
   dependencies:
     "@analytics/segment" "^1.1.0"
     "@headlessui/react" "^1.1.1"

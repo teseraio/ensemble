@@ -14,7 +14,7 @@
     "@mapbox/rehype-prism": "^0.5.0",
     "@sindresorhus/slugify": "^1.1.0",
     "@svgr/webpack": "^5.5.0",
-    "@teseraio/cookie-consent-manager": "1.0.6",
+    "@teseraio/cookie-consent-manager": "1.0.7",
     "@teseraio/oss-react-app": "^0.0.6",
     "@teseraio/oss-react-changelog": "^0.0.6",
     "@teseraio/oss-react-community": "0.0.5",
