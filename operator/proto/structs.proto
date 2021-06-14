@@ -204,6 +204,7 @@ message Instance {
     Status status = 8;
 
     enum Status {
+        
         OUT     = 0; // an old instance of the ensemble
         PENDING = 1; // pending on the Provider to be created
         
@@ -213,6 +214,7 @@ message Instance {
         TAINTED = 8; // the instance is tainted and ready to be stopped
         FAILED  = 3; // the instance has stopped with a failure
         STOPPED = 4; // the instance is stopped
+        UNKNOWN = 10;
     }
 
     bool canary = 9;

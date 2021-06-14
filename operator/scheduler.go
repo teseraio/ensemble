@@ -26,7 +26,9 @@ type Harness struct {
 }
 
 type NodeExpect struct {
-	Env map[string]string
+	Status proto.Instance_Status
+	Name   string
+	Env    map[string]string
 }
 
 func Assert(dep *proto.Deployment, n *proto.Instance, expected NodeExpect) {
@@ -61,13 +63,34 @@ func Assert(dep *proto.Deployment, n *proto.Instance, expected NodeExpect) {
 			panic("BAD")
 		}
 	}
+	if expected.Status != proto.Instance_UNKNOWN {
+		if n.Status != expected.Status {
+			panic("BAD2")
+		}
+	}
+	if expected.Name != "" {
+		if n.Name != tmpl(expected.Name) {
+			panic("BAD 3")
+		}
+	}
 }
 
 func (h *Harness) ApplyDep() *proto.Deployment {
 	dep := h.Deployment.Copy()
 
 	for _, n := range h.Plan.NodeUpdate {
-		dep.Instances = append(dep.Instances, n)
+		exists := -1
+		for indx, i := range dep.Instances {
+			if i.ID == n.ID {
+				exists = indx
+				break
+			}
+		}
+		if exists == -1 {
+			dep.Instances = append(dep.Instances, n)
+		} else {
+			dep.Instances[exists] = n
+		}
 	}
 
 	return dep
@@ -91,10 +114,31 @@ func (h *Harness) GetHandler(id string) (Handler, error) {
 }
 
 func (h *Harness) ApplySched(comp *proto.Component) *proto.Deployment {
+	// TODO: it should not be able to apply another eval till its complete
 	h.Component = comp
-	h.Scheduler.Process(&proto.Evaluation{})
+	h.Eval()
+	// h.Scheduler.Process(&proto.Evaluation{})
 	h.Deployment = h.ApplyDep()
 	return h.Deployment
+}
+
+func (h *Harness) Eval() {
+	// force another evaluation
+	h.Scheduler.Process(&proto.Evaluation{})
+}
+
+type HarnessExpect struct {
+	NodeUpdates int
+	Status      string
+}
+
+func (h *Harness) Expect(expect *HarnessExpect) {
+	if h.Plan.Status != expect.Status {
+		panic("b1")
+	}
+	if num := len(h.Plan.NodeUpdate); num != expect.NodeUpdates {
+		panic("b2")
+	}
 }
 
 type Scheduler interface {

@@ -211,3 +211,14 @@ func EmptySpec() *Spec {
 		},
 	}
 }
+
+/// -- deployment functional
+
+func (d *Deployment) Filter(filter func(n *Instance) bool) (res []*Instance) {
+	for _, i := range d.Instances {
+		if filter(i) {
+			res = append(res, i)
+		}
+	}
+	return res
+}
