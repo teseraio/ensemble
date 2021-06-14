@@ -50,8 +50,8 @@ const Hero = () => (
   <Hero2
     title={(
       <>
-        <span className="block xl:inline">Data to enrich your</span>{' '}
-        <span className="block xl:inline">online business</span>
+        <span className="block xl:inline">Modular Control Plane</span>{' '}
+        <span className="block xl:inline">for Databases</span>
       </>
     )}
     img={'/ensemble-hero.png'}
