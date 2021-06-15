@@ -5,7 +5,7 @@ import { CubeIcon, ChatAlt2Icon, ChatIcon } from '@heroicons/react/outline'
 const supportLinks = [
     {
         name: 'Community Forum',
-        href: 'https://discord.gg/A5QrF6sC',
+        href: 'https://discord.gg/NX6JxWgerk',
         hrefText: 'Ask a question',
         description:
             'Join our Discord community to learn about our latest announcements, chat with the devs and connect with other Ensemble users.',
