@@ -294,6 +294,40 @@ func (b *BoltDB) Apply(c *proto.Component) (int64, error) {
 	return c.Sequence, nil
 }
 
+func (b *BoltDB) GetComponentByID(namespace, name string, compID string) (*proto.Component, error) {
+	// TODO: Change dblayout to make this more optimal
+	tx, err := b.db.Begin(false)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	componentsBkt := tx.Bucket(componentsBucket)
+	namespaceBkt := componentsBkt.Bucket([]byte(namespace))
+
+	compBkt := namespaceBkt.Bucket([]byte(name))
+	seqBkt := compBkt.Bucket(seqKey)
+
+	res := &proto.Component{}
+	seqBkt.ForEach(func(k, v []byte) error {
+		if res.Id != "" {
+			return nil
+		}
+		comp := proto.Component{}
+		if err := gproto.Unmarshal(v, &comp); err != nil {
+			return err
+		}
+		if comp.Id == compID {
+			res = &comp
+		}
+		return nil
+	})
+	if res == nil {
+		return nil, fmt.Errorf("not found")
+	}
+	return res, nil
+}
+
 func (b *BoltDB) GetComponent(namespace, name string, sequence int64) (*proto.Component, error) {
 	tx, err := b.db.Begin(false)
 	if err != nil {

@@ -13,7 +13,7 @@ import (
 type schedState interface {
 	SubmitPlan(*proto.Plan) error
 	LoadDeployment(id string) (*proto.Deployment, error)
-	GetComponentByID(id string) (*proto.Component, error)
+	GetComponentByID(deployment string, id string) (*proto.Component, error)
 	GetHandler(id string) (Handler, error)
 }
 
@@ -96,7 +96,7 @@ func (h *Harness) ApplyDep() *proto.Deployment {
 	return dep
 }
 
-func (h *Harness) GetComponentByID(id string) (*proto.Component, error) {
+func (h *Harness) GetComponentByID(dep, id string) (*proto.Component, error) {
 	return h.Component, nil
 }
 
@@ -164,7 +164,7 @@ func (s *scheduler) Process(eval *proto.Evaluation) error {
 		return err
 	}
 
-	comp, err := s.state.GetComponentByID(dep.CompId)
+	comp, err := s.state.GetComponentByID(eval.ClusterID, dep.CompId)
 	if err != nil {
 		return err
 	}
@@ -253,6 +253,7 @@ func (s *scheduler) Process(eval *proto.Evaluation) error {
 		plan.Status = proto.DeploymentRunning
 	}
 
+	plan.Deployment = dep
 	if err := s.state.SubmitPlan(plan); err != nil {
 		return err
 	}

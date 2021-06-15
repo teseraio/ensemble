@@ -452,11 +452,6 @@ func computeUpdates(spec *proto.ClusterSpec, grp *proto.ClusterSpec_Group, alloc
 	destructive = allocSet{}
 
 	for _, i := range alloc {
-		fmt.Println("--")
-		fmt.Println(i)
-		fmt.Println(spec.Sequence, i.Sequence)
-		fmt.Println(grp.Params)
-
 		if spec.Sequence != i.Sequence {
 			// check if the changes are destructive
 			if updateFn(grp, i.Group) {

@@ -342,11 +342,6 @@ func (c *Client) Destroy() {
 }
 */
 
-type Resource struct {
-	CPUShares uint64 `mapstructure:"cpuShares"`
-	CPUCount  uint64 `mapstructure:"cpuCount"`
-}
-
 func (c *Client) Resources() operator.ProviderResources {
 	return operator.ProviderResources{
 		Resources: schema.Schema2{
