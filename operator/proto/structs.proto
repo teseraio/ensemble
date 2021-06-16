@@ -204,7 +204,6 @@ message Instance {
     Status status = 8;
 
     enum Status {
-        
         OUT     = 0; // an old instance of the ensemble
         PENDING = 1; // pending on the Provider to be created
         
@@ -263,10 +262,6 @@ message Evaluation {
 
     string clusterID = 4;
 
-    string compId = 5;
-
-    string type = 6;
-    
     enum Status {
         PENDING   = 0;
         COMPLETE  = 1;

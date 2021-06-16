@@ -15,6 +15,12 @@ import (
 	"google.golang.org/grpc"
 )
 
+func IsE2EEnabled(t *testing.T) {
+	if os.Getenv("E2E_ENABLED") != "true" {
+		t.Skip()
+	}
+}
+
 var testPortRangeBegin = uint64(6000)
 
 type TestServer struct {
@@ -33,16 +39,6 @@ func (t *TestServer) Apply(c *proto.Component) string {
 	}
 	return cc.Id
 }
-
-/*
-func (t *TestServer) DestroyAt() {
-	t.docker.DestroyAt()
-}
-
-func (t *TestServer) Destroy() {
-	t.docker.Destroy()
-}
-*/
 
 func (t *TestServer) WaitForTask(id string) {
 	ch := t.state.Wait(id)

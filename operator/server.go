@@ -257,8 +257,6 @@ func (s *Server) handleResource(dep *proto.Deployment, comp *proto.Component) er
 		return err
 	}
 
-	fmt.Println("_ HANDLE RESOURCE _")
-
 	schema, ok := handler.GetSchemas().Resources[spec.Resource]
 	if !ok {
 		return fmt.Errorf("resource not found %s", spec.Resource)
@@ -266,8 +264,6 @@ func (s *Server) handleResource(dep *proto.Deployment, comp *proto.Component) er
 	if err := schema.Validate(spec.Params); err != nil {
 		panic(err)
 	}
-
-	fmt.Println(comp.Id, comp.Name)
 
 	if comp.Sequence != 1 {
 		pastComp, err := s.State.GetComponent("proto-ResourceSpec", comp.Name, comp.Sequence-1)
@@ -356,7 +352,6 @@ func (s *Server) handleCluster(dep *proto.Deployment, comp *proto.Component) err
 		Status:      proto.Evaluation_PENDING,
 		TriggeredBy: proto.Evaluation_SPECCHANGE,
 		ClusterID:   dep.Name,
-		CompId:      comp.Id,
 	})
 	return nil
 }
@@ -392,151 +387,22 @@ func (s *Server) taskQueue4() {
 
 		s.logger.Debug("handle eval", "id", eval.Id, "cluster", eval.ClusterID, "trigger", eval.TriggeredBy.String())
 
-		//// SCHEDULER
 		sched := NewScheduler(s)
-		sched.Process(eval)
-
-		/*
-			// get the deployment
-			dep, err := s.State.LoadDeployment(eval.ClusterID)
-			if err != nil {
-				panic(err)
+		plan, err := sched.Process(eval)
+		if err != nil {
+			s.logger.Error("failed to process", "err", err)
+		} else {
+			if err := s.SubmitPlan(plan); err != nil {
+				s.logger.Error("failed to submit plan", "err", err)
 			}
+		}
 
-			handler, ok := s.getHandler(dep.Backend)
-			if !ok {
-				panic("bad")
-			}
-
-			schemas := handler.GetSchemas()
-
-			// get the spec for the cluster
-			comp, err := s.State.GetComponent("proto-ClusterSpec", dep.Name, dep.Sequence)
-			if err != nil {
-				panic(err)
-			}
-			var spec proto.ClusterSpec
-			if err := gproto.Unmarshal(comp.Spec.Value, &spec); err != nil {
-				panic(err)
-			}
-
-			// we need this here because is not set before in the spec
-			spec.Name = eval.ClusterID
-			spec.Sequence = dep.Sequence
-
-			// validate inputs
-			for _, grp := range spec.Groups {
-				grpSchema, ok := schemas.Nodes[grp.Type]
-				if !ok {
-					s.logger.Error("group not found", "name", grp.Type)
-					return
-				}
-				if err := grpSchema.Validate(grp.Params); err != nil {
-					s.logger.Error("failed to validate schema", "err", err)
-					return
-				}
-			}
-
-			r := &reconciler{
-				delete: comp.Action == proto.Component_DELETE,
-				dep:    dep,
-				spec:   &spec,
-			}
-			r.Compute()
-			// r.res.print()
-
-			updates := []*proto.Instance{}
-
-			// out instances
-			for _, i := range r.res.out {
-				ii := i.Copy()
-
-				ii.Status = proto.Instance_OUT
-				updates = append(updates, ii)
-			}
-
-			// promote instances
-			for _, i := range r.res.ready {
-				ii := i.Copy()
-				ii.Canary = false
-
-				updates = append(updates, ii)
-			}
-
-			// stop instances
-			for _, i := range r.res.stop {
-				ii := i.instance.Copy()
-				ii.Status = proto.Instance_TAINTED
-				ii.Canary = i.update
-
-				updates = append(updates, ii)
-			}
-
-			if len(r.res.place) != 0 {
-				// create a cluster object to initialize the instances
-				placeInstances := []*proto.Instance{}
-				for _, i := range r.res.place {
-					var name string
-					if i.instance == nil {
-						name = i.name
-					} else {
-						name = i.instance.Name
-					}
-
-					ii := &proto.Instance{}
-					ii.ID = uuid.UUID()
-					ii.Group = i.group
-					ii.Spec = &proto.NodeSpec{}
-					ii.Cluster = spec.Name
-					ii.Name = name
-					ii.Status = proto.Instance_PENDING
-					ii.Canary = i.update
-
-					placeInstances = append(placeInstances, ii)
-				}
-
-				placeInstances, err = handler.ApplyNodes(placeInstances, dep.Instances)
-				if err != nil {
-					panic(err)
-				}
-				updates = append(updates, placeInstances...)
-			}
-
-			plan := &schedulerPlan{
-				deployment: dep,
-				updates:    updates,
-			}
-			if r.res.done {
-				if dep.Status != proto.DeploymentDone {
-					plan.status = proto.DeploymentDone
-				}
-			} else {
-				plan.status = proto.DeploymentRunning
-			}
-
-			if err := s.submitPlan(plan); err != nil {
-				panic(err)
-			}
-		*/
+		s.logger.Trace("finalize eval", "id", eval.Id)
+		s.evalQueue.finalize(eval.Id)
 	}
 }
 
-/*
-type schedulerPlan struct {
-	deployment *proto.Deployment
-	updates    []*proto.Instance
-	status     string
-}
-*/
-
-// TODO: Serialize both handleEval and clusterSpec change because the spec can change
-// and handleEval might rewrite with a wrong component id.
-
 func (s *Server) SubmitPlan(p *proto.Plan) error {
-	// finalize the eval for this plan
-	s.logger.Debug("finalize eval", "id", p.EvalID)
-	s.evalQueue.finalize(p.EvalID)
-
 	// update the state
 	for _, i := range p.NodeUpdate {
 		if err := s.State.UpsertNode(i); err != nil {
@@ -570,12 +436,10 @@ func (s *Server) SubmitPlan(p *proto.Plan) error {
 			// Provider updates concurrently
 			go func(i *proto.Instance) {
 				if i.Status == proto.Instance_TAINTED {
-					fmt.Println("@????? DELETE RESOURCE ???")
 					if _, err := s.Provider.DeleteResource(i); err != nil {
 						panic(err)
 					}
 				} else if i.Status == proto.Instance_PENDING {
-					fmt.Println("@????? PENDING RESOURCE ???")
 					if _, err := s.Provider.CreateResource(i); err != nil {
 						panic(err)
 					}

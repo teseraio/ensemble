@@ -1,148 +1,19 @@
 package operator
 
 import (
-	"bytes"
-	"fmt"
-	"text/template"
-
 	gproto "github.com/golang/protobuf/proto"
 	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
 type schedState interface {
-	SubmitPlan(*proto.Plan) error
 	LoadDeployment(id string) (*proto.Deployment, error)
 	GetComponentByID(deployment string, id string) (*proto.Component, error)
 	GetHandler(id string) (Handler, error)
 }
 
-type Harness struct {
-	Plan       *proto.Plan
-	Deployment *proto.Deployment
-	Handler    Handler
-	Scheduler  Scheduler
-	Component  *proto.Component
-}
-
-type NodeExpect struct {
-	Status proto.Instance_Status
-	Name   string
-	Env    map[string]string
-}
-
-func Assert(dep *proto.Deployment, n *proto.Instance, expected NodeExpect) {
-
-	applyTmpl := func() func(v string) string {
-		obj := map[string]interface{}{}
-		for _, i := range dep.Instances {
-			indx, err := proto.ParseIndex(i.Name)
-			if err != nil {
-				panic(err)
-			}
-			obj[fmt.Sprintf("Node%d", indx)] = i.Name
-		}
-		return func(v string) string {
-			t, err := template.New("").Parse(v)
-			if err != nil {
-				panic(err)
-			}
-			buf1 := new(bytes.Buffer)
-			if err = t.Execute(buf1, obj); err != nil {
-				panic(err)
-			}
-			return buf1.String()
-		}
-	}
-
-	tmpl := applyTmpl()
-
-	// env vars
-	for k, v := range expected.Env {
-		if n.Spec.Env[k] != tmpl(v) {
-			panic("BAD")
-		}
-	}
-	if expected.Status != proto.Instance_UNKNOWN {
-		if n.Status != expected.Status {
-			panic("BAD2")
-		}
-	}
-	if expected.Name != "" {
-		if n.Name != tmpl(expected.Name) {
-			panic("BAD 3")
-		}
-	}
-}
-
-func (h *Harness) ApplyDep() *proto.Deployment {
-	dep := h.Deployment.Copy()
-
-	for _, n := range h.Plan.NodeUpdate {
-		exists := -1
-		for indx, i := range dep.Instances {
-			if i.ID == n.ID {
-				exists = indx
-				break
-			}
-		}
-		if exists == -1 {
-			dep.Instances = append(dep.Instances, n)
-		} else {
-			dep.Instances[exists] = n
-		}
-	}
-
-	return dep
-}
-
-func (h *Harness) GetComponentByID(dep, id string) (*proto.Component, error) {
-	return h.Component, nil
-}
-
-func (h *Harness) SubmitPlan(plan *proto.Plan) error {
-	h.Plan = plan
-	return nil
-}
-
-func (h *Harness) LoadDeployment(id string) (*proto.Deployment, error) {
-	return h.Deployment, nil
-}
-
-func (h *Harness) GetHandler(id string) (Handler, error) {
-	return h.Handler, nil
-}
-
-func (h *Harness) ApplySched(comp *proto.Component) *proto.Deployment {
-	// TODO: it should not be able to apply another eval till its complete
-	h.Component = comp
-	h.Eval()
-	// h.Scheduler.Process(&proto.Evaluation{})
-	h.Deployment = h.ApplyDep()
-	return h.Deployment
-}
-
-func (h *Harness) Eval() {
-	// force another evaluation
-	h.Scheduler.Process(&proto.Evaluation{})
-}
-
-type HarnessExpect struct {
-	NodeUpdates int
-	Status      string
-}
-
-func (h *Harness) Expect(expect *HarnessExpect) {
-	if h.Plan.Status != expect.Status {
-		panic("b1")
-	}
-	if num := len(h.Plan.NodeUpdate); num != expect.NodeUpdates {
-		panic("b2")
-	}
-}
-
 type Scheduler interface {
-	Process(eval *proto.Evaluation) error
+	Process(eval *proto.Evaluation) (*proto.Plan, error)
 }
 
 func NewScheduler(state schedState) Scheduler {
@@ -153,31 +24,30 @@ type scheduler struct {
 	state schedState
 }
 
-func (s *scheduler) Process(eval *proto.Evaluation) error {
+func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 	// get the deployment
 	dep, err := s.state.LoadDeployment(eval.ClusterID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	handler, err := s.state.GetHandler(dep.Backend)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	comp, err := s.state.GetComponentByID(eval.ClusterID, dep.CompId)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	spec := &proto.ClusterSpec{}
 	if err := gproto.Unmarshal(comp.Spec.Value, spec); err != nil {
-		return err
+		return nil, err
 	}
 
 	// we need this here because is not set before in the spec
 	spec.Name = eval.ClusterID
-	spec.Sequence = comp.Sequence // XXXXXXXXXXXXXXXXX
+	spec.Sequence = comp.Sequence
 
-	fmt.Println("-- com p")
 	r := &reconciler{
 		delete: comp.Action == proto.Component_DELETE,
 		dep:    dep,
@@ -240,7 +110,7 @@ func (s *scheduler) Process(eval *proto.Evaluation) error {
 
 		placeInstances, err := handler.ApplyNodes(placeInstances, dep.Instances)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		plan.NodeUpdate = append(plan.NodeUpdate, placeInstances...)
 	}
@@ -254,8 +124,5 @@ func (s *scheduler) Process(eval *proto.Evaluation) error {
 	}
 
 	plan.Deployment = dep
-	if err := s.state.SubmitPlan(plan); err != nil {
-		return err
-	}
-	return nil
+	return plan, nil
 }

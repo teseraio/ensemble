@@ -58,7 +58,7 @@ func (b *backend) Initialize(n []*proto.Instance, target *proto.Instance) (*prot
 	}
 	configContent, err := template.RunTmpl(rabbitmqConfFile, map[string]interface{}{"Nodes": nodes})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	target.Spec.AddFile(rabbitmqConf, string(configContent))
 	return nil, nil
