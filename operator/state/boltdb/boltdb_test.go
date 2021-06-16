@@ -114,10 +114,12 @@ func TestGetComponent(t *testing.T) {
 	})
 
 	comp, err := db.GetComponent("proto-ClusterSpec", "A", seq)
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 	assert.Equal(t, comp.Id, "id1")
+
+	comp2, err := db.GetComponentByID("proto-ClusterSpec", "A", "id1")
+	assert.NoError(t, err)
+	assert.Equal(t, comp2.Id, "id1")
 }
 
 func TestListDeployments(t *testing.T) {

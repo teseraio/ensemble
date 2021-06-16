@@ -11,6 +11,11 @@ import (
 )
 
 const (
+	EvaluationTypeCluster  = "cluster"
+	EvaluationTypeResource = "resource"
+)
+
+const (
 	DeploymentDone    = "done"
 	DeploymentRunning = "running"
 	DeploymentFailed  = "failed"
@@ -205,4 +210,15 @@ func EmptySpec() *Spec {
 			BlockValue: &Spec_Block{},
 		},
 	}
+}
+
+/// -- deployment functional
+
+func (d *Deployment) Filter(filter func(n *Instance) bool) (res []*Instance) {
+	for _, i := range d.Instances {
+		if filter(i) {
+			res = append(res, i)
+		}
+	}
+	return res
 }

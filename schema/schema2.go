@@ -94,6 +94,9 @@ func (d *Diff) diffImpl(key []string, t Type, iRaw, jRaw *proto.Spec) error {
 }
 
 func MapToSpec(m map[string]interface{}) *proto.Spec {
+	if m == nil {
+		m = map[string]interface{}{}
+	}
 	var impl func(i interface{}) (*proto.Spec, error)
 
 	impl = func(i interface{}) (*proto.Spec, error) {

@@ -9,6 +9,8 @@ import (
 )
 
 func TestExchange(t *testing.T) {
+	testutil.IsE2EEnabled(t)
+
 	srv := testutil.TestOperator(t, Factory)
 	// defer srv.Close()
 

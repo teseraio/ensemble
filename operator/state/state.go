@@ -16,6 +16,7 @@ type State interface {
 
 	// GetComponent(id string) (*proto.Component, error)
 	GetComponent(namespace, id string, sequence int64) (*proto.Component, error)
+	GetComponentByID(namespace, name string, compID string) (*proto.Component, error)
 
 	Finalize(id string) error
 	GetPending(id string) (*proto.Component, error)
