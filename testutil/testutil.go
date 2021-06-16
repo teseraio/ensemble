@@ -17,7 +17,7 @@ import (
 
 func IsE2EEnabled(t *testing.T) {
 	if os.Getenv("E2E_ENABLED") != "true" {
-		t.Skip()
+		t.Skip("Tests only enabled in e2e mode")
 	}
 }
 

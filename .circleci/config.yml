@@ -8,3 +8,4 @@ jobs:
       - run:
           command: |
             go test -v ./operator/... -test.short
+            go test -v ./backends/... -test.short
