@@ -104,7 +104,7 @@ type Nodetype struct {
 	Schema schema.Schema2
 
 	// Version is the default docker image for the node
-	Version string
+	DefaultVersion string
 
 	// Volume is a list volumes for this node type
 	Volumes []*Volume
@@ -203,8 +203,12 @@ func (b *BaseOperator) ApplyNodes(place []*proto.Instance, cluster []*proto.Inst
 		ii = ii.Copy()
 		grpSpec := b.handler.Spec().Nodetypes[ii.Group.Type]
 
+		version := ii.Group.Version
+		if version == "" {
+			version = grpSpec.DefaultVersion
+		}
 		ii.Image = grpSpec.Image
-		ii.Version = grpSpec.Version
+		ii.Version = version
 
 		hh, ok := b.handler.Spec().Handlers[ii.Group.Type]
 		if ok {

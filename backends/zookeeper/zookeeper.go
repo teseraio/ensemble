@@ -71,10 +71,10 @@ func (b *backend) Spec() *operator.Spec {
 		Name: "Zookeeper",
 		Nodetypes: map[string]operator.Nodetype{
 			"": {
-				Image:   "zookeeper",
-				Version: "3.6",
-				Volumes: []*operator.Volume{},
-				Ports:   []*operator.Port{},
+				Image:          "zookeeper",
+				DefaultVersion: "3.6",
+				Volumes:        []*operator.Volume{},
+				Ports:          []*operator.Port{},
 				Schema: schema.Schema2{
 					Spec: &schema.Record{
 						Fields: map[string]*schema.Field{

@@ -159,10 +159,10 @@ func (b *backend) Spec() *operator.Spec {
 		Name: "Rabbitmq",
 		Nodetypes: map[string]operator.Nodetype{
 			"": {
-				Image:   "rabbitmq",
-				Version: "latest", // TODO
-				Volumes: []*operator.Volume{},
-				Ports:   []*operator.Port{
+				Image:          "rabbitmq",
+				DefaultVersion: "3.8.14-management",
+				Volumes:        []*operator.Volume{},
+				Ports:          []*operator.Port{
 					// http-api 15672
 				},
 				Schema: schema.Schema2{
