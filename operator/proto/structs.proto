@@ -86,6 +86,7 @@ message ClusterSpec {
         Spec params = 4;
         Spec resources = 5;
         Spec storage = 6;
+        string version = 7;
     }
 
     int64 sequence = 5;

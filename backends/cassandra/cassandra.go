@@ -58,10 +58,10 @@ func (b *backend) Spec() *operator.Spec {
 		Name: "Cassandra",
 		Nodetypes: map[string]operator.Nodetype{
 			"": {
-				Image:   "cassandra",
-				Version: "latest", // TODO
-				Volumes: []*operator.Volume{},
-				Ports:   []*operator.Port{},
+				Image:          "cassandra",
+				DefaultVersion: "3.11.10",
+				Volumes:        []*operator.Volume{},
+				Ports:          []*operator.Port{},
 			},
 		},
 		Resources: []*operator.Resource2{},

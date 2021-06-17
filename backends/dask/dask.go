@@ -59,16 +59,16 @@ func (b *backend) Spec() *operator.Spec {
 		Name: "Dask",
 		Nodetypes: map[string]operator.Nodetype{
 			"scheduler": {
-				Image:   "daskdev/dask",
-				Version: "2.30.0",
-				Volumes: []*operator.Volume{},
-				Ports:   []*operator.Port{},
+				Image:          "daskdev/dask",
+				DefaultVersion: "2.30.0",
+				Volumes:        []*operator.Volume{},
+				Ports:          []*operator.Port{},
 			},
 			"worker": {
-				Image:   "daskdev/dask",
-				Version: "2.30.0",
-				Volumes: []*operator.Volume{},
-				Ports:   []*operator.Port{},
+				Image:          "daskdev/dask",
+				DefaultVersion: "2.30.0",
+				Volumes:        []*operator.Volume{},
+				Ports:          []*operator.Port{},
 			},
 		},
 	}
