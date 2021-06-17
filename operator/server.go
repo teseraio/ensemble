@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"time"
 
 	gproto "github.com/golang/protobuf/proto"
 
@@ -75,7 +74,12 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	}
 
 	// setup the node watcher in the provider
-	go s.setupWatcher()
+	go s.startWatcher(s.Provider)
+
+	// setup watcher for the different backends
+	for _, i := range s.handlers {
+		go s.startWatcher(i)
+	}
 
 	s.logger.Info("Start provider")
 	if err := s.Provider.Start(); err != nil {
@@ -88,29 +92,29 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	return s, nil
 }
 
-func (s *Server) readiness(i *proto.Instance) {
-	dep, err := s.State.LoadDeployment(i.Cluster)
+func (s *Server) upsertNode(i *proto.Instance) error {
+	i = i.Copy()
+	if err := s.State.UpsertNode(i); err != nil {
+		return err
+	}
+
+	// TODO: Aggregate this in the same function or provide it from
+	// the caller function as a context
+	dep, err := s.LoadDeployment(i.Cluster)
 	if err != nil {
-		panic(err)
+		return err
+	}
+	handler, err := s.GetHandler(dep.Backend)
+	if err != nil {
+		return err
 	}
 
-	handler, ok := s.getHandler(dep.Backend)
-	if !ok {
-		panic("bad")
-	}
-	for {
-		if handler.Ready(i) {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
-
-	i.Healthy = true
-	s.upsertNodeAndEval(i)
+	handler.ApplyHook(ApplyHookRequest{Instance: i, Deployment: dep})
+	return nil
 }
 
 func (s *Server) upsertNodeAndEval(i *proto.Instance) error {
-	if err := s.State.UpsertNode(i); err != nil {
+	if err := s.upsertNode(i); err != nil {
 		return err
 	}
 	eval := &proto.Evaluation{
@@ -131,11 +135,16 @@ func (s *Server) updateStatus(op *proto.InstanceUpdate) error {
 		return err
 	}
 
+	i = i.Copy()
+
 	switch obj := op.Event.(type) {
 	case *proto.InstanceUpdate_Running_:
 		i.Ip = obj.Running.Ip
 		i.Handler = obj.Running.Handler
 		i.Status = proto.Instance_RUNNING
+
+	case *proto.InstanceUpdate_Healthy_:
+		i.Healthy = true
 
 	case *proto.InstanceUpdate_Killing_:
 		if i.Status == proto.Instance_TAINTED {
@@ -154,16 +163,15 @@ func (s *Server) updateStatus(op *proto.InstanceUpdate) error {
 	if err := s.upsertNodeAndEval(i); err != nil {
 		return err
 	}
-
-	if i.Status == proto.Instance_RUNNING && !i.Healthy {
-		// if it is not healthy yet run the readiness function
-		go s.readiness(i.Copy())
-	}
 	return nil
 }
 
-func (s *Server) setupWatcher() {
-	watchCh := s.Provider.WatchUpdates()
+type Watcher interface {
+	WatchUpdates() chan *proto.InstanceUpdate
+}
+
+func (s *Server) startWatcher(w Watcher) {
+	watchCh := w.WatchUpdates()
 	for {
 		select {
 		case op := <-watchCh:
@@ -405,7 +413,7 @@ func (s *Server) taskQueue4() {
 func (s *Server) SubmitPlan(p *proto.Plan) error {
 	// update the state
 	for _, i := range p.NodeUpdate {
-		if err := s.State.UpsertNode(i); err != nil {
+		if err := s.upsertNode(i); err != nil {
 			return err
 		}
 	}

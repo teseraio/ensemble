@@ -212,6 +212,16 @@ func EmptySpec() *Spec {
 	}
 }
 
+/// -- instance
+
+func (i *Instance) Update(event isInstanceUpdate_Event) *InstanceUpdate {
+	return &InstanceUpdate{
+		ID:      i.ID,
+		Cluster: i.Cluster,
+		Event:   event,
+	}
+}
+
 /// -- deployment functional
 
 func (d *Deployment) Filter(filter func(n *Instance) bool) (res []*Instance) {

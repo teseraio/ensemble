@@ -155,6 +155,10 @@ message InstanceUpdate {
         Running running = 4;
         Killing killing = 5;
         Failed failed = 6;
+        Healthy healthy = 7;
+    }
+
+    message Healthy {
     }
 
     message Scheduled {

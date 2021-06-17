@@ -1,6 +1,9 @@
 package rabbitmq
 
 import (
+	"fmt"
+	"time"
+
 	rabbithole "github.com/michaelklishin/rabbit-hole/v2"
 	"github.com/teseraio/ensemble/lib/template"
 	"github.com/teseraio/ensemble/operator"
@@ -27,6 +30,81 @@ func Factory() operator.Handler {
 	b.BaseOperator = &operator.BaseOperator{}
 	b.BaseOperator.SetHandler(b)
 	return b
+}
+
+func loopRetry(timeout time.Duration, handler func() error) error {
+	doneCh := make(chan struct{})
+	go func() {
+		<-time.After(timeout)
+		doneCh <- struct{}{}
+	}()
+
+	timeInterval := 1 * time.Second
+	for {
+		select {
+		case <-time.After(timeInterval):
+		case <-doneCh:
+			return fmt.Errorf("timeout")
+		}
+
+		err := handler()
+		if err == nil {
+			break
+		}
+	}
+	return nil
+}
+
+func (b *backend) Hooks() []operator.Hook {
+	return []operator.Hook{
+		{
+			Name:  "readiness",
+			State: proto.Instance_RUNNING,
+			Handler: func(emit func(i *proto.InstanceUpdate), req operator.ApplyHookRequest) error {
+				instance := req.Instance
+				if instance.Healthy {
+					return nil
+				}
+
+				clt, err := rabbithole.NewClient("http://"+instance.Ip+":15672", "guest", "guest")
+				if err != nil {
+					return err
+				}
+
+				// check if rabbitmq is running
+				err = loopRetry(2*time.Minute, func() error {
+					_, err = clt.Overview()
+					return err
+				})
+				if err != nil {
+					return fmt.Errorf("timeout readiness probe")
+				}
+
+				nodesExpected := len(req.Deployment.Instances)
+
+				// check if its syncer with others
+				err = loopRetry(1*time.Minute, func() error {
+					nodes, err := clt.ListNodes()
+					if err != nil {
+						return err
+					}
+					if len(nodes) == nodesExpected {
+						return nil
+					}
+					return fmt.Errorf("not yet")
+				})
+				if err != nil {
+					return fmt.Errorf("failed cluster formation")
+				}
+
+				emit(instance.Update(&proto.InstanceUpdate_Healthy_{
+					Healthy: &proto.InstanceUpdate_Healthy{},
+				}))
+
+				return nil
+			},
+		},
+	}
 }
 
 func (b *backend) Name() string {

@@ -14,21 +14,45 @@ type Handler2 interface {
 	Spec() *Spec
 	Initialize(n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error)
 	Client(node *proto.Instance) (interface{}, error)
+	Hooks() []Hook
+}
+
+type nullHandler struct {
+}
+
+func (n *nullHandler) Name() string {
+	return ""
+}
+
+func (n *nullHandler) WatchUpdates() chan *proto.InstanceUpdate {
+	return nil
+}
+
+func (n *nullHandler) ApplyHook(ApplyHookRequest) {
+}
+
+func (n *nullHandler) GetSchemas() GetSchemasResponse {
+	return GetSchemasResponse{}
+}
+
+func (n *nullHandler) ApplyNodes(nn []*proto.Instance, cluster []*proto.Instance) ([]*proto.Instance, error) {
+	return nn, nil
+}
+
+func (n *nullHandler) ApplyResource(req *ApplyResourceRequest) error {
+	return nil
 }
 
 // Handler is the interface that needs to be implemented by the backend
 type Handler interface {
-	// Initialize(n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error)
-	Ready(t *proto.Instance) bool
-
-	// Spec returns the specification for the cluster
-	// Spec() *Spec
-
 	// Name returns the name of the handler (TODO. it can be removed later)
 	Name() string
 
-	// Client returns a connection with a specific node in the cluster
-	// Client(node *proto.Instance) (interface{}, error)
+	// ApplyHook sends a request for an async hook
+	ApplyHook(ApplyHookRequest)
+
+	// WatchUpdates returns updates from nodes
+	WatchUpdates() chan *proto.InstanceUpdate
 
 	// GetSchemas returns the schemas for the backend
 	GetSchemas() GetSchemasResponse
@@ -36,7 +60,13 @@ type Handler interface {
 	// ApplyNodes applies to the spec the changes required
 	ApplyNodes(n []*proto.Instance, cluster []*proto.Instance) ([]*proto.Instance, error)
 
+	// ApplyResource applies a resource change
 	ApplyResource(req *ApplyResourceRequest) error
+}
+
+type ApplyHookRequest struct {
+	Instance   *proto.Instance
+	Deployment *proto.Deployment
 }
 
 const (
@@ -107,10 +137,47 @@ type Resource interface {
 
 type BaseOperator struct {
 	handler Handler2
+	ch      chan *proto.InstanceUpdate
 }
 
 func (b *BaseOperator) SetHandler(h Handler2) {
 	b.handler = h
+}
+
+func (b *BaseOperator) WatchUpdates() chan *proto.InstanceUpdate {
+	if b.ch == nil {
+		b.ch = make(chan *proto.InstanceUpdate, 10)
+	}
+	return b.ch
+}
+
+func (b *BaseOperator) ApplyHook(req ApplyHookRequest) {
+	emit := func(i *proto.InstanceUpdate) {
+		b.ch <- i
+	}
+
+	// check all the hooks
+	done := false
+	for _, h := range b.handler.Hooks() {
+		if h.State == req.Instance.Status {
+			done = true
+			go func() {
+				if err := h.Handler(emit, req); err != nil {
+					// TODO: logger in backends
+					fmt.Printf("Err: %v\n", err)
+				}
+			}()
+		}
+	}
+
+	if !done {
+		// default readiness hook if none is provided
+		if req.Instance.Status == proto.Instance_RUNNING && !req.Instance.Healthy {
+			emit(req.Instance.Update(&proto.InstanceUpdate_Healthy_{
+				Healthy: &proto.InstanceUpdate_Healthy{},
+			}))
+		}
+	}
 }
 
 func (b *BaseOperator) GetSchemas() GetSchemasResponse {
@@ -216,4 +283,10 @@ type Resource2 struct {
 	Schema   schema.Schema2
 	DeleteFn func(req *CallbackRequest) error
 	ApplyFn  func(req *CallbackRequest) error
+}
+
+type Hook struct {
+	Name    string
+	Handler func(emit func(i *proto.InstanceUpdate), req ApplyHookRequest) error
+	State   proto.Instance_Status
 }
