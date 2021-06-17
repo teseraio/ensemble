@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	gproto "github.com/golang/protobuf/proto"
 
@@ -65,7 +66,7 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 
 	s.service = &service{s: s}
 
-	s.grpcServer = grpc.NewServer()
+	s.grpcServer = grpc.NewServer(s.withLoggingUnaryInterceptor())
 	proto.RegisterEnsembleServiceServer(s.grpcServer, s.service)
 
 	// grpc address
@@ -90,6 +91,17 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	go s.taskQueue4()
 
 	return s, nil
+}
+
+func (s *Server) withLoggingUnaryInterceptor() grpc.ServerOption {
+	return grpc.UnaryInterceptor(s.loggingServerInterceptor)
+}
+
+func (s *Server) loggingServerInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	start := time.Now()
+	h, err := handler(ctx, req)
+	s.logger.Trace("Request", "method", info.FullMethod, "duration", time.Since(start), "error", err)
+	return h, err
 }
 
 func (s *Server) upsertNode(i *proto.Instance) error {

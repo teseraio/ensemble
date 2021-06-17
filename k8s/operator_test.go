@@ -150,7 +150,7 @@ func TestItemDecoding(t *testing.T) {
 		if _, err := p.get("/apis/ensembleoss.io/v1/namespaces/default/"+kind+"/a", &item); err != nil {
 			t.Fatal(err)
 		}
-		spec, err := decodeItem(item)
+		spec, err := DecodeItem(item)
 		if err != nil {
 			t.Fatal(err)
 		}
