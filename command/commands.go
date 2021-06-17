@@ -24,6 +24,11 @@ func Commands() map[string]cli.CommandFactory {
 	}
 
 	return map[string]cli.CommandFactory{
+		"apply": func() (cli.Command, error) {
+			return &ApplyCommand{
+				Meta: meta,
+			}, nil
+		},
 		"server": func() (cli.Command, error) {
 			return &server.Command{
 				UI: ui,

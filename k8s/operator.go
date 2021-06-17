@@ -80,7 +80,7 @@ func (p *Provider) trackCRDs(clt proto.EnsembleServiceClient) error {
 			task := store.pop(context.Background())
 			item := task.item.(*Item)
 
-			spec, err := decodeItem(item)
+			spec, err := DecodeItem(item)
 			if err != nil {
 				panic(err)
 			}
@@ -107,17 +107,17 @@ func (p *Provider) trackCRDs(clt proto.EnsembleServiceClient) error {
 	return nil
 }
 
-func decodeItem(item *Item) (*any.Any, error) {
+func DecodeItem(item *Item) (*any.Any, error) {
 	if item.Kind == "Cluster" {
-		return decodeClusterSpec(item)
+		return DecodeClusterSpec(item)
 	}
 	if item.Kind == "Resource" {
-		return decodeResourceSpec(item)
+		return DecodeResourceSpec(item)
 	}
 	return nil, fmt.Errorf("unknown type %s", item.Kind)
 }
 
-func decodeClusterSpec(item *Item) (*any.Any, error) {
+func DecodeClusterSpec(item *Item) (*any.Any, error) {
 	// it should correspond to the crd-cluster.json spec
 	var spec struct {
 		Backend struct {
@@ -152,7 +152,7 @@ func decodeClusterSpec(item *Item) (*any.Any, error) {
 	return res, nil
 }
 
-func decodeResourceSpec(item *Item) (*any.Any, error) {
+func DecodeResourceSpec(item *Item) (*any.Any, error) {
 	// it should correspond to the crd-resource.json spec
 	var spec struct {
 		Backend  string
