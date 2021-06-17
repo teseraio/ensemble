@@ -8,29 +8,6 @@ import (
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
-// mock handler
-type mockHandler struct{}
-
-func (m *mockHandler) Ready(t *proto.Instance) bool {
-	return true
-}
-
-func (m *mockHandler) Name() string {
-	return "mock"
-}
-
-func (m *mockHandler) GetSchemas() GetSchemasResponse {
-	return GetSchemasResponse{}
-}
-
-func (m *mockHandler) ApplyNodes(n []*proto.Instance, cluster []*proto.Instance) ([]*proto.Instance, error) {
-	return n, nil
-}
-
-func (m *mockHandler) ApplyResource(req *ApplyResourceRequest) error {
-	return nil
-}
-
 func TestScheduler_EvalInstanceFailed(t *testing.T) {
 	spec := mockClusterSpec()
 	spec.Groups[0].Count = 3
@@ -50,7 +27,7 @@ func TestScheduler_EvalInstanceFailed(t *testing.T) {
 
 	harness := NewHarness(t)
 	harness.Deployment = dep.Deployment
-	harness.Handler = &mockHandler{}
+	harness.Handler = &nullHandler{}
 
 	harness.AddComponent(&proto.Component{
 		Id:   "a",

@@ -26,4 +26,19 @@ func TestE2E(t *testing.T) {
 	})
 
 	srv.WaitForTask(uuid)
+
+	// Scale up
+	uuid = srv.Apply(&proto.Component{
+		Name: "A",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			Backend: "Rabbitmq",
+			Groups: []*proto.ClusterSpec_Group{
+				{
+					Count: 4,
+				},
+			},
+		}),
+	})
+
+	srv.WaitForTask(uuid)
 }
