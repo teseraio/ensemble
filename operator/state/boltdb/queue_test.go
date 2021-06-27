@@ -7,6 +7,10 @@ import (
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
+func TestQueue2(t *testing.T) {
+	// q := newTaskQueue2()
+}
+
 func TestQueueSerializeByClusterID(t *testing.T) {
 	q := newTaskQueue()
 

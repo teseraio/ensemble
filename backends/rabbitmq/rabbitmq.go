@@ -72,8 +72,9 @@ func (b *backend) Hooks() []operator.Hook {
 				}
 
 				// check if rabbitmq is running
-				err = loopRetry(2*time.Minute, func() error {
+				err = loopRetry(20*time.Minute, func() error {
 					_, err = clt.Overview()
+					fmt.Println(err)
 					return err
 				})
 				if err != nil {
@@ -83,11 +84,12 @@ func (b *backend) Hooks() []operator.Hook {
 				nodesExpected := len(req.Deployment.Instances)
 
 				// check if its syncer with others
-				err = loopRetry(1*time.Minute, func() error {
+				err = loopRetry(10*time.Minute, func() error {
 					nodes, err := clt.ListNodes()
 					if err != nil {
 						return err
 					}
+					fmt.Println(len(nodes), nodesExpected)
 					if len(nodes) == nodesExpected {
 						return nil
 					}

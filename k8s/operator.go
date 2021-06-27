@@ -155,7 +155,6 @@ func DecodeClusterSpec(item *Item) (*any.Any, error) {
 func DecodeResourceSpec(item *Item) (*any.Any, error) {
 	// it should correspond to the crd-resource.json spec
 	var spec struct {
-		Backend  string
 		Cluster  string
 		Resource string
 		Params   map[string]interface{}
@@ -170,6 +169,8 @@ func DecodeResourceSpec(item *Item) (*any.Any, error) {
 	}
 	if len(spec.Params) != 0 {
 		res.Params = schema.MapToSpec(spec.Params)
+	} else {
+		res.Params = proto.EmptySpec()
 	}
 	anyRes := proto.MustMarshalAny(res)
 	return anyRes, nil

@@ -32,7 +32,7 @@ func (e *evalQueue) add(eval *proto.Evaluation) {
 
 	found := false
 	for _, i := range e.items {
-		if i.eval.ClusterID == eval.ClusterID {
+		if i.eval.DeploymentID == eval.DeploymentID {
 			found = true
 			break
 		}
@@ -41,10 +41,10 @@ func (e *evalQueue) add(eval *proto.Evaluation) {
 	if found {
 		// there is already a task for the same cluster, append
 		// this evaluation to the pending map
-		if _, ok := e.pending[eval.ClusterID]; !ok {
+		if _, ok := e.pending[eval.DeploymentID]; !ok {
 			e.pending = map[string][]*proto.Evaluation{}
 		}
-		e.pending[eval.ClusterID] = append(e.pending[eval.ClusterID], eval)
+		e.pending[eval.DeploymentID] = append(e.pending[eval.DeploymentID], eval)
 	} else {
 		e.addImpl(eval)
 	}
@@ -110,14 +110,14 @@ func (e *evalQueue) finalize(id string) bool {
 	delete(e.items, id)
 
 	// check if there is a pending eval
-	pending, ok := e.pending[i.eval.ClusterID]
+	pending, ok := e.pending[i.eval.DeploymentID]
 	if ok {
 		var nextTask *proto.Evaluation
 		nextTask, pending = pending[0], pending[1:]
 		if len(pending) == 0 {
-			delete(e.pending, i.eval.ClusterID)
+			delete(e.pending, i.eval.DeploymentID)
 		} else {
-			e.pending[i.eval.ClusterID] = pending
+			e.pending[i.eval.DeploymentID] = pending
 		}
 		e.addImpl(nextTask)
 	}

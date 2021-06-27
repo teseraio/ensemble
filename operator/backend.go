@@ -227,7 +227,7 @@ func (b *BaseOperator) ApplyNodes(place []*proto.Instance, cluster []*proto.Inst
 	// initialize each node
 	for _, i := range placeInstances {
 		if _, err := b.handler.Initialize(cluster, i); err != nil {
-			panic(err)
+			return nil, err
 		}
 	}
 	return placeInstances, nil

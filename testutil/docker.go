@@ -79,6 +79,10 @@ func NewDockerClient() (*Client, error) {
 	return clt, nil
 }
 
+func (c *Client) Name() string {
+	return "Docker"
+}
+
 func (c *Client) Start() error {
 	return nil
 }

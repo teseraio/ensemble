@@ -18,6 +18,8 @@ require (
 	github.com/mitchellh/cli v1.1.2
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.3.3
+	github.com/oklog/ulid v1.3.1
+	github.com/oklog/ulid/v2 v2.0.2 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/ryanuber/columnize v2.1.2+incompatible
 	github.com/stretchr/testify v1.7.0

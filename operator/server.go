@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"reflect"
 	"strings"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
-	"github.com/teseraio/ensemble/operator/state"
+	"github.com/teseraio/ensemble/operator/state/boltdb"
 	"google.golang.org/grpc"
 )
 
@@ -22,7 +23,7 @@ type Config struct {
 	Provider Provider
 
 	// State is the state access
-	State state.State
+	State *boltdb.BoltDB
 
 	// Backends are the list of backends handled by the operator
 	HandlerFactories []HandlerFactory
@@ -37,7 +38,7 @@ type Server struct {
 	logger hclog.Logger
 
 	Provider Provider
-	State    state.State
+	State    *boltdb.BoltDB
 
 	handlers   map[string]Handler
 	grpcServer *grpc.Server
@@ -87,8 +88,8 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		return nil, err
 	}
 
-	go s.taskQueue3()
 	go s.taskQueue4()
+	go s.taskQueue5()
 
 	return s, nil
 }
@@ -130,10 +131,11 @@ func (s *Server) upsertNodeAndEval(i *proto.Instance) error {
 		return err
 	}
 	eval := &proto.Evaluation{
-		Id:          uuid.UUID(),
-		Status:      proto.Evaluation_PENDING,
-		TriggeredBy: proto.Evaluation_NODECHANGE,
-		ClusterID:   i.Cluster,
+		Id:           uuid.UUID(),
+		Status:       proto.Evaluation_PENDING,
+		TriggeredBy:  proto.Evaluation_NODECHANGE,
+		DeploymentID: i.Cluster,
+		Type:         proto.EvaluationTypeCluster,
 	}
 	s.evalQueue.add(eval)
 	return nil
@@ -230,6 +232,39 @@ func (s *Server) Exec(n *proto.Instance, path string, cmd ...string) (string, er
 	return s.Provider.Exec("n.Handle", path, cmd...)
 }
 
+func (s *Server) taskQueue5() {
+	s.logger.Info("Starting spec change worker")
+
+	for {
+		task := s.State.GetTask2(context.Background())
+
+		fmt.Println("-- task --")
+		fmt.Println(task)
+
+		// pre-load the component
+		comp, err := s.State.GetComponentByID2(task.DeploymentID, task.ComponentID, task.Sequence)
+		if err != nil {
+			panic(err)
+		}
+		typ := comp.Type()
+
+		// load the deployment
+		dep, err := s.State.LoadDeployment(task.DeploymentID)
+		if err != nil {
+			panic(err)
+		}
+		switch typ {
+		case proto.EvaluationTypeCluster:
+			err = s.handleCluster(task, dep, comp)
+		case proto.EvaluationTypeResource:
+			err = s.handleResource2(task, dep, task.DeploymentID, comp)
+		}
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
 func (s *Server) taskQueue3() {
 	s.logger.Info("Starting spec change worker")
 
@@ -248,10 +283,10 @@ func (s *Server) taskQueue3() {
 
 		switch comp.Spec.TypeUrl {
 		case "proto.ClusterSpec":
-			err = s.handleCluster(dep, comp)
+			err = s.handleCluster(nil, dep, comp)
 
 		case "proto.ResourceSpec":
-			err = s.handleResource(dep, comp)
+			// err = s.handleResource(dep, comp)
 		}
 		if err != nil {
 			panic(err)
@@ -259,7 +294,7 @@ func (s *Server) taskQueue3() {
 	}
 }
 
-func (s *Server) handleResource(dep *proto.Deployment, comp *proto.Component) error {
+func (s *Server) handleResource2(task *proto.Task, dep *proto.Deployment, clusterID string, comp *proto.Component) error {
 	var spec proto.ResourceSpec
 	if err := gproto.Unmarshal(comp.Spec.Value, &spec); err != nil {
 		return err
@@ -268,78 +303,23 @@ func (s *Server) handleResource(dep *proto.Deployment, comp *proto.Component) er
 		return fmt.Errorf("deployment does not exists")
 	}
 
-	handler, ok := s.getHandler(dep.Backend)
-	if !ok {
-		panic("bad")
-	}
-	dep, err := s.State.LoadDeployment(spec.Cluster)
-	if err != nil {
-		return err
-	}
+	fmt.Println("_ CLUSTER ID _")
+	fmt.Println(clusterID)
 
-	schema, ok := handler.GetSchemas().Resources[spec.Resource]
-	if !ok {
-		return fmt.Errorf("resource not found %s", spec.Resource)
-	}
-	if err := schema.Validate(spec.Params); err != nil {
-		panic(err)
-	}
-
-	if comp.Sequence != 1 {
-		pastComp, err := s.State.GetComponent("proto-ResourceSpec", comp.Name, comp.Sequence-1)
-		if err != nil {
-			return err
-		}
-		var oldSpec proto.ResourceSpec
-		if err := gproto.Unmarshal(pastComp.Spec.Value, &oldSpec); err != nil {
-			return err
-		}
-
-		diff := schema.Diff(spec.Params, oldSpec.Params)
-
-		// check if any of the diffs requires force-new
-		forceNew := false
-		for name := range diff {
-			field, err := schema.Get(name)
-			if err != nil {
-				return err
-			}
-			if field.ForceNew {
-				forceNew = true
-			}
-		}
-		if forceNew {
-			req := &ApplyResourceRequest{
-				Deployment: dep,
-				Action:     ApplyResourceRequestDelete,
-				Resource:   &spec,
-			}
-			if err := handler.ApplyResource(req); err != nil {
-				return err
-			}
-		}
-	}
-
-	var action string
-	if comp.Action == proto.Component_DELETE {
-		action = ApplyResourceRequestDelete
-	} else {
-		action = ApplyResourceRequestReconcile
-	}
-	req := &ApplyResourceRequest{
-		Deployment: dep,
-		Action:     action,
-		Resource:   &spec,
-	}
-	handler.ApplyResource(req)
-
-	if err := s.State.Finalize(dep.Name); err != nil {
-		return err
-	}
+	// create a specChange evaluation
+	s.evalQueue.add(&proto.Evaluation{
+		Id:           uuid.UUID(),
+		Status:       proto.Evaluation_PENDING,
+		TriggeredBy:  proto.Evaluation_SPECCHANGE,
+		DeploymentID: clusterID,
+		Type:         proto.EvaluationTypeResource,
+		Sequence:     comp.Sequence,
+		ComponentID:  task.ComponentID,
+	})
 	return nil
 }
 
-func (s *Server) handleCluster(dep *proto.Deployment, comp *proto.Component) error {
+func (s *Server) handleCluster(task *proto.Task, dep *proto.Deployment, comp *proto.Component) error {
 	var spec proto.ClusterSpec
 	if err := gproto.Unmarshal(comp.Spec.Value, &spec); err != nil {
 		return err
@@ -351,16 +331,21 @@ func (s *Server) handleCluster(dep *proto.Deployment, comp *proto.Component) err
 			Name:    comp.Name,
 			Backend: spec.Backend,
 		}
+
+		// get the dns suffix if any from the provider
+		if s.Provider.Name() == "Kubernetes" {
+			dep.DnsSuffix = ".default.svc.cluster.local"
+		}
 	} else {
 		if dep.Backend != spec.Backend {
 			return fmt.Errorf("the backend is not the same")
 		}
 	}
 
-	// this is a change in the spec
+	// update the deployment
 	dep.Status = proto.DeploymentRunning
 	dep.Sequence = comp.Sequence
-	dep.CompId = comp.Id
+	dep.CompId = task.ComponentID
 
 	if err := s.State.UpdateDeployment(dep); err != nil {
 		return err
@@ -368,20 +353,31 @@ func (s *Server) handleCluster(dep *proto.Deployment, comp *proto.Component) err
 
 	// create a specChange evaluation
 	s.evalQueue.add(&proto.Evaluation{
-		Id:          uuid.UUID(),
-		Status:      proto.Evaluation_PENDING,
-		TriggeredBy: proto.Evaluation_SPECCHANGE,
-		ClusterID:   dep.Name,
+		Id:           uuid.UUID(),
+		Status:       proto.Evaluation_PENDING,
+		TriggeredBy:  proto.Evaluation_SPECCHANGE,
+		DeploymentID: dep.Name,
+		Type:         proto.EvaluationTypeCluster,
+		Sequence:     comp.Sequence,
+		ComponentID:  task.ComponentID,
 	})
 	return nil
 }
 
-func (s *Server) GetComponentByID(deployment, compID string) (*proto.Component, error) {
-	comp, err := s.State.GetComponentByID("proto-ClusterSpec", deployment, compID)
-	if err != nil {
-		return nil, err
-	}
-	return comp, nil
+func (s *Server) GetComponentByID(deployment, compID string, sequence int64) (*proto.Component, error) {
+
+	// fmt.Println(deployment, compID, sequence)
+
+	return s.State.GetComponentByID2(deployment, compID, sequence)
+
+	/*
+		panic("TODO")
+		comp, err := s.State.GetComponentByID("proto-ClusterSpec", deployment, compID)
+		if err != nil {
+			return nil, err
+		}
+		return comp, nil
+	*/
 }
 
 func (s *Server) LoadDeployment(id string) (*proto.Deployment, error) {
@@ -396,6 +392,16 @@ func (s *Server) GetHandler(id string) (Handler, error) {
 	return h, nil
 }
 
+func (s *Server) newScheduler(typ string) Scheduler {
+	fmt.Println(typ)
+	if typ == proto.EvaluationTypeResource {
+		return &ResourceScheduler{state: s}
+	} else if typ == proto.EvaluationTypeCluster {
+		return &scheduler{state: s}
+	}
+	panic("not found")
+}
+
 func (s *Server) taskQueue4() {
 	s.logger.Info("Starting evaluation worker")
 
@@ -405,15 +411,15 @@ func (s *Server) taskQueue4() {
 			return
 		}
 
-		s.logger.Debug("handle eval", "id", eval.Id, "cluster", eval.ClusterID, "trigger", eval.TriggeredBy.String())
+		s.logger.Debug("handle eval", "type", eval.Type, "id", eval.Id, "cluster", eval.DeploymentID, "trigger", eval.TriggeredBy.String())
 
-		sched := NewScheduler(s)
+		sched := s.newScheduler(eval.Type)
 		plan, err := sched.Process(eval)
 		if err != nil {
 			s.logger.Error("failed to process", "err", err)
 		} else {
-			if err := s.SubmitPlan(plan); err != nil {
-				s.logger.Error("failed to submit plan", "err", err)
+			if err := s.SubmitPlan(eval, plan); err != nil {
+				panic(err)
 			}
 		}
 
@@ -422,7 +428,7 @@ func (s *Server) taskQueue4() {
 	}
 }
 
-func (s *Server) SubmitPlan(p *proto.Plan) error {
+func (s *Server) SubmitPlan(eval *proto.Evaluation, p *proto.Plan) error {
 	// update the state
 	for _, i := range p.NodeUpdate {
 		if err := s.upsertNode(i); err != nil {
@@ -430,19 +436,22 @@ func (s *Server) SubmitPlan(p *proto.Plan) error {
 		}
 	}
 
-	dep := p.Deployment.Copy()
-	dep.Status = p.Status
+	if p.Deployment != nil {
+		dep := p.Deployment.Copy()
+		dep.Status = p.Status
 
-	// update the state of the deployment if there is any change
-	if len(p.NodeUpdate) != 0 || p.Deployment.Status != p.Status {
-		if err := s.State.UpdateDeployment(dep); err != nil {
-			return err
+		// update the state of the deployment if there is any change
+		if len(p.NodeUpdate) != 0 || p.Deployment.Status != p.Status {
+			if err := s.State.UpdateDeployment(dep); err != nil {
+				return err
+			}
 		}
 	}
 
 	// if its done, finalize the component
-	if dep.Status == proto.DeploymentDone {
-		if err := s.State.Finalize(dep.Name); err != nil {
+	if p.Done {
+		s.logger.Info("finalize task", "cluster", eval.DeploymentID)
+		if err := s.State.Finalize2(eval.DeploymentID); err != nil {
 			return err
 		}
 	}
@@ -471,7 +480,50 @@ func (s *Server) SubmitPlan(p *proto.Plan) error {
 	return nil
 }
 
-func (s *Server) getHandler(name string) (Handler, bool) {
-	h, ok := s.handlers[strings.ToLower(name)]
-	return h, ok
+func (s *Server) validateComponent(component *proto.Component) error {
+	msg, err := proto.UnmarshalAny(component.Spec)
+	if err != nil {
+		return err
+	}
+	switch obj := msg.(type) {
+	case *proto.ClusterSpec:
+		if len(obj.Groups) == 0 {
+			return fmt.Errorf("no groups found")
+		}
+		for indx, grp := range obj.Groups {
+			if grp.Count == 0 {
+				return fmt.Errorf("count 0 for group %d", indx)
+			}
+			if grp.Storage == nil {
+				grp.Storage = proto.EmptySpec()
+			}
+			if grp.Resources == nil {
+				grp.Resources = proto.EmptySpec()
+			}
+		}
+	case *proto.ResourceSpec:
+		// make sure the deployment exists
+		dep, err := s.LoadDeployment(obj.Cluster)
+		if err != nil {
+			return err
+		}
+		if dep == nil {
+			return fmt.Errorf("deployment does not exists")
+		}
+		handler, err := s.GetHandler(dep.Backend)
+		if err != nil {
+			return err
+		}
+		schemas := handler.GetSchemas()
+		resource, ok := schemas.Resources[obj.Resource]
+		if !ok {
+			return fmt.Errorf("resource %s does not exists", obj.Resource)
+		}
+		if err := resource.Validate(obj.Params); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("cannot validate spec: %s", reflect.TypeOf(msg))
+	}
+	return nil
 }

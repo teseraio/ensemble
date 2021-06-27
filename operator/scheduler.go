@@ -1,6 +1,8 @@
 package operator
 
 import (
+	"fmt"
+
 	gproto "github.com/golang/protobuf/proto"
 	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
@@ -8,7 +10,7 @@ import (
 
 type schedState interface {
 	LoadDeployment(id string) (*proto.Deployment, error)
-	GetComponentByID(deployment string, id string) (*proto.Component, error)
+	GetComponentByID(deployment string, id string, sequence int64) (*proto.Component, error)
 	GetHandler(id string) (Handler, error)
 }
 
@@ -26,7 +28,7 @@ type scheduler struct {
 
 func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 	// get the deployment
-	dep, err := s.state.LoadDeployment(eval.ClusterID)
+	dep, err := s.state.LoadDeployment(eval.DeploymentID)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +37,11 @@ func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 		return nil, err
 	}
 
-	comp, err := s.state.GetComponentByID(eval.ClusterID, dep.CompId)
+	// TODO: try to find it first on the eval, then on the deployment
+	fmt.Println(dep.CompId)
+	fmt.Println(dep.Sequence)
+
+	comp, err := s.state.GetComponentByID(eval.DeploymentID, dep.CompId, dep.Sequence)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +51,6 @@ func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 	}
 
 	// we need this here because is not set before in the spec
-	spec.Name = eval.ClusterID
 	spec.Sequence = comp.Sequence
 
 	r := &reconciler{
@@ -100,7 +105,8 @@ func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 			ii.ID = uuid.UUID()
 			ii.Group = i.group
 			ii.Spec = &proto.NodeSpec{}
-			ii.Cluster = spec.Name
+			ii.Cluster = eval.DeploymentID
+			ii.DnsSuffix = dep.DnsSuffix
 			ii.Name = name
 			ii.Status = proto.Instance_PENDING
 			ii.Canary = i.update
@@ -117,6 +123,7 @@ func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 
 	if r.res.done {
 		if dep.Status != proto.DeploymentDone {
+			plan.Done = true
 			plan.Status = proto.DeploymentDone
 		}
 	} else {

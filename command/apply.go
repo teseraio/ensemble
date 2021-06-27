@@ -37,42 +37,42 @@ func (c *ApplyCommand) Run(args []string) int {
 		return 1
 	}
 
-	comps := []*proto.Component{}
-	for _, arg := range args {
-		raw, err := ioutil.ReadFile(arg)
-		if err != nil {
-			c.UI.Error(err.Error())
-			return 1
-		}
-		var item *k8s.Item
-		if err := yaml.Unmarshal(raw, &item); err != nil {
-			c.UI.Error(err.Error())
-			return 1
-		}
-
-		spec, err := k8s.DecodeItem(item)
-		if err != nil {
-			c.UI.Error(err.Error())
-			return 1
-		}
-		comps = append(comps, &proto.Component{
-			Name:     item.Metadata.Name,
-			Spec:     spec,
-			Metadata: item.Metadata.Labels,
-			Action:   proto.Component_CREATE,
-		})
+	comp, err := readComponentFromFile(args[0])
+	if err != nil {
+		c.UI.Error(err.Error())
+		return 1
 	}
+	comp.Action = proto.Component_CREATE
 
 	clt, err := c.Conn()
 	if err != nil {
 		c.UI.Error(err.Error())
 		return 1
 	}
-	for _, comp := range comps {
-		if _, err := clt.Apply(context.Background(), comp); err != nil {
-			c.UI.Error(err.Error())
-			return 1
-		}
+	if _, err := clt.Apply(context.Background(), comp); err != nil {
+		c.UI.Error(err.Error())
+		return 1
 	}
 	return 0
+}
+
+func readComponentFromFile(path string) (*proto.Component, error) {
+	raw, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var item *k8s.Item
+	if err := yaml.Unmarshal(raw, &item); err != nil {
+		return nil, err
+	}
+	spec, err := k8s.DecodeItem(item)
+	if err != nil {
+		return nil, err
+	}
+	comp := &proto.Component{
+		Name:     item.Metadata.Name,
+		Spec:     spec,
+		Metadata: item.Metadata.Labels,
+	}
+	return comp, nil
 }

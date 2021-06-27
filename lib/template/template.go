@@ -52,7 +52,7 @@ func RunTmpl(tmpl string, obj interface{}) ([]byte, error) {
 		return nil, err
 	}
 
-	// fmt.Println(string(buf1.Bytes()))
+	fmt.Println(string(buf1.Bytes()))
 
 	// convert quotes
 	out1 := string(buf1.Bytes())

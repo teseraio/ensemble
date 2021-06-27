@@ -57,7 +57,7 @@ func (h *Harness) ApplyDep(plan *proto.Plan, callback func(i *proto.Instance)) *
 	return dep
 }
 
-func (h *Harness) GetComponentByID(dep, id string) (*proto.Component, error) {
+func (h *Harness) GetComponentByID(dep, id string, sequence int64) (*proto.Component, error) {
 	return h.Component, nil
 }
 

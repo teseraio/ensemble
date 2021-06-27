@@ -10,6 +10,8 @@ import (
 // Factory is the method to initialize the state
 type Factory func(map[string]interface{}) (State, error)
 
+// TODO: Remove, we are using now the boltdb directly
+
 // State stores the state of the Ensemble server
 type State interface {
 	Apply(*proto.Component) (int64, error)
@@ -21,6 +23,7 @@ type State interface {
 	Finalize(id string) error
 	GetPending(id string) (*proto.Component, error)
 	GetTask(ctx context.Context) *proto.Component
+	GetTask2(ctx context.Context) *proto.Task
 
 	ListDeployments() ([]*proto.Deployment, error)
 	UpdateDeployment(d *proto.Deployment) error

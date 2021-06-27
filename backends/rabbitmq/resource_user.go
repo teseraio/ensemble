@@ -1,6 +1,8 @@
 package rabbitmq
 
 import (
+	"fmt"
+
 	rabbithole "github.com/michaelklishin/rabbit-hole/v2"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/schema"
@@ -25,6 +27,7 @@ func user() *operator.Resource2 {
 			},
 		},
 		DeleteFn: func(req *operator.CallbackRequest) error {
+			fmt.Println("DELETE")
 			client := req.Client.(*rabbithole.Client)
 
 			if _, err := client.DeleteUser(req.Get("username").(string)); err != nil {
@@ -33,6 +36,7 @@ func user() *operator.Resource2 {
 			return nil
 		},
 		ApplyFn: func(req *operator.CallbackRequest) error {
+			fmt.Println("APPLY")
 			client := req.Client.(*rabbithole.Client)
 
 			username := req.Get("username").(string)

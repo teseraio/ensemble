@@ -183,6 +183,7 @@ func (p *Provider) upsertConfigMap(name string, files *mount.MountPoint) error {
 
 	parts := []string{}
 	for name, content := range files.Files {
+		content = strings.Replace(content, "\n", "\\n", -1)
 		parts = append(parts, fmt.Sprintf("\"%s\": \"%s\"", cleanPath(name), content))
 	}
 	obj := map[string]interface{}{
@@ -284,6 +285,10 @@ func (p *Provider) createVolume(instance *proto.Instance, m *proto.Instance_Moun
 	return nil
 }
 
+func (p *Provider) Name() string {
+	return "Kubernetes"
+}
+
 // CreateResource implements the Provider interface
 func (p *Provider) CreateResource(node *proto.Instance) (*proto.Instance, error) {
 	p.logger.Debug("upsert instance", "id", node.ID, "cluster", node.Cluster, "name", node.Name)
@@ -291,20 +296,20 @@ func (p *Provider) CreateResource(node *proto.Instance) (*proto.Instance, error)
 
 	// create headless service for dns resolving
 	if err := p.createHeadlessService(node.Cluster); err != nil {
-		return nil, err
+		panic(err)
 	}
 
 	// files to be mounted on the pod
 	if len(node.Spec.Files) != 0 {
 		mountPoints, err := mount.CreateMountPoints(node.Spec.Files)
 		if err != nil {
-			return nil, err
+			panic(err)
 		}
 		for indx, mountPoint := range mountPoints {
 			name := node.ID + "-file-data-" + strconv.Itoa(indx)
 
 			if err := p.upsertConfigMap(name, mountPoint); err != nil {
-				return nil, err
+				panic(err)
 			}
 		}
 	}
@@ -313,16 +318,17 @@ func (p *Provider) CreateResource(node *proto.Instance) (*proto.Instance, error)
 	if len(node.Mounts) != 0 {
 		for _, m := range node.Mounts {
 			if err := p.createVolume(node, m); err != nil {
-				return nil, err
+				panic(err)
 			}
 		}
 	}
 
 	data, err := MarshalPod(node)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
+	fmt.Println(string(data))
 	// create the Pod resource
 	if _, _, err = p.post("/api/v1/namespaces/{namespace}/pods", data); err != nil {
 		return nil, err

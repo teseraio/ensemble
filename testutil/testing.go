@@ -144,6 +144,12 @@ func TestPodFiles(t *testing.T, p operator.Provider) {
 			Name:    "/a/d.txt",
 			Content: "efgh",
 		},
+		{
+			Name: "/a/e.txt",
+			Content: `Line1
+Line2
+Line3`,
+		},
 	}
 	i := &proto.Instance{
 		ID:      id,
