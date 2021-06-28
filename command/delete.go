@@ -22,7 +22,7 @@ func (d *DeleteCommand) Synopsis() string {
 
 // Run implements the cli.Command interface
 func (d *DeleteCommand) Run(args []string) int {
-	flags := d.FlagSet("apply")
+	flags := d.FlagSet("delete")
 	if err := flags.Parse(args); err != nil {
 		d.UI.Error(err.Error())
 		return 1
