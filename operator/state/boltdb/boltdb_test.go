@@ -1,7 +1,7 @@
 package boltdb
 
 import (
-	"fmt"
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,9 +9,13 @@ import (
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
-func testBoltdb(t *testing.T) *BoltDB {
+func testBoltdb(t *testing.T, pathRaw ...string) *BoltDB {
+	path := "/tmp/db-" + uuid.UUID()
+	if len(pathRaw) == 1 {
+		path = pathRaw[0]
+	}
 	config := map[string]interface{}{
-		"path": "/tmp/db-" + uuid.UUID(),
+		"path": path,
 	}
 	st, err := Factory(config)
 	if err != nil {
@@ -21,35 +25,50 @@ func testBoltdb(t *testing.T) *BoltDB {
 }
 
 func TestListDeployments(t *testing.T) {
-	config := map[string]interface{}{
-		"path": "/tmp/db-" + uuid.UUID(),
-	}
-	st, err := Factory(config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	db := testBoltdb(t)
 
-	fmt.Println(st.LoadDeployment("a"))
-
-	err = st.UpdateDeployment(&proto.Deployment{
-		Name: "a",
+	comp1, err := db.Apply2(&proto.Component{
+		Name: "name1",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})
 	assert.NoError(t, err)
+	assert.Equal(t, comp1.Sequence, int64(1))
 
-	err = st.UpdateDeployment(&proto.Deployment{
-		Name: "b",
-	})
+	depID, err := db.NameToDeployment("name1")
 	assert.NoError(t, err)
 
-	deps, err := st.ListDeployments()
+	dep, err := db.LoadDeployment(depID)
 	assert.NoError(t, err)
-	assert.Len(t, deps, 2)
 
-	assert.Equal(t, deps[0].Name, "a")
-	assert.Equal(t, deps[1].Name, "b")
+	dep.Backend = "xxx"
+	err = db.UpdateDeployment(dep)
+	assert.NoError(t, err)
+
+	deps, err := db.ListDeployments()
+	assert.NoError(t, err)
+	assert.Len(t, deps, 1)
+
+	assert.Equal(t, deps[0].Id, depID)
+	assert.Equal(t, deps[0].Name, "name1")
+
+	dep2, err := db.LoadDeployment(depID)
+	assert.NoError(t, err)
+	assert.Equal(t, dep2.Backend, "xxx")
 }
 
-func TestApplyMultipleTimesWithoutChange(t *testing.T) {
+func TestApplyFirst_CannotDelete(t *testing.T) {
+	// first action cannot be delete
+	db := testBoltdb(t)
+
+	_, err := db.Apply2(&proto.Component{
+		Name:   "name1",
+		Action: proto.Component_DELETE,
+		Spec:   proto.MustMarshalAny(&proto.ClusterSpec{}),
+	})
+	assert.Error(t, err)
+}
+
+func TestApplySecond_SameComponent(t *testing.T) {
 	// apply the same element without changes should not increase the sequence
 	db := testBoltdb(t)
 
@@ -76,101 +95,17 @@ func TestApplyMultipleTimesWithoutChange(t *testing.T) {
 	assert.Nil(t, comp1)
 }
 
-func TestApplyDeleteFirstTime(t *testing.T) {
-	// first action cannot be a delete action
-	db := testBoltdb(t)
-
-	_, err := db.Apply2(&proto.Component{
-		Name:   "name1",
-		Action: proto.Component_DELETE,
-		Spec:   proto.MustMarshalAny(&proto.ClusterSpec{}),
-	})
-	assert.Error(t, err)
-}
-
-func TestApplyMultipleTimesWithDelete(t *testing.T) {
-	// if the component is deleted, we can only create it
-	// apply the same element without changes should not increase the sequence
-	db := testBoltdb(t)
-
-	spec := &proto.ClusterSpec{
-		Groups: []*proto.ClusterSpec_Group{
-			{
-				Count: 1,
-			},
-		},
-	}
-
-	comp0, err := db.Apply2(&proto.Component{
-		Name: "name1",
-		Spec: proto.MustMarshalAny(spec),
-	})
-	assert.NoError(t, err)
-	assert.Equal(t, comp0.Sequence, int64(1))
-
-	comp1, err := db.Apply2(&proto.Component{
-		Name:   "name1",
-		Action: proto.Component_DELETE,
-		Spec:   proto.MustMarshalAny(&proto.ClusterSpec{}),
-	})
-	assert.NoError(t, err)
-	assert.Equal(t, comp1.Sequence, int64(2))
-
-	// cannot delete, need to create first
-	_, err = db.Apply2(&proto.Component{
-		Name:   "name1",
-		Action: proto.Component_DELETE,
-		Spec:   proto.MustMarshalAny(&proto.ClusterSpec{}),
-	})
-	assert.Error(t, err)
-
-	// we can create with the original spec again
-	comp2, err := db.Apply2(&proto.Component{
-		Name: "name1",
-		Spec: proto.MustMarshalAny(spec),
-	})
-	assert.NoError(t, err)
-	assert.Equal(t, comp2.Sequence, int64(3))
-}
-
-func TestApplyMultipleResources(t *testing.T) {
-	// multiple resources for the same cluster are serialized in the tasks
-	db := testBoltdb(t)
-
-	comp1, err := db.Apply2(&proto.Component{
-		Name: "name1",
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
-	})
-	assert.NoError(t, err)
-	assert.Equal(t, comp1.Sequence, int64(1))
-
-	comp2, err := db.Apply2(&proto.Component{
-		Name: "user1",
-		Spec: proto.MustMarshalAny(&proto.ResourceSpec{
-			Cluster: "name1",
-		}),
-	})
-	assert.NoError(t, err)
-	assert.Equal(t, comp2.Sequence, int64(1))
-
-	comp3, err := db.Apply2(&proto.Component{
-		Name: "user1",
-		Spec: proto.MustMarshalAny(&proto.ResourceSpec{
-			Cluster: "name1",
-		}),
-	})
-	assert.NoError(t, err)
-	assert.Nil(t, comp3)
-}
-
-func TestApplyWithFinalized(t *testing.T) {
+func TestApplySecond_FinalizeFirst(t *testing.T) {
 	// when a task is finalized the next needs to be triggered
 	db := testBoltdb(t)
 
-	_, err := db.Apply2(&proto.Component{
+	comp0, err := db.Apply2(&proto.Component{
 		Name: "name1",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})
+	assert.NoError(t, err)
+
+	depID, err := db.NameToDeployment("name1")
 	assert.NoError(t, err)
 
 	_, err = db.Apply2(&proto.Component{
@@ -186,37 +121,36 @@ func TestApplyWithFinalized(t *testing.T) {
 	// you can only pop one value
 	task1 := db.queue2.popImpl()
 	assert.NotNil(t, task1)
+	assert.Equal(t, task1.ComponentID, comp0.Id)
 	assert.Nil(t, db.queue2.popImpl())
 
-	assert.NoError(t, db.Finalize2("name1"))
+	assert.NoError(t, db.Finalize2(depID))
 
-	// you can pop a second value
+	// pop the second evaluation
 	task2 := db.queue2.popImpl()
 	assert.NotNil(t, task2)
+	assert.Equal(t, task2.ComponentID, comp0.Id)
+	assert.Equal(t, task2.Sequence, int64(2))
 
-	comps, err := db.GetComponents("name1")
-	fmt.Println(comps)
-
-	db.GetHistory("name1")
-
-	//assert.NoError(t, err)
-	//assert.Equal(t, comps[0].Status, proto.Component_APPLIED)
-	//assert.Equal(t, comps[1].Status, proto.Component_QUEUED)
+	vers, err := db.GetComponentVersions(depID, comp0.Id)
+	assert.NoError(t, err)
+	assert.Equal(t, vers[0].Status, proto.Component_APPLIED)
+	assert.Equal(t, vers[1].Status, proto.Component_QUEUED)
 }
 
-func TestApplyWhenQueued(t *testing.T) {
+func TestApplySecond_FirstQueued(t *testing.T) {
 	// apply when the previous component is in queue
 	db := testBoltdb(t)
 
-	comp, err := db.Apply2(&proto.Component{
+	comp0, err := db.Apply2(&proto.Component{
 		Name: "name1",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})
 	assert.NoError(t, err)
-	//panic(err)
+	assert.Equal(t, comp0.Sequence, int64(1))
 
-	//task1 := db.queue2.popImpl()
-	//assert.NotNil(t, task1)
+	task1 := db.queue2.popImpl()
+	assert.Equal(t, task1.ComponentID, comp0.Id)
 
 	comp1, err := db.Apply2(&proto.Component{
 		Name: "name1",
@@ -227,78 +161,229 @@ func TestApplyWhenQueued(t *testing.T) {
 		}),
 	})
 	assert.NoError(t, err)
-
-	fmt.Println(comp)
-	fmt.Println(comp1)
-
-	comps, err := db.GetComponents("name1")
-	assert.NoError(t, err)
-	fmt.Println(comps)
-
-	db.GetHistory("name1")
+	assert.Equal(t, comp1.Sequence, int64(2))
+	assert.Equal(t, comp1.Status, proto.Component_PENDING)
 }
 
-func TestApplySecond(t *testing.T) {
-	// second item being applied
+func TestApplySecond_FirstAlreadyDone(t *testing.T) {
+	// apply when the previous component is finalized
+	db := testBoltdb(t)
+
+	comp0, err := db.Apply2(&proto.Component{
+		Name: "name1",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, comp0.Sequence, int64(1))
+
+	depID, err := db.NameToDeployment("name1")
+	assert.NoError(t, err)
+
+	task0 := db.queue2.popImpl()
+	assert.Equal(t, task0.ComponentID, comp0.Id)
+	assert.Equal(t, depID, task0.DeploymentID)
+
+	// Finish task sequence 1
+	assert.NoError(t, db.Finalize2(depID))
+	comp1, err := db.Apply2(&proto.Component{
+		Name: "name1",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			Groups: []*proto.ClusterSpec_Group{
+				{Count: 1},
+			},
+		}),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, comp1.Sequence, int64(2))
+	assert.Equal(t, comp1.Status, proto.Component_QUEUED)
+}
+
+func TestApplySecond_RevertComponent(t *testing.T) {
+	db := testBoltdb(t)
+
+	comp0, err := db.Apply2(&proto.Component{
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, comp0.Sequence, int64(1))
+
+	comp1, err := db.Apply2(&proto.Component{
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			Groups: []*proto.ClusterSpec_Group{
+				{Count: 1},
+			},
+		}),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, comp1.Sequence, int64(2))
+
+	comp2, err := db.Apply2(&proto.Component{
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, comp2.Sequence, int64(3))
+}
+
+func TestApplyDelete_ClusterReuseName(t *testing.T) {
+	db := testBoltdb(t)
+
+	compA1, err := db.Apply2(&proto.Component{
+		Name: "name1",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, compA1.Sequence, int64(1))
+
+	compA2, err := db.Apply2(&proto.Component{
+		Name:   "name1",
+		Action: proto.Component_DELETE,
+		Spec:   proto.MustMarshalAny(&proto.ClusterSpec{}),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, compA2.Sequence, int64(2))
+
+	// create again with the same name, the new component should start
+	// with sequence 1 again
+	_, err = db.Apply2(&proto.Component{
+		Name: "name1",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
+	})
+	assert.Error(t, err)
+}
+
+func TestApplyDelete_ResourceReuseName(t *testing.T) {
+	db := testBoltdb(t)
+
+	compA1, err := db.Apply2(&proto.Component{
+		Name: "name1",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, compA1.Sequence, int64(1))
+
+	compB1, err := db.Apply2(&proto.Component{
+		Name: "r1",
+		Spec: proto.MustMarshalAny(&proto.ResourceSpec{
+			Cluster: "name1",
+		}),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, compB1.Sequence, int64(1))
+
+	compB2, err := db.Apply2(&proto.Component{
+		Name:   "r1",
+		Action: proto.Component_DELETE,
+		Spec: proto.MustMarshalAny(&proto.ResourceSpec{
+			Cluster: "name1",
+		}),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, compB2.Sequence, int64(2))
+
+	// apply again, we should create a new name
+	_, err = db.Apply2(&proto.Component{
+		Name: "r1",
+		Spec: proto.MustMarshalAny(&proto.ResourceSpec{
+			Cluster: "name1",
+		}),
+	})
+	assert.Error(t, err)
+}
+
+func TestApplyResourceUnknownCluster(t *testing.T) {
 	db := testBoltdb(t)
 
 	_, err := db.Apply2(&proto.Component{
-		Name: "name1",
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
-	})
-	assert.NoError(t, err)
-
-	/*
-		task1 := db.queue2.popImpl()
-		assert.NotNil(t, task1)
-		assert.NoError(t, db.Finalize2("name1"))
-	*/
-
-	_, err = db.Apply2(&proto.Component{
-		Name: "name1",
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-			Groups: []*proto.ClusterSpec_Group{
-				{Count: 1},
-			},
+		Name: "r1",
+		Spec: proto.MustMarshalAny(&proto.ResourceSpec{
+			Cluster: "name1",
 		}),
 	})
-	assert.NoError(t, err)
-
-	/*
-		task2 := db.queue2.popImpl()
-		assert.NotNil(t, task2)
-
-		comps, err := db.GetComponents("name1")
-		assert.NoError(t, err)
-		assert.Equal(t, comps[0].Status, proto.Component_APPLIED)
-		assert.Equal(t, comps[1].Status, proto.Component_QUEUED)
-	*/
+	assert.Error(t, err)
 }
 
-// watcher (tests)
-// Reindex
-// List the stubs
-
-func TestApplyComponent(t *testing.T) {
+func TestComponentsReindex(t *testing.T) {
 	db := testBoltdb(t)
 
-	c0, _ := db.applyComponent2(&proto.Component{
-		Id:   "a",
+	comp, err := db.Apply2(&proto.Component{
+		Name: "name1",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})
-	c1, _ := db.applyComponent2(&proto.Component{
-		Id: "a",
+	assert.NoError(t, err)
+
+	db.Close()
+	db2 := testBoltdb(t, db.path)
+
+	tt := db2.GetTask2(context.Background())
+	assert.NotNil(t, tt)
+	assert.Equal(t, tt.ComponentID, comp.Id)
+	assert.Equal(t, tt.Sequence, int64(1))
+}
+
+func TestReadDeployment(t *testing.T) {
+	db := testBoltdb(t)
+
+	comp1, err := db.Apply2(&proto.Component{
+		Name: "name1",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, comp1.Sequence, int64(1))
+
+	deps, _ := db.ListDeployments()
+	depID := deps[0].Id
+
+	comp2, err := db.Apply2(&proto.Component{
+		Name: "name1",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
 			Groups: []*proto.ClusterSpec_Group{
-				{Count: 1},
+				{
+					Count: 1,
+				},
 			},
 		}),
 	})
-	c2, _ := db.applyComponent2(&proto.Component{
-		Id:   "a",
+	assert.NoError(t, err)
+	assert.Equal(t, comp2.Sequence, int64(2))
+
+	comp3, err := db.Apply2(&proto.Component{
+		Name: "name1",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			Groups: []*proto.ClusterSpec_Group{
+				{
+					Count: 2,
+				},
+			},
+		}),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, comp3.Sequence, int64(3))
+
+	// sequence=1 is the current pending deployment
+	compR1, err := db.ReadDeployment(depID)
+	assert.NoError(t, err)
+	assert.Equal(t, compR1.Sequence, int64(1))
+
+	// finalize sequence=1
+	assert.NoError(t, db.Finalize2(depID))
+
+	// sequence=2 is the new pending deployment
+	compR2, err := db.ReadDeployment(depID)
+	assert.NoError(t, err)
+	assert.Equal(t, compR2.Sequence, int64(2))
+}
+
+func TestLoadDeployments(t *testing.T) {
+	db := testBoltdb(t)
+
+	comp1, err := db.Apply2(&proto.Component{
+		Name: "name1",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})
-	fmt.Println(c0)
-	fmt.Println(c1)
-	fmt.Println(c2)
+	assert.NoError(t, err)
+	assert.Equal(t, comp1.Sequence, int64(1))
+
+	deps, err := db.ListDeployments()
+	assert.NoError(t, err)
+	assert.Equal(t, deps[0].Name, "name1")
 }

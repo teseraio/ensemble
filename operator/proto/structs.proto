@@ -165,12 +165,14 @@ message Deployment {
     string compId = 6;
 
     string dnsSuffix = 7;
+
+    string id = 8;
 }
 
 message InstanceUpdate {
     string ID = 1;
 
-    string Cluster = 2;
+    string clusterName = 2;
 
     oneof event {
         Scheduled scheduled = 3;
@@ -221,7 +223,7 @@ message Instance {
 
     string Namespace = 3;
     
-    string Cluster = 4;
+    string clusterName = 4;
 
     ClusterSpec.Group group = 5;
 
@@ -267,6 +269,8 @@ message Instance {
 
     string dnsSuffix = 19;
 
+    string deploymentID = 20;
+    
     repeated Mount mounts = 30;
 
     message Reschedule {

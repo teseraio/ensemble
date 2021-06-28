@@ -71,11 +71,11 @@ func (d *Deployment) Copy() *Deployment {
 }
 
 func (n *Instance) FullName() string {
-	if n.Cluster != "" {
+	if n.ClusterName != "" {
 		if n.DnsSuffix != "" {
-			return n.Name + "." + n.Cluster + n.DnsSuffix
+			return n.Name + "." + n.ClusterName + n.DnsSuffix
 		}
-		return n.Name + "." + n.Cluster
+		return n.Name + "." + n.ClusterName
 	}
 	return n.Name
 }
@@ -237,9 +237,9 @@ func EmptySpec() *Spec {
 
 func (i *Instance) Update(event isInstanceUpdate_Event) *InstanceUpdate {
 	return &InstanceUpdate{
-		ID:      i.ID,
-		Cluster: i.Cluster,
-		Event:   event,
+		ID:          i.ID,
+		ClusterName: i.ClusterName,
+		Event:       event,
 	}
 }
 

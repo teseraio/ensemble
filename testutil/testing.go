@@ -43,10 +43,10 @@ func readEvent(p operator.Provider, t *testing.T) *proto.InstanceUpdate {
 func TestPodBarArgs(t *testing.T, p operator.Provider) {
 	// TODO
 	i := &proto.Instance{
-		ID:      uuid.UUID(),
-		Cluster: "xx11",
-		Name:    "yy22",
-		Image:   "busybox",
+		ID:          uuid.UUID(),
+		ClusterName: "xx11",
+		Name:        "yy22",
+		Image:       "busybox",
 		Spec: &proto.NodeSpec{
 			Cmd: []string{"xxx"},
 		},
@@ -71,10 +71,10 @@ func TestPodBarArgs(t *testing.T, p operator.Provider) {
 func TestPodJobFailed(t *testing.T, p operator.Provider) {
 	// TODO
 	i := &proto.Instance{
-		ID:      uuid.UUID(),
-		Cluster: "xx11",
-		Name:    "yy22",
-		Image:   "busybox",
+		ID:          uuid.UUID(),
+		ClusterName: "xx11",
+		Name:        "yy22",
+		Image:       "busybox",
 		Spec: &proto.NodeSpec{
 			// it stops gracefully
 			Cmd: []string{"sleep", "2"},
@@ -97,11 +97,11 @@ func TestPodLifecycle(t *testing.T, p operator.Provider) {
 	id := uuid.UUID()
 
 	i := &proto.Instance{
-		ID:      id,
-		Cluster: "c11",
-		Name:    "d22",
-		Image:   "nginx",
-		Spec:    &proto.NodeSpec{},
+		ID:          id,
+		ClusterName: "c11",
+		Name:        "d22",
+		Image:       "nginx",
+		Spec:        &proto.NodeSpec{},
 	}
 
 	if _, err := p.CreateResource(i); err != nil {
@@ -152,10 +152,10 @@ Line3`,
 		},
 	}
 	i := &proto.Instance{
-		ID:      id,
-		Cluster: "c11",
-		Name:    uuid.UUID(),
-		Image:   "nginx",
+		ID:          id,
+		ClusterName: "c11",
+		Name:        uuid.UUID(),
+		Image:       "nginx",
 		Spec: &proto.NodeSpec{
 			Files: files,
 		},
@@ -184,11 +184,11 @@ func TestPodMount(t *testing.T, p operator.Provider) {
 	id := uuid.UUID()
 
 	i := &proto.Instance{
-		ID:      id,
-		Cluster: "c11",
-		Name:    uuid.UUID(),
-		Image:   "nginx",
-		Spec:    &proto.NodeSpec{},
+		ID:          id,
+		ClusterName: "c11",
+		Name:        uuid.UUID(),
+		Image:       "nginx",
+		Spec:        &proto.NodeSpec{},
 		Mounts: []*proto.Instance_Mount{
 			{
 				Name: "one",
@@ -255,11 +255,11 @@ func TestPodMount(t *testing.T, p operator.Provider) {
 
 func TestDNS(t *testing.T, p operator.Provider) {
 	target := &proto.Instance{
-		ID:      uuid.UUID(),
-		Cluster: "c11",
-		Name:    uuid.UUID(),
-		Image:   "nginx",
-		Spec:    &proto.NodeSpec{},
+		ID:          uuid.UUID(),
+		ClusterName: "c11",
+		Name:        uuid.UUID(),
+		Image:       "nginx",
+		Spec:        &proto.NodeSpec{},
 	}
 
 	if _, err := p.CreateResource(target); err != nil {
@@ -276,11 +276,11 @@ func TestDNS(t *testing.T, p operator.Provider) {
 	}
 
 	source := &proto.Instance{
-		ID:      uuid.UUID(),
-		Cluster: "c11",
-		Name:    uuid.UUID(),
-		Image:   "nginx",
-		Spec:    &proto.NodeSpec{},
+		ID:          uuid.UUID(),
+		ClusterName: "c11",
+		Name:        uuid.UUID(),
+		Image:       "nginx",
+		Spec:        &proto.NodeSpec{},
 	}
 
 	if _, err := p.CreateResource(source); err != nil {

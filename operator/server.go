@@ -111,9 +111,13 @@ func (s *Server) upsertNode(i *proto.Instance) error {
 		return err
 	}
 
+	depID, err := s.State.NameToDeployment(i.ClusterName)
+	if err != nil {
+		return err
+	}
 	// TODO: Aggregate this in the same function or provide it from
 	// the caller function as a context
-	dep, err := s.LoadDeployment(i.Cluster)
+	dep, err := s.LoadDeployment(depID)
 	if err != nil {
 		return err
 	}
@@ -126,7 +130,7 @@ func (s *Server) upsertNode(i *proto.Instance) error {
 	return nil
 }
 
-func (s *Server) upsertNodeAndEval(i *proto.Instance) error {
+func (s *Server) upsertNodeAndEval(deploymentID string, i *proto.Instance) error {
 	if err := s.upsertNode(i); err != nil {
 		return err
 	}
@@ -134,7 +138,7 @@ func (s *Server) upsertNodeAndEval(i *proto.Instance) error {
 		Id:           uuid.UUID(),
 		Status:       proto.Evaluation_PENDING,
 		TriggeredBy:  proto.Evaluation_NODECHANGE,
-		DeploymentID: i.Cluster,
+		DeploymentID: deploymentID,
 		Type:         proto.EvaluationTypeCluster,
 	}
 	s.evalQueue.add(eval)
@@ -142,9 +146,13 @@ func (s *Server) upsertNodeAndEval(i *proto.Instance) error {
 }
 
 func (s *Server) updateStatus(op *proto.InstanceUpdate) error {
-	s.logger.Debug("update instance status", "id", op.ID, "cluster", op.Cluster, "op", op)
+	s.logger.Debug("update instance status", "id", op.ID, "cluster", op.ClusterName, "op", op)
 
-	i, err := s.State.LoadInstance(op.Cluster, op.ID)
+	deploymentID, err := s.State.NameToDeployment(op.ClusterName)
+	if err != nil {
+		return err
+	}
+	i, err := s.State.LoadInstance(deploymentID, op.ID)
 	if err != nil {
 		return err
 	}
@@ -165,16 +173,16 @@ func (s *Server) updateStatus(op *proto.InstanceUpdate) error {
 			// expected to be down
 			i.Status = proto.Instance_STOPPED // It is moved to out by reconciler
 			// dont do evaluation now
-			return s.upsertNodeAndEval(i)
+			return s.upsertNodeAndEval(deploymentID, i)
 		} else {
 			// the node is not expected to fail
 			i.Status = proto.Instance_FAILED
-			return s.upsertNodeAndEval(i)
+			return s.upsertNodeAndEval(deploymentID, i)
 		}
 	}
 
 	// update in the db
-	if err := s.upsertNodeAndEval(i); err != nil {
+	if err := s.upsertNodeAndEval(deploymentID, i); err != nil {
 		return err
 	}
 	return nil
@@ -238,9 +246,6 @@ func (s *Server) taskQueue5() {
 	for {
 		task := s.State.GetTask2(context.Background())
 
-		fmt.Println("-- task --")
-		fmt.Println(task)
-
 		// pre-load the component
 		comp, err := s.State.GetComponentByID2(task.DeploymentID, task.ComponentID, task.Sequence)
 		if err != nil {
@@ -248,7 +253,6 @@ func (s *Server) taskQueue5() {
 		}
 		typ := comp.Type()
 
-		// load the deployment
 		dep, err := s.State.LoadDeployment(task.DeploymentID)
 		if err != nil {
 			panic(err)
@@ -257,7 +261,7 @@ func (s *Server) taskQueue5() {
 		case proto.EvaluationTypeCluster:
 			err = s.handleCluster(task, dep, comp)
 		case proto.EvaluationTypeResource:
-			err = s.handleResource2(task, dep, task.DeploymentID, comp)
+			err = s.handleResource(task, dep, task.DeploymentID, comp)
 		}
 		if err != nil {
 			panic(err)
@@ -265,46 +269,14 @@ func (s *Server) taskQueue5() {
 	}
 }
 
-func (s *Server) taskQueue3() {
-	s.logger.Info("Starting spec change worker")
-
-	for {
-		comp := s.State.GetTask(context.Background())
-
-		// get the name of the cluster and load the deployment
-		clusterID, err := proto.ClusterIDFromComponent(comp)
-		if err != nil {
-			panic(err)
-		}
-		dep, err := s.State.LoadDeployment(clusterID)
-		if err != nil {
-			panic(err)
-		}
-
-		switch comp.Spec.TypeUrl {
-		case "proto.ClusterSpec":
-			err = s.handleCluster(nil, dep, comp)
-
-		case "proto.ResourceSpec":
-			// err = s.handleResource(dep, comp)
-		}
-		if err != nil {
-			panic(err)
-		}
-	}
-}
-
-func (s *Server) handleResource2(task *proto.Task, dep *proto.Deployment, clusterID string, comp *proto.Component) error {
+func (s *Server) handleResource(task *proto.Task, dep *proto.Deployment, clusterID string, comp *proto.Component) error {
 	var spec proto.ResourceSpec
 	if err := gproto.Unmarshal(comp.Spec.Value, &spec); err != nil {
 		return err
 	}
 	if dep == nil {
-		return fmt.Errorf("deployment does not exists")
+		return fmt.Errorf("deployment does not exists y")
 	}
-
-	fmt.Println("_ CLUSTER ID _")
-	fmt.Println(clusterID)
 
 	// create a specChange evaluation
 	s.evalQueue.add(&proto.Evaluation{
@@ -325,12 +297,9 @@ func (s *Server) handleCluster(task *proto.Task, dep *proto.Deployment, comp *pr
 		return err
 	}
 
-	if dep == nil {
+	if dep.Backend == "" {
 		// new deployment
-		dep = &proto.Deployment{
-			Name:    comp.Name,
-			Backend: spec.Backend,
-		}
+		dep.Backend = spec.Backend
 
 		// get the dns suffix if any from the provider
 		if s.Provider.Name() == "Kubernetes" {
@@ -356,7 +325,7 @@ func (s *Server) handleCluster(task *proto.Task, dep *proto.Deployment, comp *pr
 		Id:           uuid.UUID(),
 		Status:       proto.Evaluation_PENDING,
 		TriggeredBy:  proto.Evaluation_SPECCHANGE,
-		DeploymentID: dep.Name,
+		DeploymentID: task.DeploymentID,
 		Type:         proto.EvaluationTypeCluster,
 		Sequence:     comp.Sequence,
 		ComponentID:  task.ComponentID,
@@ -365,19 +334,7 @@ func (s *Server) handleCluster(task *proto.Task, dep *proto.Deployment, comp *pr
 }
 
 func (s *Server) GetComponentByID(deployment, compID string, sequence int64) (*proto.Component, error) {
-
-	// fmt.Println(deployment, compID, sequence)
-
 	return s.State.GetComponentByID2(deployment, compID, sequence)
-
-	/*
-		panic("TODO")
-		comp, err := s.State.GetComponentByID("proto-ClusterSpec", deployment, compID)
-		if err != nil {
-			return nil, err
-		}
-		return comp, nil
-	*/
 }
 
 func (s *Server) LoadDeployment(id string) (*proto.Deployment, error) {
@@ -393,7 +350,6 @@ func (s *Server) GetHandler(id string) (Handler, error) {
 }
 
 func (s *Server) newScheduler(typ string) Scheduler {
-	fmt.Println(typ)
 	if typ == proto.EvaluationTypeResource {
 		return &ResourceScheduler{state: s}
 	} else if typ == proto.EvaluationTypeCluster {
@@ -503,12 +459,16 @@ func (s *Server) validateComponent(component *proto.Component) error {
 		}
 	case *proto.ResourceSpec:
 		// make sure the deployment exists
-		dep, err := s.LoadDeployment(obj.Cluster)
+		depID, err := s.State.NameToDeployment(obj.Cluster)
+		if err != nil {
+			return err
+		}
+		dep, err := s.LoadDeployment(depID)
 		if err != nil {
 			return err
 		}
 		if dep == nil {
-			return fmt.Errorf("deployment does not exists")
+			return fmt.Errorf("deployment does not exists %s", depID)
 		}
 		handler, err := s.GetHandler(dep.Backend)
 		if err != nil {

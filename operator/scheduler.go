@@ -1,8 +1,6 @@
 package operator
 
 import (
-	"fmt"
-
 	gproto "github.com/golang/protobuf/proto"
 	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
@@ -32,15 +30,16 @@ func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	//fmt.Println("__")
+	//fmt.Println(dep)
+
 	handler, err := s.state.GetHandler(dep.Backend)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: try to find it first on the eval, then on the deployment
-	fmt.Println(dep.CompId)
-	fmt.Println(dep.Sequence)
-
+	// TODO: XXX
 	comp, err := s.state.GetComponentByID(eval.DeploymentID, dep.CompId, dep.Sequence)
 	if err != nil {
 		return nil, err
@@ -105,7 +104,8 @@ func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 			ii.ID = uuid.UUID()
 			ii.Group = i.group
 			ii.Spec = &proto.NodeSpec{}
-			ii.Cluster = eval.DeploymentID
+			ii.ClusterName = dep.Name
+			ii.DeploymentID = dep.Id
 			ii.DnsSuffix = dep.DnsSuffix
 			ii.Name = name
 			ii.Status = proto.Instance_PENDING

@@ -7,50 +7,26 @@ import (
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
-func TestQueue2(t *testing.T) {
-	// q := newTaskQueue2()
-}
+func TestQueue(t *testing.T) {
+	q := newTaskQueue2()
 
-func TestQueueSerializeByClusterID(t *testing.T) {
-	q := newTaskQueue()
-
-	q.add("A", &proto.Component{
-		Id:   "id1",
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
-	})
-
-	q.add("A", &proto.Component{
-		Id:   "id2",
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
-	})
-
-	q.add("A", &proto.Component{
-		Id:   "id3",
-		Spec: proto.MustMarshalAny(&proto.ResourceSpec{}),
-	})
-
-	assert.Equal(t, q.popImpl().Id, "id1")
 	assert.Nil(t, q.popImpl())
 
-	q.finalize("A")
+	q.add(&proto.Task{
+		DeploymentID: "id1",
+	})
 
-	assert.Equal(t, q.popImpl().Id, "id2")
+	assert.NotNil(t, q.popImpl())
+	assert.Nil(t, q.popImpl())
 
-	/*
-		assert.Nil(t, q.popImpl())
+	q.add(&proto.Task{
+		DeploymentID: "id2",
+	})
 
-		q.add("B", &proto.Component{
-			Id:   "id4",
-			Spec: proto.MustMarshalAny(&proto.ResourceSpec{}),
-		})
+	assert.NotNil(t, q.popImpl())
 
-		assert.Equal(t, q.popImpl().Id, "id4")
-		assert.Nil(t, q.popImpl())
+	_, ok := q.finalize("id1")
+	assert.True(t, ok)
 
-		q.finalize("A")
-		q.finalize("A")
-
-		assert.Equal(t, q.popImpl().Id, "id3")
-		assert.Nil(t, q.popImpl())
-	*/
+	assert.Nil(t, q.popImpl())
 }
