@@ -436,54 +436,60 @@ func (s *Server) SubmitPlan(eval *proto.Evaluation, p *proto.Plan) error {
 	return nil
 }
 
-func (s *Server) validateComponent(component *proto.Component) error {
+func (s *Server) validateComponent(component *proto.Component) (*proto.Component, error) {
 	msg, err := proto.UnmarshalAny(component.Spec)
 	if err != nil {
-		return err
+		return nil, err
 	}
+
+	var handler Handler
+
 	switch obj := msg.(type) {
 	case *proto.ClusterSpec:
+		handler, err = s.GetHandler(obj.Backend)
+		if err != nil {
+			return nil, err
+		}
 		if len(obj.Groups) == 0 {
-			return fmt.Errorf("no groups found")
+			return nil, fmt.Errorf("no groups found")
 		}
 		for indx, grp := range obj.Groups {
 			if grp.Count == 0 {
-				return fmt.Errorf("count 0 for group %d", indx)
-			}
-			if grp.Storage == nil {
-				grp.Storage = proto.EmptySpec()
-			}
-			if grp.Resources == nil {
-				grp.Resources = proto.EmptySpec()
+				return nil, fmt.Errorf("count 0 for group %d", indx)
 			}
 		}
 	case *proto.ResourceSpec:
 		// make sure the deployment exists
 		depID, err := s.State.NameToDeployment(obj.Cluster)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		dep, err := s.LoadDeployment(depID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if dep == nil {
-			return fmt.Errorf("deployment does not exists %s", depID)
+			return nil, fmt.Errorf("deployment does not exists %s", depID)
 		}
 		handler, err := s.GetHandler(dep.Backend)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		schemas := handler.GetSchemas()
 		resource, ok := schemas.Resources[obj.Resource]
 		if !ok {
-			return fmt.Errorf("resource %s does not exists", obj.Resource)
+			return nil, fmt.Errorf("resource %s does not exists", obj.Resource)
 		}
 		if err := resource.Validate(obj.Params); err != nil {
-			return err
+			return nil, err
 		}
 	default:
-		return fmt.Errorf("cannot validate spec: %s", reflect.TypeOf(msg))
+		return nil, fmt.Errorf("cannot validate spec: %s", reflect.TypeOf(msg))
 	}
-	return nil
+
+	component, err = handler.Evaluate(component)
+	if err != nil {
+		return nil, err
+	}
+	return component, nil
 }

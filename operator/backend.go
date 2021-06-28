@@ -28,6 +28,10 @@ func (n *nullHandler) WatchUpdates() chan *proto.InstanceUpdate {
 	return nil
 }
 
+func (n *nullHandler) Evaluate(comp *proto.Component) (*proto.Component, error) {
+	return comp, nil
+}
+
 func (n *nullHandler) ApplyHook(ApplyHookRequest) {
 }
 
@@ -50,6 +54,9 @@ type Handler interface {
 
 	// ApplyHook sends a request for an async hook
 	ApplyHook(ApplyHookRequest)
+
+	// Evaluate evaluates a component schema
+	Evaluate(comp *proto.Component) (*proto.Component, error)
 
 	// WatchUpdates returns updates from nodes
 	WatchUpdates() chan *proto.InstanceUpdate
@@ -90,6 +97,7 @@ type Spec struct {
 	Name      string // out
 	Nodetypes map[string]Nodetype
 	Resources []*Resource2
+	Validate  func(comp *proto.Component) (*proto.Component, error)
 	Handlers  map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData)
 }
 
@@ -149,6 +157,14 @@ func (b *BaseOperator) WatchUpdates() chan *proto.InstanceUpdate {
 		b.ch = make(chan *proto.InstanceUpdate, 10)
 	}
 	return b.ch
+}
+
+func (b *BaseOperator) Evaluate(comp *proto.Component) (*proto.Component, error) {
+	valFunc := b.handler.Spec().Validate
+	if valFunc != nil {
+		return valFunc(comp)
+	}
+	return comp, nil
 }
 
 func (b *BaseOperator) ApplyHook(req ApplyHookRequest) {

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
@@ -15,13 +14,11 @@ type service struct {
 }
 
 func (s *service) Apply(ctx context.Context, component *proto.Component) (*proto.Component, error) {
-	// Apply the component
-	component.Id = uuid.UUID()
-
-	if err := s.s.validateComponent(component); err != nil {
+	component, err := s.s.validateComponent(component)
+	if err != nil {
 		return nil, err
 	}
-	component, err := s.s.State.Apply(component)
+	component, err = s.s.State.Apply(component)
 	if err != nil {
 		return nil, err
 	}

@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	gproto "github.com/golang/protobuf/proto"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/schema"
@@ -86,6 +87,23 @@ func (b *backend) Spec() *operator.Spec {
 					},
 				},
 			},
+		},
+		Validate: func(comp *proto.Component) (*proto.Component, error) {
+			var spec proto.ClusterSpec
+			if err := gproto.Unmarshal(comp.Spec.Value, &spec); err != nil {
+				return nil, err
+			}
+			if len(spec.Groups) != 1 {
+				return nil, fmt.Errorf("only one group expected")
+			}
+			grp := spec.Groups[0]
+			if grp.Count < 3 {
+				return nil, fmt.Errorf("at least 3 nodes required")
+			}
+			if grp.Count%2 == 0 {
+				return nil, fmt.Errorf("odd number of nodes required")
+			}
+			return comp, nil
 		},
 		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData){
 			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData) {
