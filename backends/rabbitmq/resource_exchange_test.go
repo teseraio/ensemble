@@ -17,7 +17,6 @@ func TestExchange(t *testing.T) {
 	uuid1 := srv.Apply(&proto.Component{
 		Name: "A",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-			Name:    "A",
 			Backend: "Rabbitmq",
 			Groups: []*proto.ClusterSpec_Group{
 				{

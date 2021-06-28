@@ -10,7 +10,7 @@ import (
 )
 
 type task struct {
-	*proto.Component
+	*proto.Task
 	clusterID string
 
 	// internal fields for the sort heap
@@ -24,7 +24,6 @@ type taskQueue struct {
 	lock     sync.Mutex
 	items    map[string]*task
 	updateCh chan struct{}
-	pending  map[string][]*proto.Component
 }
 
 func newTaskQueue() *taskQueue {
@@ -32,50 +31,20 @@ func newTaskQueue() *taskQueue {
 		heap:     taskQueueImpl{},
 		items:    map[string]*task{},
 		updateCh: make(chan struct{}),
-		pending:  map[string][]*proto.Component{},
 	}
 }
 
-func (t *taskQueue) get(id string) (*task, bool) {
+func (t *taskQueue) add(pTask *proto.Task) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	tt, ok := t.items[id]
-	return tt, ok
-}
-
-func (t *taskQueue) add(clusterID string, c *proto.Component) {
-	t.lock.Lock()
-	defer t.lock.Unlock()
-
-	found := false
-	for _, i := range t.items {
-		if i.clusterID == clusterID {
-			found = true
-			break
-		}
-	}
-
-	if found {
-		// there is already a task for the same cluster, append
-		// this evaluation to the pending map
-		if _, ok := t.pending[clusterID]; !ok {
-			t.pending = map[string][]*proto.Component{}
-		}
-		t.pending[clusterID] = append(t.pending[clusterID], c)
-	} else {
-		t.addImpl(clusterID, c)
-	}
-}
-
-func (t *taskQueue) addImpl(clusterID string, c *proto.Component) {
 	tt := &task{
-		clusterID: clusterID,
-		Component: c,
+		clusterID: pTask.DeploymentID,
+		Task:      pTask,
 		ready:     true,
 	}
 
-	t.items[c.Id] = tt
+	t.items[tt.clusterID] = tt
 	heap.Push(&t.heap, tt)
 
 	select {
@@ -118,35 +87,15 @@ func (t *taskQueue) finalize(clusterID string) (*task, bool) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	var item *task
-	for _, i := range t.items {
-		if i.clusterID == clusterID {
-			if i.ready {
-				return nil, false
-			}
-			item = i
-		}
-	}
-	if item == nil {
+	item, ok := t.items[clusterID]
+	if !ok {
 		return nil, false
 	}
 
 	// remove the element from the heap
 	heap.Remove(&t.heap, item.index)
-	delete(t.items, item.Id)
+	delete(t.items, item.clusterID)
 
-	// check if there is a pending eval
-	pending, ok := t.pending[clusterID]
-	if ok {
-		var nextTask *proto.Component
-		nextTask, pending = pending[0], pending[1:]
-		if len(pending) == 0 {
-			delete(t.pending, clusterID)
-		} else {
-			t.pending[clusterID] = pending
-		}
-		t.addImpl(clusterID, nextTask)
-	}
 	return item, true
 }
 

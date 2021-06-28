@@ -79,6 +79,10 @@ func NewDockerClient() (*Client, error) {
 	return clt, nil
 }
 
+func (c *Client) Name() string {
+	return "Docker"
+}
+
 func (c *Client) Start() error {
 	return nil
 }
@@ -177,8 +181,8 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 	defer c.resourcesLock.Unlock()
 
 	c.updateCh <- &proto.InstanceUpdate{
-		ID:      node.ID,
-		Cluster: node.Cluster,
+		ID:          node.ID,
+		ClusterName: node.ClusterName,
 		Event: &proto.InstanceUpdate_Scheduled_{
 			Scheduled: &proto.InstanceUpdate_Scheduled{},
 		},
@@ -229,7 +233,7 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 
 	// mount paths
 	if len(node.Mounts) != 0 {
-		dataDir := "/tmp/ensemble-" + node.Cluster + "-" + node.Name
+		dataDir := "/tmp/ensemble-" + node.ClusterName + "-" + node.Name
 		for _, mount := range node.Mounts {
 			localPath := dataDir + "-" + mount.Name
 			if err := createIfNotExists(localPath); err != nil {
@@ -276,7 +280,7 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 	c.resources[node.ID] = &resource{
 		nodeID:    node.ID,
 		handle:    body.ID,
-		clusterID: node.Cluster,
+		clusterID: node.ClusterName,
 		instance:  node,
 	}
 	if err := c.client.ContainerStart(ctx, body.ID, types.ContainerStartOptions{}); err != nil {
@@ -296,8 +300,8 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 
 		c.resources[node.ID].active = false
 		c.updateCh <- &proto.InstanceUpdate{
-			ID:      node.ID,
-			Cluster: node.Cluster,
+			ID:          node.ID,
+			ClusterName: node.ClusterName,
 			Event: &proto.InstanceUpdate_Killing_{
 				Killing: &proto.InstanceUpdate_Killing{},
 			},
@@ -307,8 +311,8 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 	ip := c.GetIP(body.ID)
 
 	c.updateCh <- &proto.InstanceUpdate{
-		ID:      node.ID,
-		Cluster: node.Cluster,
+		ID:          node.ID,
+		ClusterName: node.ClusterName,
 		Event: &proto.InstanceUpdate_Running_{
 			Running: &proto.InstanceUpdate_Running{
 				Ip:      ip,
@@ -318,29 +322,6 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 	}
 	return body.ID, nil
 }
-
-/*
-func (c *Client) DestroyAt() {
-	var handle string
-	for _, j := range c.resources {
-		handle = j.handle
-	}
-	if err := c.client.ContainerRemove(context.Background(), handle, types.ContainerRemoveOptions{Force: true}); err != nil {
-		panic(err)
-	}
-}
-
-func (c *Client) Destroy() {
-	var resource *resource
-	for _, v := range c.resources {
-		resource = v
-	}
-	// stop + remove does not work, so just remove with force
-	if err := c.client.ContainerRemove(context.Background(), resource.handle, types.ContainerRemoveOptions{Force: true}); err != nil {
-		panic(err)
-	}
-}
-*/
 
 func (c *Client) Resources() operator.ProviderResources {
 	return operator.ProviderResources{

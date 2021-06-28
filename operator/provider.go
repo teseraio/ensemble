@@ -36,6 +36,8 @@ type Provider interface {
 	// Resources returns a struct that defines the node resources
 	// that can be configured for this provider
 	Resources() ProviderResources
+
+	Name() string
 }
 
 type ProviderResources struct {

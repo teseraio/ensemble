@@ -98,7 +98,7 @@ func TestOperator(t *testing.T, factory operator.HandlerFactory) *TestServer {
 	tt := &TestServer{
 		t:      t,
 		srv:    srv,
-		state:  state.(*boltdb.BoltDB),
+		state:  state,
 		docker: provider,
 		path:   path,
 		clt:    proto.NewEnsembleServiceClient(conn),

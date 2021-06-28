@@ -10,6 +10,22 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+func (c *Component) IsDone() bool {
+	return c.Status == Component_APPLIED
+}
+
+const (
+	PlanStatusDone = "done"
+)
+
+type ClusterRef interface {
+	GetCluster() string
+}
+
+func (c *ClusterSpec) GetCluster() string {
+	return ""
+}
+
 const (
 	EvaluationTypeCluster  = "cluster"
 	EvaluationTypeResource = "resource"
@@ -55,8 +71,11 @@ func (d *Deployment) Copy() *Deployment {
 }
 
 func (n *Instance) FullName() string {
-	if n.Cluster != "" {
-		return n.Name + "." + n.Cluster
+	if n.ClusterName != "" {
+		if n.DnsSuffix != "" {
+			return n.Name + "." + n.ClusterName + n.DnsSuffix
+		}
+		return n.Name + "." + n.ClusterName
 	}
 	return n.Name
 }
@@ -137,9 +156,11 @@ func (b *NodeSpec) Copy() *NodeSpec {
 	return proto.Clone(b).(*NodeSpec)
 }
 
+/*
 func (r *ClusterSpec) GetClusterID() string {
 	return r.Name
 }
+*/
 
 func (r *ResourceSpec) GetClusterID() string {
 	return r.Cluster
@@ -216,9 +237,9 @@ func EmptySpec() *Spec {
 
 func (i *Instance) Update(event isInstanceUpdate_Event) *InstanceUpdate {
 	return &InstanceUpdate{
-		ID:      i.ID,
-		Cluster: i.Cluster,
-		Event:   event,
+		ID:          i.ID,
+		ClusterName: i.ClusterName,
+		Event:       event,
 	}
 }
 

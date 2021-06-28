@@ -57,8 +57,8 @@ func (p *Provider) Setup() error {
 
 			if event.Reason == "Failed" {
 				p.watchCh <- &proto.InstanceUpdate{
-					ID:      id,
-					Cluster: cluster,
+					ID:          id,
+					ClusterName: cluster,
 					Event: &proto.InstanceUpdate_Failed_{
 						Failed: &proto.InstanceUpdate_Failed{},
 					},
@@ -68,8 +68,8 @@ func (p *Provider) Setup() error {
 			if event.Reason == "Scheduled" {
 				// is being started
 				p.watchCh <- &proto.InstanceUpdate{
-					ID:      id,
-					Cluster: cluster,
+					ID:          id,
+					ClusterName: cluster,
 					Event: &proto.InstanceUpdate_Scheduled_{
 						Scheduled: &proto.InstanceUpdate_Scheduled{},
 					},
@@ -82,8 +82,8 @@ func (p *Provider) Setup() error {
 				ip := p.getPodIP(id)
 
 				p.watchCh <- &proto.InstanceUpdate{
-					ID:      id,
-					Cluster: cluster,
+					ID:          id,
+					ClusterName: cluster,
 					Event: &proto.InstanceUpdate_Running_{
 						Running: &proto.InstanceUpdate_Running{
 							Ip: ip,
@@ -94,8 +94,8 @@ func (p *Provider) Setup() error {
 
 			if event.Reason == "Killing" {
 				p.watchCh <- &proto.InstanceUpdate{
-					ID:      id,
-					Cluster: cluster,
+					ID:          id,
+					ClusterName: cluster,
 					Event: &proto.InstanceUpdate_Killing_{
 						Killing: &proto.InstanceUpdate_Killing{},
 					},
@@ -183,6 +183,7 @@ func (p *Provider) upsertConfigMap(name string, files *mount.MountPoint) error {
 
 	parts := []string{}
 	for name, content := range files.Files {
+		content = strings.Replace(content, "\n", "\\n", -1)
 		parts = append(parts, fmt.Sprintf("\"%s\": \"%s\"", cleanPath(name), content))
 	}
 	obj := map[string]interface{}{
@@ -284,13 +285,17 @@ func (p *Provider) createVolume(instance *proto.Instance, m *proto.Instance_Moun
 	return nil
 }
 
+func (p *Provider) Name() string {
+	return "Kubernetes"
+}
+
 // CreateResource implements the Provider interface
 func (p *Provider) CreateResource(node *proto.Instance) (*proto.Instance, error) {
-	p.logger.Debug("upsert instance", "id", node.ID, "cluster", node.Cluster, "name", node.Name)
+	p.logger.Debug("upsert instance", "id", node.ID, "cluster", node.ClusterName, "name", node.Name)
 	node = node.Copy()
 
 	// create headless service for dns resolving
-	if err := p.createHeadlessService(node.Cluster); err != nil {
+	if err := p.createHeadlessService(node.ClusterName); err != nil {
 		return nil, err
 	}
 

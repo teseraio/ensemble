@@ -29,6 +29,11 @@ func Commands() map[string]cli.CommandFactory {
 				Meta: meta,
 			}, nil
 		},
+		"delete": func() (cli.Command, error) {
+			return &DeleteCommand{
+				Meta: meta,
+			}, nil
+		},
 		"server": func() (cli.Command, error) {
 			return &server.Command{
 				UI: ui,

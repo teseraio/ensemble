@@ -24,6 +24,18 @@ message GetDeploymentReq {
     string cluster = 1;
 }
 
+// Task is a task received from the state
+message Task {
+    // Name of the cluster
+    string deploymentID = 1;
+
+    // Reference to the resource
+    string componentID = 2;
+
+    // Number of the sequence
+    int64 sequence = 3;
+}
+
 // Component is like a snapshot or something. AKA Evaluation
 message Component {
     // id of the component
@@ -59,19 +71,17 @@ message Component {
         FAILED = 3;
         APPLIED = 4;
         CANCELED = 5;
+        BLOCKED = 6; // Before pending
     }
 
     enum Action {
-        NONE = 0;
-        CREATE = 1;
-        DELETE = 2;
+        CREATE = 0;
+        DELETE = 1;
     }
 }
 
 // Description of the cluster
 message ClusterSpec {
-    string name = 1;
-
     // name of the backend
     string backend = 2;
 
@@ -144,12 +154,16 @@ message Deployment {
     string backend = 5;
 
     string compId = 6;
+
+    string dnsSuffix = 7;
+
+    string id = 8;
 }
 
 message InstanceUpdate {
     string ID = 1;
 
-    string Cluster = 2;
+    string clusterName = 2;
 
     oneof event {
         Scheduled scheduled = 3;
@@ -188,6 +202,8 @@ message Plan {
     repeated Instance nodeUpdate = 4;
 
     string status = 6;
+
+    bool done = 7;
 }
 
 // Instance represents a node in the Ensemble
@@ -198,7 +214,7 @@ message Instance {
 
     string Namespace = 3;
     
-    string Cluster = 4;
+    string clusterName = 4;
 
     ClusterSpec.Group group = 5;
 
@@ -211,7 +227,7 @@ message Instance {
     enum Status {
         OUT     = 0; // an old instance of the ensemble
         PENDING = 1; // pending on the Provider to be created
-        
+
         SCHEDULED = 5; // the instance is being created
         RUNNING = 2;   // the instance is running
 
@@ -242,6 +258,10 @@ message Instance {
     
     string version = 18;
 
+    string dnsSuffix = 19;
+
+    string deploymentID = 20;
+    
     repeated Mount mounts = 30;
 
     message Reschedule {
@@ -265,7 +285,13 @@ message Evaluation {
 
     Trigger triggeredBy = 3;
 
-    string clusterID = 4;
+    string deploymentID = 4;
+
+    string type = 5;
+    
+    int64 sequence = 6;
+    
+    string componentID = 7;
 
     enum Status {
         PENDING   = 0;

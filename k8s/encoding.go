@@ -54,7 +54,7 @@ func MarshalPod(i *proto.Instance) ([]byte, error) {
 		"Version":  version,
 		"Env":      builder.Env,
 		"Files":    builder.Files,
-		"Ensemble": i.Cluster,
+		"Ensemble": i.ClusterName,
 		"Hostname": i.Name,
 	}
 
