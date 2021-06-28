@@ -244,7 +244,7 @@ func (s *Server) taskQueue5() {
 	s.logger.Info("Starting spec change worker")
 
 	for {
-		task := s.State.GetTask2(context.Background())
+		task := s.State.GetTask(context.Background())
 
 		// pre-load the component
 		comp, err := s.State.GetComponentByID2(task.DeploymentID, task.ComponentID, task.Sequence)
@@ -407,7 +407,7 @@ func (s *Server) SubmitPlan(eval *proto.Evaluation, p *proto.Plan) error {
 	// if its done, finalize the component
 	if p.Done {
 		s.logger.Info("finalize task", "cluster", eval.DeploymentID)
-		if err := s.State.Finalize2(eval.DeploymentID); err != nil {
+		if err := s.State.Finalize(eval.DeploymentID); err != nil {
 			return err
 		}
 	}

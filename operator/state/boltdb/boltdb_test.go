@@ -27,7 +27,7 @@ func testBoltdb(t *testing.T, pathRaw ...string) *BoltDB {
 func TestListDeployments(t *testing.T) {
 	db := testBoltdb(t)
 
-	comp1, err := db.Apply2(&proto.Component{
+	comp1, err := db.Apply(&proto.Component{
 		Name: "name1",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})
@@ -60,7 +60,7 @@ func TestApplyFirst_CannotDelete(t *testing.T) {
 	// first action cannot be delete
 	db := testBoltdb(t)
 
-	_, err := db.Apply2(&proto.Component{
+	_, err := db.Apply(&proto.Component{
 		Name:   "name1",
 		Action: proto.Component_DELETE,
 		Spec:   proto.MustMarshalAny(&proto.ClusterSpec{}),
@@ -80,14 +80,14 @@ func TestApplySecond_SameComponent(t *testing.T) {
 		},
 	}
 
-	comp0, err := db.Apply2(&proto.Component{
+	comp0, err := db.Apply(&proto.Component{
 		Name: "name1",
 		Spec: proto.MustMarshalAny(spec),
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, comp0.Sequence, int64(1))
 
-	comp1, err := db.Apply2(&proto.Component{
+	comp1, err := db.Apply(&proto.Component{
 		Name: "name1",
 		Spec: proto.MustMarshalAny(spec),
 	})
@@ -99,7 +99,7 @@ func TestApplySecond_FinalizeFirst(t *testing.T) {
 	// when a task is finalized the next needs to be triggered
 	db := testBoltdb(t)
 
-	comp0, err := db.Apply2(&proto.Component{
+	comp0, err := db.Apply(&proto.Component{
 		Name: "name1",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})
@@ -108,7 +108,7 @@ func TestApplySecond_FinalizeFirst(t *testing.T) {
 	depID, err := db.NameToDeployment("name1")
 	assert.NoError(t, err)
 
-	_, err = db.Apply2(&proto.Component{
+	_, err = db.Apply(&proto.Component{
 		Name: "name1",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
 			Groups: []*proto.ClusterSpec_Group{
@@ -124,7 +124,7 @@ func TestApplySecond_FinalizeFirst(t *testing.T) {
 	assert.Equal(t, task1.ComponentID, comp0.Id)
 	assert.Nil(t, db.queue2.popImpl())
 
-	assert.NoError(t, db.Finalize2(depID))
+	assert.NoError(t, db.Finalize(depID))
 
 	// pop the second evaluation
 	task2 := db.queue2.popImpl()
@@ -142,7 +142,7 @@ func TestApplySecond_FirstQueued(t *testing.T) {
 	// apply when the previous component is in queue
 	db := testBoltdb(t)
 
-	comp0, err := db.Apply2(&proto.Component{
+	comp0, err := db.Apply(&proto.Component{
 		Name: "name1",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})
@@ -152,7 +152,7 @@ func TestApplySecond_FirstQueued(t *testing.T) {
 	task1 := db.queue2.popImpl()
 	assert.Equal(t, task1.ComponentID, comp0.Id)
 
-	comp1, err := db.Apply2(&proto.Component{
+	comp1, err := db.Apply(&proto.Component{
 		Name: "name1",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
 			Groups: []*proto.ClusterSpec_Group{
@@ -169,7 +169,7 @@ func TestApplySecond_FirstAlreadyDone(t *testing.T) {
 	// apply when the previous component is finalized
 	db := testBoltdb(t)
 
-	comp0, err := db.Apply2(&proto.Component{
+	comp0, err := db.Apply(&proto.Component{
 		Name: "name1",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})
@@ -184,8 +184,8 @@ func TestApplySecond_FirstAlreadyDone(t *testing.T) {
 	assert.Equal(t, depID, task0.DeploymentID)
 
 	// Finish task sequence 1
-	assert.NoError(t, db.Finalize2(depID))
-	comp1, err := db.Apply2(&proto.Component{
+	assert.NoError(t, db.Finalize(depID))
+	comp1, err := db.Apply(&proto.Component{
 		Name: "name1",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
 			Groups: []*proto.ClusterSpec_Group{
@@ -201,13 +201,13 @@ func TestApplySecond_FirstAlreadyDone(t *testing.T) {
 func TestApplySecond_RevertComponent(t *testing.T) {
 	db := testBoltdb(t)
 
-	comp0, err := db.Apply2(&proto.Component{
+	comp0, err := db.Apply(&proto.Component{
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, comp0.Sequence, int64(1))
 
-	comp1, err := db.Apply2(&proto.Component{
+	comp1, err := db.Apply(&proto.Component{
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
 			Groups: []*proto.ClusterSpec_Group{
 				{Count: 1},
@@ -217,7 +217,7 @@ func TestApplySecond_RevertComponent(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, comp1.Sequence, int64(2))
 
-	comp2, err := db.Apply2(&proto.Component{
+	comp2, err := db.Apply(&proto.Component{
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})
 	assert.NoError(t, err)
@@ -227,14 +227,14 @@ func TestApplySecond_RevertComponent(t *testing.T) {
 func TestApplyDelete_ClusterReuseName(t *testing.T) {
 	db := testBoltdb(t)
 
-	compA1, err := db.Apply2(&proto.Component{
+	compA1, err := db.Apply(&proto.Component{
 		Name: "name1",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, compA1.Sequence, int64(1))
 
-	compA2, err := db.Apply2(&proto.Component{
+	compA2, err := db.Apply(&proto.Component{
 		Name:   "name1",
 		Action: proto.Component_DELETE,
 		Spec:   proto.MustMarshalAny(&proto.ClusterSpec{}),
@@ -244,7 +244,7 @@ func TestApplyDelete_ClusterReuseName(t *testing.T) {
 
 	// create again with the same name, the new component should start
 	// with sequence 1 again
-	_, err = db.Apply2(&proto.Component{
+	_, err = db.Apply(&proto.Component{
 		Name: "name1",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})
@@ -254,14 +254,14 @@ func TestApplyDelete_ClusterReuseName(t *testing.T) {
 func TestApplyDelete_ResourceReuseName(t *testing.T) {
 	db := testBoltdb(t)
 
-	compA1, err := db.Apply2(&proto.Component{
+	compA1, err := db.Apply(&proto.Component{
 		Name: "name1",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, compA1.Sequence, int64(1))
 
-	compB1, err := db.Apply2(&proto.Component{
+	compB1, err := db.Apply(&proto.Component{
 		Name: "r1",
 		Spec: proto.MustMarshalAny(&proto.ResourceSpec{
 			Cluster: "name1",
@@ -270,7 +270,7 @@ func TestApplyDelete_ResourceReuseName(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, compB1.Sequence, int64(1))
 
-	compB2, err := db.Apply2(&proto.Component{
+	compB2, err := db.Apply(&proto.Component{
 		Name:   "r1",
 		Action: proto.Component_DELETE,
 		Spec: proto.MustMarshalAny(&proto.ResourceSpec{
@@ -281,7 +281,7 @@ func TestApplyDelete_ResourceReuseName(t *testing.T) {
 	assert.Equal(t, compB2.Sequence, int64(2))
 
 	// apply again, we should create a new name
-	_, err = db.Apply2(&proto.Component{
+	_, err = db.Apply(&proto.Component{
 		Name: "r1",
 		Spec: proto.MustMarshalAny(&proto.ResourceSpec{
 			Cluster: "name1",
@@ -293,7 +293,7 @@ func TestApplyDelete_ResourceReuseName(t *testing.T) {
 func TestApplyResourceUnknownCluster(t *testing.T) {
 	db := testBoltdb(t)
 
-	_, err := db.Apply2(&proto.Component{
+	_, err := db.Apply(&proto.Component{
 		Name: "r1",
 		Spec: proto.MustMarshalAny(&proto.ResourceSpec{
 			Cluster: "name1",
@@ -305,7 +305,7 @@ func TestApplyResourceUnknownCluster(t *testing.T) {
 func TestComponentsReindex(t *testing.T) {
 	db := testBoltdb(t)
 
-	comp, err := db.Apply2(&proto.Component{
+	comp, err := db.Apply(&proto.Component{
 		Name: "name1",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})
@@ -314,7 +314,7 @@ func TestComponentsReindex(t *testing.T) {
 	db.Close()
 	db2 := testBoltdb(t, db.path)
 
-	tt := db2.GetTask2(context.Background())
+	tt := db2.GetTask(context.Background())
 	assert.NotNil(t, tt)
 	assert.Equal(t, tt.ComponentID, comp.Id)
 	assert.Equal(t, tt.Sequence, int64(1))
@@ -323,7 +323,7 @@ func TestComponentsReindex(t *testing.T) {
 func TestReadDeployment(t *testing.T) {
 	db := testBoltdb(t)
 
-	comp1, err := db.Apply2(&proto.Component{
+	comp1, err := db.Apply(&proto.Component{
 		Name: "name1",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})
@@ -333,7 +333,7 @@ func TestReadDeployment(t *testing.T) {
 	deps, _ := db.ListDeployments()
 	depID := deps[0].Id
 
-	comp2, err := db.Apply2(&proto.Component{
+	comp2, err := db.Apply(&proto.Component{
 		Name: "name1",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
 			Groups: []*proto.ClusterSpec_Group{
@@ -346,7 +346,7 @@ func TestReadDeployment(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, comp2.Sequence, int64(2))
 
-	comp3, err := db.Apply2(&proto.Component{
+	comp3, err := db.Apply(&proto.Component{
 		Name: "name1",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
 			Groups: []*proto.ClusterSpec_Group{
@@ -365,7 +365,7 @@ func TestReadDeployment(t *testing.T) {
 	assert.Equal(t, compR1.Sequence, int64(1))
 
 	// finalize sequence=1
-	assert.NoError(t, db.Finalize2(depID))
+	assert.NoError(t, db.Finalize(depID))
 
 	// sequence=2 is the new pending deployment
 	compR2, err := db.ReadDeployment(depID)
@@ -376,7 +376,7 @@ func TestReadDeployment(t *testing.T) {
 func TestLoadDeployments(t *testing.T) {
 	db := testBoltdb(t)
 
-	comp1, err := db.Apply2(&proto.Component{
+	comp1, err := db.Apply(&proto.Component{
 		Name: "name1",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
 	})

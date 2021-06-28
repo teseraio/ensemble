@@ -46,7 +46,7 @@ func MarshalAny(m proto.Message) (*any.Any, error) {
 	name := proto.MessageName(m)
 	b, err := proto.Marshal(m)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	return &any.Any{TypeUrl: name, Value: b}, nil
 }

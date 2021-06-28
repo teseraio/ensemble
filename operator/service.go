@@ -21,7 +21,7 @@ func (s *service) Apply(ctx context.Context, component *proto.Component) (*proto
 	if err := s.s.validateComponent(component); err != nil {
 		return nil, err
 	}
-	component, err := s.s.State.Apply2(component)
+	component, err := s.s.State.Apply(component)
 	if err != nil {
 		return nil, err
 	}

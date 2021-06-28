@@ -8,7 +8,7 @@ import (
 )
 
 func TestQueue(t *testing.T) {
-	q := newTaskQueue2()
+	q := newTaskQueue()
 
 	assert.Nil(t, q.popImpl())
 

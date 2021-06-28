@@ -45,10 +45,9 @@ func Factory(config map[string]interface{}) (*BoltDB, error) {
 		return nil, err
 	}
 	b := &BoltDB{
-		path: path,
-		db:   db,
-		//queue:  newTaskQueue(),
-		queue2: newTaskQueue2(),
+		path:   path,
+		db:     db,
+		queue2: newTaskQueue(),
 	}
 	if err := b.initialize(); err != nil {
 		return nil, err
@@ -58,11 +57,9 @@ func Factory(config map[string]interface{}) (*BoltDB, error) {
 
 // BoltDB is a boltdb state implementation
 type BoltDB struct {
-	path string
-	db   *bolt.DB
-	//queue  *taskQueue
-	queue2 *taskQueue2
-
+	path       string
+	db         *bolt.DB
+	queue2     *taskQueue
 	waitChLock sync.Mutex
 	waitCh     map[string]chan struct{}
 }
@@ -356,7 +353,7 @@ func (b *BoltDB) GetComponents(deploymentID string) ([]*proto.Component, error) 
 	return result, nil
 }
 
-func (b *BoltDB) Finalize2(deploymentID string) error {
+func (b *BoltDB) Finalize(deploymentID string) error {
 	tx, err := b.db.Begin(true)
 	if err != nil {
 		return err
@@ -604,7 +601,7 @@ func (b *BoltDB) nameToDeploymentID(tx *bolt.Tx, name string) (string, error) {
 	return deploymentID, nil
 }
 
-func (b *BoltDB) Apply2(comp *proto.Component) (*proto.Component, error) {
+func (b *BoltDB) Apply(comp *proto.Component) (*proto.Component, error) {
 	tx, err := b.db.Begin(true)
 	if err != nil {
 		return nil, err
@@ -732,7 +729,7 @@ func getLatestSequence(bkt *bolt.Bucket) (int, error) {
 	return nextSeq, nil
 }
 
-func (b *BoltDB) GetTask2(ctx context.Context) *proto.Task {
+func (b *BoltDB) GetTask(ctx context.Context) *proto.Task {
 	task := b.queue2.pop(ctx)
 	if task == nil {
 		return nil

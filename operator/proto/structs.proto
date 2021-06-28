@@ -24,15 +24,6 @@ message GetDeploymentReq {
     string cluster = 1;
 }
 
-message ComponentStub {
-    string name = 1;
-    string ref = 2;
-    int64 sequence = 3;
-    google.protobuf.Timestamp Timestamp = 4;
-    Component.Status status = 5;
-    int64 fullSequence = 6;
-}
-
 // Task is a task received from the state
 message Task {
     // Name of the cluster
