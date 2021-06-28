@@ -296,20 +296,20 @@ func (p *Provider) CreateResource(node *proto.Instance) (*proto.Instance, error)
 
 	// create headless service for dns resolving
 	if err := p.createHeadlessService(node.ClusterName); err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	// files to be mounted on the pod
 	if len(node.Spec.Files) != 0 {
 		mountPoints, err := mount.CreateMountPoints(node.Spec.Files)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 		for indx, mountPoint := range mountPoints {
 			name := node.ID + "-file-data-" + strconv.Itoa(indx)
 
 			if err := p.upsertConfigMap(name, mountPoint); err != nil {
-				panic(err)
+				return nil, err
 			}
 		}
 	}
@@ -318,17 +318,16 @@ func (p *Provider) CreateResource(node *proto.Instance) (*proto.Instance, error)
 	if len(node.Mounts) != 0 {
 		for _, m := range node.Mounts {
 			if err := p.createVolume(node, m); err != nil {
-				panic(err)
+				return nil, err
 			}
 		}
 	}
 
 	data, err := MarshalPod(node)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	fmt.Println(string(data))
 	// create the Pod resource
 	if _, _, err = p.post("/api/v1/namespaces/{namespace}/pods", data); err != nil {
 		return nil, err
