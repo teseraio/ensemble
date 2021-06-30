@@ -3,6 +3,15 @@
 	"kind": "Pod",
 	"metadata": {
 		"name": "{{.ID}}",
+		{{ if .Annotations }}
+		"annotations": {
+			{{ $s := separator ", " }}
+			{{ range $key, $value := .Annotations }}
+			{{ call $s }}
+			"{{$key}}": "{{$value}}"
+			{{end}}
+		},
+		{{ end }}
 		"labels": {
 			"ensemble": "{{.Ensemble}}"
 		}

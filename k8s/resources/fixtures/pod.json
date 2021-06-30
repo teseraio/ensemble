@@ -67,6 +67,9 @@
             "name": "id",
             "labels": {
                 "ensemble": "b"
+            },
+            "annotations": {
+                "ensemble-file/file-data-0": "c6210d87ac9befc88860b63a00eb0e36e7d521c7345d6eef94a6331b52280a22"
             }
         },
         "spec": {

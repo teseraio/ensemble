@@ -41,8 +41,7 @@ type Provider interface {
 }
 
 type ProviderResources struct {
-	Resources schema.Schema2
-	Storage   schema.Schema2
+	Nodeset schema.Schema2
 }
 
 // ProviderFactory is a factory method to create factories

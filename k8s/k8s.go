@@ -129,8 +129,7 @@ func (p *Provider) Start() error {
 
 func (p *Provider) Resources() operator.ProviderResources {
 	return operator.ProviderResources{
-		Resources: schema.Schema2{},
-		Storage:   schema.Schema2{},
+		Nodeset: schema.Schema2{},
 	}
 }
 
@@ -199,9 +198,14 @@ func (p *Provider) upsertConfigMap(name string, files *mount.MountPoint) error {
 		return err
 	}
 
+	fmt.Println("-- config map ", name)
+	fmt.Println(parts)
+
 	if exists {
+		fmt.Println("_ UPDATED _")
 		_, _, err = p.put("/api/v1/namespaces/{namespace}/configmaps/"+name, res)
 	} else {
+		fmt.Println("_ POST _")
 		_, _, err = p.post("/api/v1/namespaces/{namespace}/configmaps", res)
 	}
 	if err != nil {
@@ -289,29 +293,81 @@ func (p *Provider) Name() string {
 	return "Kubernetes"
 }
 
+type JsonPatch []*JsonPathOperation
+
+type JsonPathOperation struct {
+	Op    string `json:"op"`
+	Path  string `json:"path"`
+	Value string `json:"value"`
+}
+
 // CreateResource implements the Provider interface
 func (p *Provider) CreateResource(node *proto.Instance) (*proto.Instance, error) {
 	p.logger.Debug("upsert instance", "id", node.ID, "cluster", node.ClusterName, "name", node.Name)
 	node = node.Copy()
 
-	// create headless service for dns resolving
-	if err := p.createHeadlessService(node.ClusterName); err != nil {
+	mountPoints, err := mount.CreateMountPoints(node.Spec.Files)
+	if err != nil {
 		return nil, err
 	}
 
-	// files to be mounted on the pod
-	if len(node.Spec.Files) != 0 {
-		mountPoints, err := mount.CreateMountPoints(node.Spec.Files)
-		if err != nil {
+	// always try to update the config maps
+	for indx, mountPoint := range mountPoints {
+		name := node.ID + "-file-data-" + strconv.Itoa(indx)
+
+		fmt.Println("__ CONFIG MAP NAME ___")
+		fmt.Println(name)
+		fmt.Println(mountPoint.Hash())
+
+		if err := p.upsertConfigMap(name, mountPoint); err != nil {
 			return nil, err
 		}
-		for indx, mountPoint := range mountPoints {
-			name := node.ID + "-file-data-" + strconv.Itoa(indx)
+	}
 
-			if err := p.upsertConfigMap(name, mountPoint); err != nil {
-				return nil, err
-			}
+	var item *Item
+	if _, err := p.get("/api/v1/namespaces/{namespace}/pods/"+node.ID, &item); err != nil {
+		if err != errNotFound {
+			return nil, err
 		}
+	}
+	if item != nil {
+		// the only thing we can do now is update the annotations if the config maps changed
+		fmt.Println("_ FILE ALREADY EXISTS _")
+		// we only update annotations
+		fileAnnotations := buildFileAnnotations(mountPoints)
+
+		patch := JsonPatch{}
+		for k, v := range fileAnnotations {
+			patch = append(patch, &JsonPathOperation{
+				Op:    "add",
+				Path:  "/metadata/annotations/" + k,
+				Value: v,
+			})
+		}
+
+		raw, err := json.Marshal(patch)
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Println(p.patch("/api/v1/namespaces/{namespace}/pods/"+node.ID, raw))
+
+		fmt.Println(patch[0])
+		fmt.Println(string(raw))
+
+		// update!
+		fmt.Println(item.Metadata.Annotations)
+		fmt.Println(fileAnnotations)
+
+		return nil, nil
+	}
+
+	fmt.Println("---- item ------")
+	fmt.Println(item)
+
+	// create headless service for dns resolving
+	if err := p.createHeadlessService(node.ClusterName); err != nil {
+		return nil, err
 	}
 
 	// volume mount
@@ -381,6 +437,20 @@ func (p *Provider) post(rawURL string, obj []byte) ([]byte, *Metadata, error) {
 func (p *Provider) delete(rawURL string, obj []byte) error {
 	_, _, err := p.httpReq(http.MethodDelete, rawURL, obj)
 	return err
+}
+
+func (p *Provider) patch(rawURL string, obj []byte) ([]byte, *Metadata, error) {
+	url := transformURL(rawURL)
+
+	resp, err := p.client.HTTPReq(http.MethodPatch, url, obj)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fmt.Println("_XXXXXX_")
+	fmt.Println(string(resp))
+
+	return resp, nil, nil
 }
 
 func (p *Provider) get(rawURL string, out interface{}) ([]byte, error) {

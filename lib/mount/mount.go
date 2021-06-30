@@ -1,6 +1,8 @@
 package mount
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 
 	"github.com/teseraio/ensemble/operator/proto"
@@ -9,6 +11,17 @@ import (
 type MountPoint struct {
 	Path  string
 	Files map[string]string
+}
+
+func (m *MountPoint) Hash() string {
+	h := sha256.New()
+	h.Write([]byte(m.Path))
+	for k, v := range m.Files {
+		h.Write([]byte(k))
+		h.Write([]byte(v))
+	}
+	dst := h.Sum(nil)
+	return hex.EncodeToString(dst)
 }
 
 func CreateMountPoints(files []*proto.NodeSpec_File) ([]*MountPoint, error) {

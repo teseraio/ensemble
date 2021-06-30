@@ -93,6 +93,7 @@ func TestEncodePod(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		fmt.Println(string(raw))
 		var found map[string]interface{}
 		if err := json.Unmarshal(raw, &found); err != nil {
 			t.Fatal(err)

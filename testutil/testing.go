@@ -13,15 +13,17 @@ import (
 
 // testing suite for the Provider
 func TestProvider(t *testing.T, p operator.Provider) {
-	t.Run("TestPodLifecycle", func(t *testing.T) {
-		TestPodLifecycle(t, p)
-	})
-	t.Run("TestDNS", func(t *testing.T) {
-		TestDNS(t, p)
-	})
-	t.Run("TestPodMount", func(t *testing.T) {
-		TestPodMount(t, p)
-	})
+	/*
+		t.Run("TestPodLifecycle", func(t *testing.T) {
+			TestPodLifecycle(t, p)
+		})
+		t.Run("TestDNS", func(t *testing.T) {
+			TestDNS(t, p)
+		})
+		t.Run("TestPodMount", func(t *testing.T) {
+			TestPodMount(t, p)
+		})
+	*/
 	t.Run("TestPodFiles", func(t *testing.T) {
 		TestPodFiles(t, p)
 	})
@@ -172,6 +174,19 @@ Line3`,
 			break
 		}
 	}
+
+	for _, file := range files {
+		out, err := p.Exec(id, "cat", file.Name)
+		assert.NoError(t, err)
+		assert.Equal(t, out, file.Content)
+	}
+
+	files[0].Content = "xxx"
+	if _, err := p.CreateResource(i); err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(10 * time.Second)
 
 	for _, file := range files {
 		out, err := p.Exec(id, "cat", file.Name)

@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/teseraio/ensemble/operator/proto"
@@ -34,15 +35,47 @@ func (r *ResourceData) Get(k string) interface{} {
 
 func (r *ResourceData) GetOK(k string) (interface{}, bool) {
 	// get the field in the schema
-	_, err := r.sch.Get(k)
+	field, err := r.sch.Get(k)
 	if err != nil {
 		return nil, false
 	}
+	return r.getField(field.Type, k)
+}
+
+func (r *ResourceData) getField(field Type, k string) (interface{}, bool) {
+	switch obj := field.(type) {
+	case *Array:
+		return r.getArray(obj, k)
+
+	case ScalarType:
+		return r.getLiteral(obj, k)
+
+	default:
+		panic("BUG: getOk not found")
+	}
+}
+
+func (r *ResourceData) getLiteral(field ScalarType, k string) (interface{}, bool) {
 	val, ok := r.flatmap[k]
 	if !ok {
 		return nil, false
 	}
 	return val, true
+}
+
+func (r *ResourceData) getArray(field *Array, k string) (interface{}, bool) {
+	num, err := strconv.Atoi(r.flatmap[k+".#"])
+	if err != nil {
+		panic(err)
+	}
+	values := []interface{}{}
+	for i := 0; i < num; i++ {
+		prefix := k + "." + strconv.Itoa(i)
+		if val, ok := r.getField(field.Elem, prefix); ok {
+			values = append(values, val)
+		}
+	}
+	return values, true
 }
 
 func (r *ResourceData) Decode(obj interface{}) error {
@@ -58,15 +91,37 @@ func flatten(s *proto.Spec) (res map[string]string) {
 	var flat func(parent []string, s *proto.Spec)
 
 	flat = func(parent []string, s *proto.Spec) {
-		obj := s.Block.(*proto.Spec_BlockValue)
-		for key, attr := range obj.BlockValue.Attrs {
-			subKey := append(parent, key)
-			if isBlockValue(attr) {
-				flat(subKey, attr)
-			} else {
-				res[strings.Join(subKey, ".")] = attr.Block.(*proto.Spec_Literal_).Literal.Value
+
+		switch obj := s.Block.(type) {
+		case *proto.Spec_BlockValue:
+			for key, attr := range obj.BlockValue.Attrs {
+				flat(append(parent, key), attr)
 			}
+
+		case *proto.Spec_Array_:
+			res[strings.Join(append(parent, "#"), ".")] = strconv.Itoa(len(obj.Array.Values))
+			for indx, val := range obj.Array.Values {
+				flat(append(parent, strconv.Itoa(indx)), val)
+			}
+
+		case *proto.Spec_Literal_:
+			res[strings.Join(parent, ".")] = obj.Literal.Value
+
+		default:
+			panic("BUG: Spec type not found")
 		}
+
+		/*
+			obj := s.Block.(*proto.Spec_BlockValue)
+			for key, attr := range obj.BlockValue.Attrs {
+				subKey := append(parent, key)
+				if isBlockValue(attr) {
+					flat(subKey, attr)
+				} else {
+					res[strings.Join(subKey, ".")] = attr.Block.(*proto.Spec_Literal_).Literal.Value
+				}
+			}
+		*/
 	}
 	flat([]string{}, s)
 	return

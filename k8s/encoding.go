@@ -28,6 +28,16 @@ func (m mountFiles) Less(i, j int) bool {
 	return m[i].Key < m[j].Key
 }
 
+func buildFileAnnotations(mounts []*mount.MountPoint) map[string]string {
+	annotations := map[string]string{}
+
+	for indx, pnt := range mounts {
+		name := "file-data-" + strconv.Itoa(indx)
+		annotations["ensemble-file-"+name] = pnt.Hash()
+	}
+	return annotations
+}
+
 // MarshalPod marshals a pod
 func MarshalPod(i *proto.Instance) ([]byte, error) {
 	builder := i.Spec
@@ -46,6 +56,7 @@ func MarshalPod(i *proto.Instance) ([]byte, error) {
 
 	// list of all the volumes in the pod
 	var volumes []interface{}
+	annotations := map[string]string{}
 
 	obj := map[string]interface{}{
 		"ID":       i.ID,
@@ -116,6 +127,14 @@ func MarshalPod(i *proto.Instance) ([]byte, error) {
 				},
 			})
 		}
+
+		for k, v := range buildFileAnnotations(mountPoints) {
+			annotations[k] = v
+		}
+	}
+
+	if len(annotations) != 0 {
+		obj["Annotations"] = annotations
 	}
 
 	// add mount volumes

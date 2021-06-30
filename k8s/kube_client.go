@@ -69,7 +69,11 @@ func (c *KubeClient) HTTPReqWithResponse(method string, path string, obj []byte)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("content-type", "application/json")
+	if method == "PATCH" {
+		req.Header.Set("content-type", "application/json-patch+json")
+	} else {
+		req.Header.Set("content-type", "application/json")
+	}
 	if c.config.BearerToken != "" {
 		req.Header.Set("Authorization", "Bearer "+c.config.BearerToken)
 	}

@@ -100,12 +100,13 @@ func MapToSpec(m map[string]interface{}) *proto.Spec {
 	var impl func(i interface{}) (*proto.Spec, error)
 
 	impl = func(i interface{}) (*proto.Spec, error) {
-		switch obj := i.(type) {
-		case map[string]interface{}:
+		typ := reflect.TypeOf(i)
+		switch typ.Kind() {
+		case reflect.Map:
 			block := &proto.Spec_Block{
 				Attrs: map[string]*proto.Spec{},
 			}
-			for k, v := range obj {
+			for k, v := range i.(map[string]interface{}) {
 				elem, err := impl(v)
 				if err != nil {
 					return nil, err
@@ -114,11 +115,29 @@ func MapToSpec(m map[string]interface{}) *proto.Spec {
 			}
 			return proto.BlockSpec(block), nil
 
-		case string:
-			return proto.LiteralSpec(&proto.Spec_Literal{Value: obj}), nil
+		case reflect.Slice:
+			values := []*proto.Spec{}
+
+			val := reflect.ValueOf(i)
+			num := val.Len()
+			for i := 0; i < num; i++ {
+				elem := val.Index(i)
+				spec, err := impl(elem.Interface())
+				if err != nil {
+					return nil, err
+				}
+				values = append(values, spec)
+			}
+			return proto.ArraySpec(values), nil
+
+		case reflect.String:
+			return proto.LiteralSpec(&proto.Spec_Literal{Value: i.(string)}), nil
+
+		case reflect.Int:
+			return proto.LiteralSpec(&proto.Spec_Literal{Value: strconv.Itoa(i.(int))}), nil
 
 		default:
-			return nil, fmt.Errorf("type not found %s", reflect.TypeOf(obj))
+			return nil, fmt.Errorf("type not found %s", typ.String())
 		}
 	}
 
@@ -147,6 +166,15 @@ func validate(t Type, s *proto.Spec) error {
 		}
 		return nil
 
+	case *Array:
+		values := s.Block.(*proto.Spec_Array_).Array.Values
+		for _, val := range values {
+			if err := validate(obj.Elem, val); err != nil {
+				return err
+			}
+		}
+		return nil
+
 	case ScalarType:
 		val := s.Block.(*proto.Spec_Literal_).Literal.Value
 		switch obj {
@@ -158,9 +186,9 @@ func validate(t Type, s *proto.Spec) error {
 				return err
 			}
 		}
+		return nil
 
 	default:
 		panic(fmt.Sprintf("BUG: type not found %v", reflect.TypeOf(obj)))
 	}
-	return nil
 }

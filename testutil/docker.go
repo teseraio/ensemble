@@ -325,22 +325,25 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 
 func (c *Client) Resources() operator.ProviderResources {
 	return operator.ProviderResources{
-		Resources: schema.Schema2{
+		Nodeset: schema.Schema2{
 			Spec: &schema.Record{
 				Fields: map[string]*schema.Field{
-					"cpuShares": {
-						Type:     schema.TypeInt,
-						ForceNew: true,
-					},
-					"cpuCount": {
-						Type:     schema.TypeInt,
-						ForceNew: true,
+					"resources": {
+						Type: &schema.Record{
+							Fields: map[string]*schema.Field{
+								"cpuShares": {
+									Type:     schema.TypeInt,
+									ForceNew: true,
+								},
+								"cpuCount": {
+									Type:     schema.TypeInt,
+									ForceNew: true,
+								},
+							},
+						},
 					},
 				},
 			},
-		},
-		Storage: schema.Schema2{
-			Spec: &schema.Record{},
 		},
 	}
 }

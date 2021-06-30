@@ -24,10 +24,22 @@ func TestSchema2Get(t *testing.T) {
 						},
 					},
 				},
+				"d": {
+					Type: &Array{
+						Elem: &Record{
+							Fields: map[string]*Field{
+								"e": {
+									Type: TypeString,
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	}
 	fmt.Println(schema.Get("b.c"))
+	fmt.Println(schema.Get("d"))
 }
 
 func TestSchema2Diff(t *testing.T) {
@@ -70,11 +82,51 @@ func TestMapToSpec(t *testing.T) {
 		{
 			map[string]interface{}{
 				"a": "b",
+				"c": []string{
+					"c1",
+					"c2",
+				},
 			},
 			proto.BlockSpec(&proto.Spec_Block{
 				Attrs: map[string]*proto.Spec{
 					"a": proto.LiteralSpec(&proto.Spec_Literal{
 						Value: "b",
+					}),
+					"c": proto.ArraySpec([]*proto.Spec{
+						proto.LiteralSpec(&proto.Spec_Literal{
+							Value: "c1",
+						}),
+						proto.LiteralSpec(&proto.Spec_Literal{
+							Value: "c2",
+						}),
+					}),
+				},
+			}),
+		},
+		{
+			map[string]interface{}{
+				"a": map[string]interface{}{
+					"b": []interface{}{
+						map[string]interface{}{
+							"c": "d",
+						},
+					},
+				},
+			},
+			proto.BlockSpec(&proto.Spec_Block{
+				Attrs: map[string]*proto.Spec{
+					"a": proto.BlockSpec(&proto.Spec_Block{
+						Attrs: map[string]*proto.Spec{
+							"b": proto.ArraySpec([]*proto.Spec{
+								proto.BlockSpec(&proto.Spec_Block{
+									Attrs: map[string]*proto.Spec{
+										"c": proto.LiteralSpec(&proto.Spec_Literal{
+											Value: "d",
+										}),
+									},
+								}),
+							}),
+						},
 					}),
 				},
 			}),
@@ -141,7 +193,34 @@ func TestValidate(t *testing.T) {
 					},
 				},
 			},
-			map[string]interface{}{},
+			map[string]interface{}{
+				"a": "b",
+			},
+		},
+		{
+			&Record{
+				Fields: map[string]*Field{
+					"a": {
+						Type: &Array{
+							Elem: &Record{
+								Fields: map[string]*Field{
+									"b": {
+										Type:     TypeString,
+										Required: true,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			map[string]interface{}{
+				"a": []interface{}{
+					map[string]interface{}{
+						"b": "c",
+					},
+				},
+			},
 		},
 	}
 

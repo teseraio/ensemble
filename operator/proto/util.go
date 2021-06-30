@@ -216,11 +216,20 @@ func BlockSpec(block *Spec_Block) *Spec {
 	}
 }
 
-// LiteralSpec wraps the literal and returns a spec.
 func LiteralSpec(l *Spec_Literal) *Spec {
 	return &Spec{
 		Block: &Spec_Literal_{
 			Literal: l,
+		},
+	}
+}
+
+func ArraySpec(values []*Spec) *Spec {
+	return &Spec{
+		Block: &Spec_Array_{
+			Array: &Spec_Array{
+				Values: values,
+			},
 		},
 	}
 }
