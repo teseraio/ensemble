@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -184,6 +185,14 @@ Line3`,
 	files[0].Content = "xxx"
 	if _, err := p.CreateResource(i); err != nil {
 		t.Fatal(err)
+	}
+
+	// wait for it to be ready
+	for {
+		evnt := <-p.WatchUpdates()
+		fmt.Println("/ envt //")
+		fmt.Println(evnt)
+		break
 	}
 
 	time.Sleep(10 * time.Second)

@@ -1,6 +1,8 @@
 package operator
 
 import (
+	"fmt"
+
 	gproto "github.com/golang/protobuf/proto"
 	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
@@ -99,6 +101,9 @@ func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 			} else {
 				name = i.instance.Name
 			}
+
+			fmt.Println("xxxxxxxxxxxxxxxxxxxx")
+			fmt.Println(i.group)
 
 			ii := &proto.Instance{}
 			ii.ID = uuid.UUID()

@@ -217,6 +217,11 @@ func (b *BaseOperator) ApplyNodes(place []*proto.Instance, cluster []*proto.Inst
 	placeInstances := []*proto.Instance{}
 	for _, ii := range place {
 		ii = ii.Copy()
+
+		fmt.Println("xxxx")
+		fmt.Println(ii.Group)
+		fmt.Println(b.handler.Spec().Nodetypes)
+
 		grpSpec := b.handler.Spec().Nodetypes[ii.Group.Type]
 
 		version := ii.Group.Version

@@ -308,6 +308,9 @@ func (r *reconciler) Compute() {
 }
 
 func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
+	fmt.Println("// ground")
+	fmt.Println(grp)
+
 	set := allocSet(r.dep.Instances)
 	set = set.byGroup(grp.Type)
 

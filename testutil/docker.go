@@ -29,11 +29,10 @@ const networkName = "net1"
 var _ operator.Provider = &Client{}
 
 type resource struct {
-	nodeID    string
-	handle    string
-	clusterID string
-	instance  *proto.Instance
-	active    bool
+	handle   string
+	instance *proto.Instance
+	tmpDir   string
+	active   bool
 }
 
 // Client is a sugarcoat version of the docker client
@@ -77,6 +76,15 @@ func NewDockerClient() (*Client, error) {
 
 	go clt.run()
 	return clt, nil
+}
+
+func (c *Client) getResource(name string) (*resource, bool) {
+	for _, r := range c.resources {
+		if r.instance.FullName() == name {
+			return r, true
+		}
+	}
+	return nil, false
 }
 
 func (c *Client) Name() string {
@@ -177,9 +185,12 @@ func (c *Client) run() {
 
 // Create creates a docker container
 func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, error) {
+	fmt.Println("?? CREATE RESOURCE ??")
+
 	c.resourcesLock.Lock()
 	defer c.resourcesLock.Unlock()
 
+	fmt.Println("/ send /")
 	c.updateCh <- &proto.InstanceUpdate{
 		ID:          node.ID,
 		ClusterName: node.ClusterName,
@@ -204,18 +215,29 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 
 	binds := []string{}
 
-	// mount files
-	if len(builder.Files) != 0 {
+	res, existsResource := c.getResource(name)
+	if !existsResource {
 		buildDir, err := ioutil.TempDir("/tmp", "builder-")
 		if err != nil {
 			return "", err
 		}
+		res = &resource{
+			instance: node,
+			tmpDir:   buildDir,
+		}
+	}
+
+	//fmt.Println("A")
+	//fmt.Println(c.getResource(name))
+
+	// mount files
+	if len(builder.Files) != 0 {
 		mountPoints, err := mount.CreateMountPoints(builder.Files)
 		if err != nil {
 			return "", err
 		}
 		for indx, mountPoint := range mountPoints {
-			mountPath := filepath.Join(buildDir, fmt.Sprintf("%d", indx))
+			mountPath := filepath.Join(res.tmpDir, fmt.Sprintf("%d", indx))
 			for path, content := range mountPoint.Files {
 				subPath := strings.TrimPrefix(path, mountPoint.Path)
 				subPath = filepath.Join(mountPath, subPath)
@@ -231,6 +253,12 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 		}
 	}
 
+	if existsResource {
+		// we only update config dirs
+		return "", nil
+	}
+
+	fmt.Println("B")
 	// mount paths
 	if len(node.Mounts) != 0 {
 		dataDir := "/tmp/ensemble-" + node.ClusterName + "-" + node.Name
@@ -242,11 +270,11 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 			binds = append(binds, fmt.Sprintf("%s:%s", localPath, mount.Path))
 		}
 	}
-
+	fmt.Println("C")
 	if err := c.PullImage(ctx, image); err != nil {
 		return "", err
 	}
-
+	fmt.Println("D")
 	env := []string{}
 	for k, v := range builder.Env {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
@@ -272,17 +300,17 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 		},
 	}
 
+	fmt.Println("// c")
+	fmt.Println(name)
+
 	body, err := c.client.ContainerCreate(ctx, config, hostConfig, netConfig, name)
 	if err != nil {
 		panic(err)
 	}
 
-	c.resources[node.ID] = &resource{
-		nodeID:    node.ID,
-		handle:    body.ID,
-		clusterID: node.ClusterName,
-		instance:  node,
-	}
+	res.handle = body.ID
+	c.resources[node.ID] = res
+
 	if err := c.client.ContainerStart(ctx, body.ID, types.ContainerStartOptions{}); err != nil {
 		return "", err
 	}
@@ -351,17 +379,19 @@ func (c *Client) Resources() operator.ProviderResources {
 func (c *Client) CreateResource(node *proto.Instance) (*proto.Instance, error) {
 	// fmt.Printf("Create resource: %s %s\n", node.ID, node.Name)
 
-	// validation
-	for _, r := range c.resources {
-		if r.instance.ID == node.ID {
-			return nil, operator.ErrInstanceAlreadyRunning
-		}
-		if r.active {
-			if r.instance.FullName() == node.FullName() {
-				return nil, operator.ErrProviderNameAlreadyUsed
+	/*
+		// validation
+		for _, r := range c.resources {
+			if r.instance.ID == node.ID {
+				return nil, operator.ErrInstanceAlreadyRunning
+			}
+			if r.active {
+				if r.instance.FullName() == node.FullName() {
+					return nil, operator.ErrProviderNameAlreadyUsed
+				}
 			}
 		}
-	}
+	*/
 
 	// async serialize the execution
 	c.workCh <- node
