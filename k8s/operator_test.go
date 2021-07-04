@@ -65,6 +65,10 @@ func TestItemDecoding(t *testing.T) {
 								"a": "b"
 							}
 						}
+					],
+					"depends": [
+						"a",
+						"b"
 					]
 				}`,
 			spec: &proto.ClusterSpec{
@@ -77,6 +81,10 @@ func TestItemDecoding(t *testing.T) {
 						}),
 					},
 				},
+				DependsOn: []string{
+					"a",
+					"b",
+				},
 			},
 		},
 		{
@@ -87,6 +95,7 @@ func TestItemDecoding(t *testing.T) {
 			spec: &proto.ResourceSpec{
 				Cluster:  "c",
 				Resource: "r",
+				Params:   schema.MapToSpec(map[string]interface{}{}),
 			},
 		},
 		{

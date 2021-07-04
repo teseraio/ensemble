@@ -129,6 +129,7 @@ func DecodeClusterSpec(item *Item) (*any.Any, error) {
 			Replicas uint64
 			Params   map[string]interface{}
 		}
+		Depends []string
 	}
 	if err := mapstructure.Decode(item.Spec, &spec); err != nil {
 		return nil, err
@@ -146,8 +147,9 @@ func DecodeClusterSpec(item *Item) (*any.Any, error) {
 		groups = append(groups, grp)
 	}
 	res := proto.MustMarshalAny(&proto.ClusterSpec{
-		Backend: spec.Backend.Name,
-		Groups:  groups,
+		Backend:   spec.Backend.Name,
+		Groups:    groups,
+		DependsOn: spec.Depends,
 	})
 	return res, nil
 }

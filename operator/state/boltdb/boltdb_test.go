@@ -387,3 +387,94 @@ func TestLoadDeployments(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, deps[0].Name, "name1")
 }
+
+func TestDependsOn_PendingComponent(t *testing.T) {
+	db := testBoltdb(t)
+
+	comp1, err := db.Apply(&proto.Component{
+		Name: "name1",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, comp1.Status, proto.Component_QUEUED)
+
+	comp2, err := db.Apply(&proto.Component{
+		Name: "name2",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			DependsOn: []string{
+				"name1",
+			},
+		}),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, comp2.Status, proto.Component_BLOCKED)
+
+	task1 := db.queue2.popImpl()
+	assert.NotNil(t, task1)
+	assert.Equal(t, task1.ComponentID, comp1.Id)
+	assert.Nil(t, db.queue2.popImpl())
+
+	// it should trigger 'name2' component
+	assert.NoError(t, db.Finalize(task1.DeploymentID))
+
+	task2 := db.queue2.popImpl()
+	assert.NotNil(t, task2)
+	assert.Equal(t, task2.ComponentID, comp2.Id)
+
+	assert.NoError(t, db.Finalize(task2.DeploymentID))
+
+	// write another component and it should be queued inmediately
+	comp3, err := db.Apply(&proto.Component{
+		Name: "name3",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			DependsOn: []string{
+				"name2",
+			},
+		}),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, comp3.Status, proto.Component_QUEUED)
+}
+
+func TestDependsOn_CompletedComponent(t *testing.T) {
+	db := testBoltdb(t)
+
+	comp1, err := db.Apply(&proto.Component{
+		Name: "name1",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{}),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, comp1.Status, proto.Component_QUEUED)
+
+	task1 := db.queue2.popImpl()
+	assert.NotNil(t, task1)
+	assert.NoError(t, db.Finalize(task1.DeploymentID))
+
+	comp2, err := db.Apply(&proto.Component{
+		Name: "name2",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			DependsOn: []string{
+				"name1",
+			},
+		}),
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, comp2.Status, proto.Component_QUEUED)
+
+	task2 := db.queue2.popImpl()
+	assert.NotNil(t, task2)
+}
+
+func TestDependsOn_ComponentDoesNotExists(t *testing.T) {
+	db := testBoltdb(t)
+
+	_, err := db.Apply(&proto.Component{
+		Name: "name1",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			DependsOn: []string{
+				"comp-1",
+			},
+		}),
+	})
+	assert.Error(t, err)
+}

@@ -1,6 +1,7 @@
 package boltdb
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strconv"
@@ -226,7 +227,16 @@ func (b *BoltDB) getComponentFromBucket(name string, bkt *bolt.Bucket) (*proto.C
 	return &comp, nil
 }
 
-func (b *BoltDB) updateComponentStatus(compsBkt *bolt.Bucket, compRef string, status proto.Component_Status) (*proto.Component, error) {
+func (b *BoltDB) updateComponentStatus(tx *bolt.Tx, deploymentID string, compRef string, status proto.Component_Status) (*proto.Component, error) {
+	bkt := tx.Bucket(deploymentsBucket).Bucket([]byte(deploymentID))
+	if bkt == nil {
+		return nil, fmt.Errorf("deployment %s not found", deploymentID)
+	}
+	compsBkt := bkt.Bucket([]byte("components"))
+	if compsBkt == nil {
+		return nil, fmt.Errorf("components bucket not found")
+	}
+
 	spl := strings.Split(string(compRef), "#")
 	ref, seqIDRaw := spl[0], spl[1]
 	seqID, err := strconv.Atoi(seqIDRaw)
@@ -386,7 +396,7 @@ func (b *BoltDB) Finalize(deploymentID string) error {
 	if compRef == nil {
 		return fmt.Errorf("bucket not found for seq %d", num)
 	}
-	comp, err := b.updateComponentStatus(compsBkt, string(compRef), proto.Component_APPLIED)
+	comp, err := b.updateComponentStatus(tx, deploymentID, string(compRef), proto.Component_APPLIED)
 	if err != nil {
 		return err
 	}
@@ -400,12 +410,41 @@ func (b *BoltDB) Finalize(deploymentID string) error {
 	data := reqs.Get(seqID(num + 1))
 	if data != nil {
 		// there is a new one, eval it
-		nextComp, err := b.updateComponentStatus(compsBkt, string(data), proto.Component_QUEUED)
+		nextComp, err := b.updateComponentStatus(tx, deploymentID, string(data), proto.Component_QUEUED)
 		if err != nil {
 			return err
 		}
 		b.addTask(deploymentID, nextComp)
 	}
+
+	// check any dependency if we finished the first execution
+	if comp.Sequence == 1 {
+		dependsBkt := bkt.Bucket([]byte("depends"))
+		if dependsBkt == nil {
+			return fmt.Errorf("depends bucket not found")
+		}
+
+		c := dependsBkt.Cursor()
+
+		prefix := []byte("dependency-of-")
+		for k, _ := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, _ = c.Next() {
+			blockedDeploymentID := strings.TrimPrefix(string(k), string(prefix))
+
+			// read the deeployment cluster which is the blocked one
+			blockedComp, err := b.readDeploymentCluster(tx, blockedDeploymentID)
+			if err != nil {
+				return err
+			}
+			if blockedComp.Status == proto.Component_BLOCKED {
+				nextComp, err := b.updateComponentStatus(tx, blockedDeploymentID, blockedComp.Id+"#"+strconv.Itoa(int(blockedComp.Sequence)), proto.Component_QUEUED)
+				if err != nil {
+					return err
+				}
+				b.addTask(blockedDeploymentID, nextComp)
+			}
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return err
 	}
@@ -601,6 +640,38 @@ func (b *BoltDB) nameToDeploymentID(tx *bolt.Tx, name string) (string, error) {
 	return deploymentID, nil
 }
 
+func (b *BoltDB) writeDependsOn(tx *bolt.Tx, from, to string) error {
+	// from -> (depends on) -> to
+	resolveBkt := func(name string) *bolt.Bucket {
+		depBkt := tx.Bucket(deploymentsBucket).Bucket([]byte(name))
+		if depBkt == nil {
+			return nil
+		}
+		depends := depBkt.Bucket([]byte("depends"))
+		if depends == nil {
+			return nil
+		}
+		return depends
+	}
+
+	fromBkt := resolveBkt(from)
+	if fromBkt == nil {
+		return nil
+	}
+	toBkt := resolveBkt(to)
+	if toBkt == nil {
+		return nil
+	}
+
+	if err := fromBkt.Put([]byte(fmt.Sprintf("depends-on-%s", to)), nil); err != nil {
+		return err
+	}
+	if err := toBkt.Put([]byte(fmt.Sprintf("dependency-of-%s", from)), nil); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (b *BoltDB) Apply(comp *proto.Component) (*proto.Component, error) {
 	tx, err := b.db.Begin(true)
 	if err != nil {
@@ -622,6 +693,9 @@ func (b *BoltDB) Apply(comp *proto.Component) (*proto.Component, error) {
 		clusterName = clusterRef.GetCluster()
 	}
 
+	var dependsOn []string
+	var dependsIDs []string
+
 	deploymentID, err := b.nameToDeploymentID(tx, clusterName)
 	if err != nil {
 		return nil, err
@@ -631,6 +705,32 @@ func (b *BoltDB) Apply(comp *proto.Component) (*proto.Component, error) {
 		if clusterRef.GetCluster() != "" {
 			return nil, fmt.Errorf("cluster not found")
 		}
+		// check any depends on queries
+
+		totalDependsOn := msg.(*proto.ClusterSpec).DependsOn
+		if len(totalDependsOn) != 0 {
+			// the id must exists
+			for _, name := range totalDependsOn {
+				id, err := b.nameToDeploymentID(tx, name)
+				if err != nil {
+					return nil, err
+				}
+				if id == "" {
+					return nil, fmt.Errorf("dependency component %s not found", name)
+				}
+
+				// check if the component has finished
+				depComp, err := b.readDeploymentCluster(tx, id)
+				if err != nil {
+					return nil, err
+				}
+
+				dependsIDs = append(dependsIDs, id)
+				if depComp.Status != proto.Component_APPLIED {
+					dependsOn = append(dependsOn, id)
+				}
+			}
+		}
 		deploymentID = uuid.UUID()
 	}
 
@@ -639,8 +739,15 @@ func (b *BoltDB) Apply(comp *proto.Component) (*proto.Component, error) {
 		return nil, err
 	}
 
-	for _, name := range []string{"components", "requests"} {
+	for _, name := range []string{"components", "requests", "depends"} {
 		if _, err := bkt.CreateBucketIfNotExists([]byte(name)); err != nil {
+			return nil, err
+		}
+	}
+
+	// write the dependencies now that the buckets are available
+	for _, id := range dependsIDs {
+		if err := b.writeDependsOn(tx, deploymentID, id); err != nil {
 			return nil, err
 		}
 	}
@@ -689,7 +796,11 @@ func (b *BoltDB) Apply(comp *proto.Component) (*proto.Component, error) {
 	}
 
 	if addEval {
-		comp.Status = proto.Component_QUEUED
+		if len(dependsOn) == 0 {
+			comp.Status = proto.Component_QUEUED
+		} else {
+			comp.Status = proto.Component_BLOCKED
+		}
 	} else {
 		comp.Status = proto.Component_PENDING
 	}
@@ -710,7 +821,7 @@ func (b *BoltDB) Apply(comp *proto.Component) (*proto.Component, error) {
 		return nil, err
 	}
 
-	if addEval {
+	if comp.Status == proto.Component_QUEUED {
 		b.addTask(deploymentID, comp)
 	}
 	return comp, nil
