@@ -52,6 +52,12 @@
                                                 "replicas"
                                             ]
                                         }
+                                    },
+                                    "depends": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
                                     }
                                 },
                                 "required": ["backend"]
