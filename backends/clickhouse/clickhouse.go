@@ -3,6 +3,7 @@ package clickhouse
 import (
 	"fmt"
 
+	gproto "github.com/golang/protobuf/proto"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/schema"
@@ -35,13 +36,14 @@ func (b *backend) Ready(t *proto.Instance) bool {
 func (b *backend) Initialize(nodes []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
 
 	fmt.Println("// nodes //")
-	fmt.Println(nodes)
+
+	// fmt.Println(nodes)
 
 	replicas := []*Replica{}
 	for _, n := range nodes {
 		replicas = append(replicas, &Replica{
 			Host: n.FullName(),
-			Port: 9000,
+			Port: 9009,
 		})
 	}
 	obj := &Cluster{
@@ -63,11 +65,6 @@ func (b *backend) Initialize(nodes []*proto.Instance, target *proto.Instance) (*
 	target.Spec.AddFile("/etc/clickhouse-server/config.xml", string(res))
 	target.Spec.AddFile("/etc/clickhouse-server/users.xml", users)
 
-	//fmt.Println("// res //")
-	//fmt.Println(string(res))
-
-	// panic("X")
-
 	return nil, nil
 }
 
@@ -75,6 +72,17 @@ func (b *backend) Initialize(nodes []*proto.Instance, target *proto.Instance) (*
 func (b *backend) Spec() *operator.Spec {
 	return &operator.Spec{
 		Name: "Clickhouse",
+		Config: schema.Schema2{
+			Spec: &schema.Record{
+				Fields: map[string]*schema.Field{
+					"shards": {
+						Type: &schema.Array{
+							Elem: schema.TypeString,
+						},
+					},
+				},
+			},
+		},
 		Nodetypes: map[string]operator.Nodetype{
 			"": {
 				Image:          "yandex/clickhouse-server",
@@ -83,16 +91,29 @@ func (b *backend) Spec() *operator.Spec {
 				Ports:          []*operator.Port{},
 				Schema: schema.Schema2{
 					Spec: &schema.Record{
-						Fields: map[string]*schema.Field{},
+						Fields: map[string]*schema.Field{
+							"replicas": {
+								Type:     schema.TypeInt,
+								Computed: true,
+							},
+						},
 					},
 				},
 			},
 		},
-		/*
-			Validate: func(comp *proto.Component) (*proto.Component, error) {
-				return comp, nil
-			},
-		*/
+		Validate: func(comp *proto.Component) (*proto.Component, error) {
+			var spec proto.ClusterSpec
+			if err := gproto.Unmarshal(comp.Spec.Value, &spec); err != nil {
+				return nil, err
+			}
+			for _, grp := range spec.Groups {
+				grp.Params = schema.MapToSpec(map[string]interface{}{
+					"replicas": int(grp.Count),
+				})
+			}
+			comp.Spec = proto.MustMarshalAny(&spec)
+			return comp, nil
+		},
 		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData){
 			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData) {
 				// spec.AddEnv("ZOO_TICK_TIME", data.Get("tickTime").(string))

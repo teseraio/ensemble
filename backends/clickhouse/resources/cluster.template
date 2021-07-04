@@ -45,7 +45,7 @@
                     <host>{{ $item.Host }}</host>
                     <port>{{ $item.Port }}</port>
                 </replica>{{ end }}
-            <shard>{{ end }}
+            </shard>{{ end }}
         </company_cluster>
     </remote_servers>
 

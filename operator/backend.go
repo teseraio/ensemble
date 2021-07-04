@@ -88,6 +88,7 @@ type ApplyResourceRequest struct {
 }
 
 type GetSchemasResponse struct {
+	Config    schema.Schema2
 	Nodes     map[string]schema.Schema2
 	Resources map[string]schema.Schema2
 }
@@ -95,6 +96,7 @@ type GetSchemasResponse struct {
 // Spec returns the backend specification
 type Spec struct {
 	Name      string // out
+	Config    schema.Schema2
 	Nodetypes map[string]Nodetype
 	Resources []*Resource2
 	Validate  func(comp *proto.Component) (*proto.Component, error)
@@ -198,6 +200,7 @@ func (b *BaseOperator) ApplyHook(req ApplyHookRequest) {
 
 func (b *BaseOperator) GetSchemas() GetSchemasResponse {
 	resp := GetSchemasResponse{
+		Config:    b.handler.Spec().Config,
 		Nodes:     map[string]schema.Schema2{},
 		Resources: map[string]schema.Schema2{},
 	}

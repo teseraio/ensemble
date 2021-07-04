@@ -54,6 +54,9 @@ func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 	// we need this here because is not set before in the spec
 	spec.Sequence = comp.Sequence
 
+	fmt.Println("-- comp sequence --")
+	fmt.Println(comp.Sequence)
+
 	r := &reconciler{
 		delete: comp.Action == proto.Component_DELETE,
 		dep:    dep,
@@ -71,6 +74,7 @@ func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 		ii := i.Copy()
 		ii.Status = proto.Instance_OUT
 
+		fmt.Println("_ out instance _")
 		plan.NodeUpdate = append(plan.NodeUpdate, ii)
 	}
 
@@ -79,6 +83,7 @@ func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 		ii := i.Copy()
 		ii.Canary = false
 
+		fmt.Println("_ ready instance _")
 		plan.NodeUpdate = append(plan.NodeUpdate, ii)
 	}
 
@@ -88,6 +93,10 @@ func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 		ii.Status = proto.Instance_TAINTED
 		ii.Canary = i.update
 
+		/// CLICKHOUSE.........
+		ii.Sequence = comp.Sequence
+
+		fmt.Println("_ stop instance _")
 		plan.NodeUpdate = append(plan.NodeUpdate, ii)
 	}
 
@@ -102,9 +111,6 @@ func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 				name = i.instance.Name
 			}
 
-			fmt.Println("xxxxxxxxxxxxxxxxxxxx")
-			fmt.Println(i.group)
-
 			ii := &proto.Instance{}
 			ii.ID = uuid.UUID()
 			ii.Group = i.group
@@ -113,8 +119,12 @@ func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 			ii.DeploymentID = dep.Id
 			ii.DnsSuffix = dep.DnsSuffix
 			ii.Name = name
+			ii.Sequence = comp.Sequence
 			ii.Status = proto.Instance_PENDING
 			ii.Canary = i.update
+
+			fmt.Println("_ place instance _")
+			fmt.Println(ii.ID, ii.Sequence)
 
 			placeInstances = append(placeInstances, ii)
 		}

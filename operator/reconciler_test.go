@@ -405,6 +405,7 @@ func TestReconciler_RollingUpgrade_SecondEval(t *testing.T) {
 	spec1.Groups[0].Resources = schema.MapToSpec(map[string]interface{}{"A": "B"})
 
 	dep := newMockDeployment()
+	// 1, 2 and 3 are running version 1
 	for i := 0; i < 3; i++ {
 		ii := &proto.Instance{}
 		ii.ID = uuid.UUID()
@@ -414,7 +415,7 @@ func TestReconciler_RollingUpgrade_SecondEval(t *testing.T) {
 		dep.Instances = append(dep.Instances, ii)
 	}
 
-	// 2 instance stopped and canary
+	// 4 and 5 have stopped and ready to be replaced
 	for i := 3; i < 5; i++ {
 		ii := &proto.Instance{}
 		ii.ID = uuid.UUID()

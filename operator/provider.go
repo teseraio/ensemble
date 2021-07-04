@@ -24,6 +24,9 @@ type Provider interface {
 	// CreateResource creates the computational resource
 	CreateResource(*proto.Instance) (*proto.Instance, error)
 
+	// UpdateResources updates a computational resource
+	UpdateResource(*proto.Instance) (*proto.Instance, error)
+
 	// DeleteResource deletes the computational resource
 	DeleteResource(*proto.Instance) (*proto.Instance, error)
 

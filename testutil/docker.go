@@ -254,7 +254,17 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 	}
 
 	if existsResource {
+		fmt.Println("_ IT WAS ONLY AN UPDATE _")
 		// we only update config dirs
+
+		c.updateCh <- &proto.InstanceUpdate{
+			ID:          node.ID,
+			ClusterName: node.ClusterName,
+			Event: &proto.InstanceUpdate_Configured_{
+				Configured: &proto.InstanceUpdate_Configured{},
+			},
+		}
+
 		return "", nil
 	}
 
@@ -311,6 +321,9 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 	res.handle = body.ID
 	c.resources[node.ID] = res
 
+	fmt.Println("// s")
+	fmt.Println(name)
+
 	if err := c.client.ContainerStart(ctx, body.ID, types.ContainerStartOptions{}); err != nil {
 		return "", err
 	}
@@ -321,10 +334,13 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 		if err != nil {
 			panic(err)
 		}
-		// we need to remove it here so that we can reuse the name
-		if err := c.client.ContainerRemove(context.Background(), body.ID, types.ContainerRemoveOptions{}); err != nil {
-			panic(err)
-		}
+
+		/*
+			// we need to remove it here so that we can reuse the name
+			if err := c.client.ContainerRemove(context.Background(), body.ID, types.ContainerRemoveOptions{}); err != nil {
+				panic(err)
+			}
+		*/
 
 		c.resources[node.ID].active = false
 		c.updateCh <- &proto.InstanceUpdate{
@@ -379,19 +395,17 @@ func (c *Client) Resources() operator.ProviderResources {
 func (c *Client) CreateResource(node *proto.Instance) (*proto.Instance, error) {
 	// fmt.Printf("Create resource: %s %s\n", node.ID, node.Name)
 
-	/*
-		// validation
-		for _, r := range c.resources {
-			if r.instance.ID == node.ID {
-				return nil, operator.ErrInstanceAlreadyRunning
-			}
-			if r.active {
-				if r.instance.FullName() == node.FullName() {
-					return nil, operator.ErrProviderNameAlreadyUsed
-				}
+	// validation
+	for _, r := range c.resources {
+		if r.instance.ID == node.ID {
+			return nil, operator.ErrInstanceAlreadyRunning
+		}
+		if r.active {
+			if r.instance.FullName() == node.FullName() {
+				return nil, operator.ErrProviderNameAlreadyUsed
 			}
 		}
-	*/
+	}
 
 	// async serialize the execution
 	c.workCh <- node
@@ -464,8 +478,13 @@ func (c *Client) execImpl(ctx context.Context, id string, execCmd []string) (str
 	return outBuf.String(), nil
 }
 
+func (c *Client) UpdateResource(node *proto.Instance) (*proto.Instance, error) {
+	return nil, nil
+}
+
 func (c *Client) DeleteResource(node *proto.Instance) (*proto.Instance, error) {
 	// fmt.Printf("Delete resource: %s %s\n", node.Name, node.Handler)
+	return nil, nil
 
 	go func() {
 		if err := c.Remove(node.Handler); err != nil {

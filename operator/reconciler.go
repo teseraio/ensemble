@@ -308,9 +308,6 @@ func (r *reconciler) Compute() {
 }
 
 func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
-	fmt.Println("// ground")
-	fmt.Println(grp)
-
 	set := allocSet(r.dep.Instances)
 	set = set.byGroup(grp.Type)
 
@@ -454,8 +451,14 @@ func computeUpdates(spec *proto.ClusterSpec, grp *proto.ClusterSpec_Group, alloc
 	untainted = allocSet{}
 	destructive = allocSet{}
 
+	//fmt.Println("-- updates --")
+	//fmt.Println(alloc)
+
 	for _, i := range alloc {
 		if spec.Sequence != i.Sequence {
+			fmt.Println("-- 33 --")
+			fmt.Println(spec.Sequence, i.Sequence)
+
 			// check if the changes are destructive
 			if updateFn(grp, i.Group) {
 				destructive = append(destructive, i)

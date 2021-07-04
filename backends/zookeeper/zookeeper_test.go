@@ -141,5 +141,4 @@ func TestE2E(t *testing.T) {
 	})
 
 	srv.WaitForTask(uuid)
-
 }

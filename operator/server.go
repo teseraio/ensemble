@@ -168,7 +168,14 @@ func (s *Server) updateStatus(op *proto.InstanceUpdate) error {
 	case *proto.InstanceUpdate_Healthy_:
 		i.Healthy = true
 
+	case *proto.InstanceUpdate_Configured_:
+		// comes from tainted state for now, change to running (and healthy?)
+		i.Status = proto.Instance_RUNNING
+		i.Healthy = true
+
 	case *proto.InstanceUpdate_Killing_:
+		panic("TODO")
+
 		if i.Status == proto.Instance_TAINTED {
 			// expected to be down
 			i.Status = proto.Instance_STOPPED // It is moved to out by reconciler
@@ -387,6 +394,9 @@ func (s *Server) taskQueue4() {
 func (s *Server) SubmitPlan(eval *proto.Evaluation, p *proto.Plan) error {
 	// update the state
 	for _, i := range p.NodeUpdate {
+		fmt.Println("__ SEQUENCE UPDATE __")
+		fmt.Println(i.ID, i.Name, i.Status, i.Healthy, i.Sequence)
+
 		if err := s.upsertNode(i); err != nil {
 			return err
 		}
@@ -401,6 +411,15 @@ func (s *Server) SubmitPlan(eval *proto.Evaluation, p *proto.Plan) error {
 			if err := s.State.UpdateDeployment(dep); err != nil {
 				return err
 			}
+		}
+
+		dd, err := s.State.LoadDeployment(dep.Id)
+		if err != nil {
+			panic(err)
+		}
+		for _, i := range dd.Instances {
+			fmt.Println("---")
+			fmt.Println(i.ID, i.Name, i.Status, i.Healthy, i.Sequence)
 		}
 	}
 
@@ -421,9 +440,16 @@ func (s *Server) SubmitPlan(eval *proto.Evaluation, p *proto.Plan) error {
 			// Provider updates concurrently
 			go func(i *proto.Instance) {
 				if i.Status == proto.Instance_TAINTED {
-					if _, err := s.Provider.DeleteResource(i); err != nil {
+					fmt.Println("___ TAINTED __")
+					// mimick the tainted on place
+					if _, err := s.Provider.CreateResource(i); err != nil {
 						panic(err)
 					}
+					/*
+						if _, err := s.Provider.DeleteResource(i); err != nil {
+							panic(err)
+						}
+					*/
 				} else if i.Status == proto.Instance_PENDING {
 					if _, err := s.Provider.CreateResource(i); err != nil {
 						panic(err)
