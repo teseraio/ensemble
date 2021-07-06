@@ -1,9 +1,8 @@
-package zookeeper
+package kafka
 
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	gproto "github.com/golang/protobuf/proto"
 	"github.com/teseraio/ensemble/operator"
@@ -15,7 +14,7 @@ type backend struct {
 	*operator.BaseOperator
 }
 
-// Factory is a factory method for the zookeeper backend
+// Factory is a factory method for the kafka backend
 func Factory() operator.Handler {
 	b := &backend{}
 	b.BaseOperator = &operator.BaseOperator{}
@@ -28,7 +27,7 @@ func (b *backend) Hooks() []operator.Hook {
 }
 
 func (b *backend) Name() string {
-	return "zookeeper"
+	return "kafka"
 }
 
 func (b *backend) Ready(t *proto.Instance) bool {
@@ -36,52 +35,42 @@ func (b *backend) Ready(t *proto.Instance) bool {
 }
 
 func (b *backend) Initialize(nodes []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
-	// Id of the instance
+
 	localIndex, err := proto.ParseIndex(target.Name)
 	if err != nil {
 		return nil, err
 	}
-	target.Spec.AddEnv("ZOO_MY_ID", strconv.Itoa(int(localIndex)))
 
-	// list of the zookeeper instances
-	res := []string{}
-	for _, node := range nodes {
-		remoteIndex, err := proto.ParseIndex(node.Name)
-		if err != nil {
-			return nil, err
-		}
+	sch := b.Spec().Nodetypes[""].Schema
+	data := schema.NewResourceData(&sch, target.Group.Params)
+	zkNode := data.Get("zookeeper").(string)
 
-		if node.ID == target.ID {
-			res = append(res, fmt.Sprintf("server.%d=0.0.0.0:2888:3888;2181", remoteIndex))
-		} else {
-			res = append(res, getZkNodeSpec(node, remoteIndex))
-		}
-	}
+	target.Spec.AddEnv("KAFKA_BROKER_ID", strconv.Itoa(int(localIndex)))
+	target.Spec.AddEnv("KAFKA_ZOOKEEPER_CONNECT", fmt.Sprintf("%s:2181", zkNode))
+	target.Spec.AddEnv("KAFKA_ADVERTISED_LISTENERS", fmt.Sprintf("PLAINTEXT://%s:29092", target.FullName()))
+	target.Spec.AddEnv("KAFKA_LISTENER_SECURITY_PROTOCOL_MAP", "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT")
+	target.Spec.AddEnv("KAFKA_INTER_BROKER_LISTENER_NAME", "PLAINTEXT")
+	target.Spec.AddEnv("KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR", "1")
 
-	target.Spec.AddEnv("ZOO_SERVERS", strings.Join(res, " "))
 	return nil, nil
-}
-
-func getZkNodeSpec(node *proto.Instance, index uint64) string {
-	return fmt.Sprintf("server.%d=%s:2888:3888;2181", index, node.FullName())
 }
 
 // Spec implements the Handler interface
 func (b *backend) Spec() *operator.Spec {
 	return &operator.Spec{
-		Name: "Zookeeper",
+		Name: "Kafka",
 		Nodetypes: map[string]operator.Nodetype{
 			"": {
-				Image:          "zookeeper",
-				DefaultVersion: "3.6",
+				Image:          "confluentinc/cp-kafka",
+				DefaultVersion: "5.3.1",
 				Volumes:        []*operator.Volume{},
 				Ports:          []*operator.Port{},
 				Schema: schema.Schema2{
 					Spec: &schema.Record{
 						Fields: map[string]*schema.Field{
-							"tickTime": {
-								Type:    schema.TypeString,
-								Default: "2000",
+							"zookeeper": {
+								Type:     schema.TypeString,
+								Required: true,
 							},
 						},
 					},
@@ -97,19 +86,19 @@ func (b *backend) Spec() *operator.Spec {
 				return nil, fmt.Errorf("only one group expected")
 			}
 			grp := spec.Groups[0]
-			if grp.Count != 1 && grp.Count < 3 {
-				if grp.Count != 1 {
-					return nil, fmt.Errorf("either 1 or 3 expected")
-				}
+
+			sch := b.Spec().Nodetypes[""].Schema
+			data := schema.NewResourceData(&sch, grp.Params)
+			zkNode := data.Get("zookeeper").(string)
+
+			spec.DependsOn = []string{
+				zkNode,
 			}
-			if grp.Count%2 == 0 {
-				return nil, fmt.Errorf("odd number of nodes required")
-			}
+			comp.Spec = proto.MustMarshalAny(&spec)
 			return comp, nil
 		},
 		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData){
 			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData) {
-				spec.AddEnv("ZOO_TICK_TIME", data.Get("tickTime").(string))
 			},
 		},
 	}

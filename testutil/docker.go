@@ -247,6 +247,18 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 		return "", err
 	}
 
+	extraHostsMap := map[string]string{}
+	for _, r := range c.resources {
+		if r.instance.Ip == "" {
+			continue
+		}
+		extraHostsMap[r.instance.ClusterName] = r.instance.Ip
+	}
+	extraHost := []string{}
+	for k, v := range extraHostsMap {
+		extraHost = append(extraHost, k+":"+v)
+	}
+
 	env := []string{}
 	for k, v := range builder.Env {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
@@ -258,7 +270,8 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 		Cmd:      strslice.StrSlice(builder.Cmd),
 	}
 	hostConfig := &container.HostConfig{
-		Binds: binds,
+		Binds:      binds,
+		ExtraHosts: extraHost,
 	}
 
 	// decode computational resources
@@ -310,6 +323,7 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 
 	ip := c.GetIP(body.ID)
 
+	c.resources[node.ID].instance.Ip = ip
 	c.updateCh <- &proto.InstanceUpdate{
 		ID:          node.ID,
 		ClusterName: node.ClusterName,
