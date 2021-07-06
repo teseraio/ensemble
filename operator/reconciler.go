@@ -300,11 +300,14 @@ func (r *reconciler) Compute() {
 		return
 	}
 
+	done := true
 	for _, grp := range r.spec.Groups {
-		if !r.computeGroup(grp) {
+		done = r.computeGroup(grp)
+		if !done {
 			break
 		}
 	}
+	r.res.done = done
 }
 
 func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
@@ -436,15 +439,13 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 		}
 	}
 
-	r.res.done = false
+	done := false
 	if allHealthy {
-		if len(reschedule) == 0 && len(readyToAllocate) == 0 && len(stopping) == 0 && len(updates) == 0 && len(place) == 0 && len(lost) == 0 {
-			r.res.done = true
+		if len(reschedule) == 0 && len(readyToAllocate) == 0 && len(stopping) == 0 && len(updates) == 0 && len(place) == 0 && len(lost) == 0 && !isRolling {
+			done = true
 		}
 	}
-
-	isComplete := len(destructive)+len(place)+len(reschedule)+len(lost) == 0 && !isRolling
-	return isComplete
+	return done
 }
 
 func computeUpdates(spec *proto.ClusterSpec, grp *proto.ClusterSpec_Group, alloc allocSet, updateFn updateFn) (destructive allocSet, untainted allocSet) {
