@@ -267,7 +267,7 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 		Hostname: name,
 		Image:    image,
 		Env:      env,
-		Cmd:      strslice.StrSlice(builder.Cmd),
+		Cmd:      strslice.StrSlice(append([]string{builder.Cmd}, builder.Args...)),
 	}
 	hostConfig := &container.HostConfig{
 		Binds:      binds,

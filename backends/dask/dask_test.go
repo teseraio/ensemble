@@ -33,9 +33,7 @@ func TestBootstrap(t *testing.T) {
 		Nodes: []*operator.HarnessExpectInstance{
 			{
 				Spec: &proto.NodeSpec{
-					Cmd: []string{
-						"dask-scheduler",
-					},
+					Args: []string{},
 				},
 			},
 		},
@@ -51,8 +49,7 @@ func TestBootstrap(t *testing.T) {
 		Nodes: []*operator.HarnessExpectInstance{
 			{
 				Spec: &proto.NodeSpec{
-					Cmd: []string{
-						"dask-worker",
+					Args: []string{
 						"tcp://{{.Node_scheduler_1}}:8786",
 					},
 				},

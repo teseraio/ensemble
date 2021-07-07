@@ -36,7 +36,7 @@ func (b *backend) Ready(t *proto.Instance) bool {
 func (b *backend) Initialize(nodes []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
 
 	if target.Group.Type == "storage" {
-		target.Spec.Cmd = []string{
+		target.Spec.Args = []string{
 			"--storageDataPath=", "/storage",
 		}
 	} else {
@@ -47,7 +47,7 @@ func (b *backend) Initialize(nodes []*proto.Instance, target *proto.Instance) (*
 				storageNodes = append(storageNodes, i.FullName()+":8400")
 			}
 		}
-		target.Spec.Cmd = []string{
+		target.Spec.Args = []string{
 			"--storageNode", strings.Join(storageNodes, ","),
 		}
 	}

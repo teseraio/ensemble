@@ -149,10 +149,10 @@ func (h *Harness) Expect(plan *proto.Plan, expect *HarnessExpect) {
 				assert.Equal(h.t, node.Spec.Env[k], tmpl(v))
 			}
 			{
-				// cmd
-				assert.Equal(h.t, len(expect.Spec.Cmd), len(node.Spec.Cmd))
-				for indx, cmdExp := range expect.Spec.Cmd {
-					assert.Equal(h.t, node.Spec.Cmd[indx], tmpl(cmdExp))
+				// args
+				assert.Equal(h.t, len(expect.Spec.Args), len(node.Spec.Args))
+				for indx, argExp := range expect.Spec.Args {
+					assert.Equal(h.t, node.Spec.Args[indx], tmpl(argExp))
 				}
 			}
 		}

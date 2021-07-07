@@ -33,9 +33,7 @@ func (b *backend) Initialize(n []*proto.Instance, target *proto.Instance) (*prot
 
 	if target.Group.Type == "scheduler" {
 		// start as a dask-scheduler
-		target.Spec.Cmd = []string{
-			"dask-scheduler",
-		}
+		target.Spec.Cmd = "dask-scheduler"
 	} else if target.Group.Type == "worker" {
 		// start the workers
 		// find master
@@ -45,8 +43,8 @@ func (b *backend) Initialize(n []*proto.Instance, target *proto.Instance) (*prot
 				schedTarget = m.FullName()
 			}
 		}
-		target.Spec.Cmd = []string{
-			"dask-worker",
+		target.Spec.Cmd = "dask-worker"
+		target.Spec.Args = []string{
 			"tcp://" + schedTarget + ":8786",
 		}
 	}

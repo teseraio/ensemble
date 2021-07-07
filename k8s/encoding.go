@@ -56,13 +56,8 @@ func MarshalPod(i *proto.Instance) ([]byte, error) {
 		"Files":    builder.Files,
 		"Ensemble": i.ClusterName,
 		"Hostname": i.Name,
-	}
-
-	if num := len(builder.Cmd); num != 0 {
-		obj["Command"] = builder.Cmd[0]
-		if num > 1 {
-			obj["Args"] = builder.Cmd[1:]
-		}
+		"Command":  builder.Cmd,
+		"Args":     builder.Args,
 	}
 
 	// add the persistent volumes

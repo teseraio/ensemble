@@ -38,6 +38,12 @@
             "subdomain": "b",
             "containers": [
                 {
+                    "args": [
+                        "30"
+                    ],
+                    "command": [
+                        "sleep"
+                    ],
                     "imagePullPolicy": "Always",
                     "name": "main-container",
                     "image": "image:latest",
