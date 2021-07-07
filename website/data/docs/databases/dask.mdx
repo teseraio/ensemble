@@ -1,0 +1,20 @@
+---
+title: 'Dask'
+---
+
+Dask is an open source library for parallel computing written in Python.
+
+```yaml
+apiVersion: ensembleoss.io/v1
+kind: Cluster
+metadata:
+  name: dask1
+spec:
+  backend:
+    name: dask
+  groups:
+  - type: scheduler
+    replicas: 1
+  - type: worker
+    replicas: 3
+```

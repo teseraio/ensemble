@@ -43,6 +43,10 @@
                 {
                     "name": "VictoriaMetrics",
                     "href": "/docs/databases/victoriametrics"
+                },
+                {
+                    "name": "Dask",
+                    "href": "/docs/databases/dask"
                 }
             ]
         }
