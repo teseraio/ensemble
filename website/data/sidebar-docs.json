@@ -33,6 +33,10 @@
                     "href": "/docs/databases/zookeeper"
                 },
                 {
+                    "name": "Kafka",
+                    "href": "/docs/databases/kafka"
+                },
+                {
                     "name": "Rabbitmq",
                     "href": "/docs/databases/rabbitmq"
                 }
