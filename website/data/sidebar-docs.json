@@ -39,6 +39,10 @@
                 {
                     "name": "Rabbitmq",
                     "href": "/docs/databases/rabbitmq"
+                },
+                {
+                    "name": "VictoriaMetrics",
+                    "href": "/docs/databases/victoriametrics"
                 }
             ]
         }
