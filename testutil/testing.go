@@ -48,7 +48,7 @@ func TestPodBarArgs(t *testing.T, p operator.Provider) {
 		Name:        "yy22",
 		Image:       "busybox",
 		Spec: &proto.NodeSpec{
-			Cmd: []string{"xxx"},
+			Cmd: "xxx",
 		},
 	}
 	if _, err := p.CreateResource(i); err != nil {
@@ -77,7 +77,8 @@ func TestPodJobFailed(t *testing.T, p operator.Provider) {
 		Image:       "busybox",
 		Spec: &proto.NodeSpec{
 			// it stops gracefully
-			Cmd: []string{"sleep", "2"},
+			Cmd:  "sleep",
+			Args: []string{"2"},
 		},
 	}
 	if _, err := p.CreateResource(i); err != nil {

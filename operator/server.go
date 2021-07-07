@@ -257,6 +257,7 @@ func (s *Server) taskQueue5() {
 		if err != nil {
 			panic(err)
 		}
+
 		switch typ {
 		case proto.EvaluationTypeCluster:
 			err = s.handleCluster(task, dep, comp)

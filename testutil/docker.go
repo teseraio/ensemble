@@ -263,11 +263,18 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 	for k, v := range builder.Env {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
+
+	cmd := []string{}
+	if builder.Cmd != "" {
+		cmd = append(cmd, builder.Cmd)
+	}
+	cmd = append(cmd, builder.Args...)
+
 	config := &container.Config{
 		Hostname: name,
 		Image:    image,
 		Env:      env,
-		Cmd:      strslice.StrSlice(builder.Cmd),
+		Cmd:      strslice.StrSlice(cmd),
 	}
 	hostConfig := &container.HostConfig{
 		Binds:      binds,

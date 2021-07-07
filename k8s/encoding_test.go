@@ -55,7 +55,12 @@ func TestEncodePod(t *testing.T) {
 				Name:        "c",
 				Image:       "image",
 				Version:     "latest",
-				Spec:        &proto.NodeSpec{},
+				Spec: &proto.NodeSpec{
+					Cmd: "sleep",
+					Args: []string{
+						"30",
+					},
+				},
 				Mounts: []*proto.Instance_Mount{
 					{
 						Name: "mount1",

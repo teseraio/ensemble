@@ -117,6 +117,9 @@ func MapToSpec(m map[string]interface{}) *proto.Spec {
 		case string:
 			return proto.LiteralSpec(&proto.Spec_Literal{Value: obj}), nil
 
+		case int:
+			return proto.LiteralSpec(&proto.Spec_Literal{Value: strconv.Itoa(obj)}), nil
+
 		default:
 			return nil, fmt.Errorf("type not found %s", reflect.TypeOf(obj))
 		}

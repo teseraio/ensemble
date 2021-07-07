@@ -1,0 +1,22 @@
+---
+title: 'VictoriaMetrics'
+---
+
+VictoriaMetrics is a time series database and monitoring solution optimized for high cardinality.
+
+```yaml
+apiVersion: ensembleoss.io/v1
+kind: Cluster
+metadata:
+  name: vm1
+spec:
+  backend:
+    name: victoriametrics
+  groups:
+    - type: storage
+      replicas: 2
+    - type: insert
+      replicas: 2
+    - type: select
+      replicas: 2
+```

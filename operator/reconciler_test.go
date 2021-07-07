@@ -96,6 +96,70 @@ func TestReconciler_Place_Empty(t *testing.T) {
 	})
 }
 
+func TestReconciler_MultipleGroup_Place(t *testing.T) {
+	spec := mockClusterSpec()
+	spec.Groups[0].Count = 5
+
+	spec.Groups = append(spec.Groups, &proto.ClusterSpec_Group{
+		Type:  "b",
+		Count: 5,
+	})
+
+	dep := newMockDeployment()
+	for i := 0; i < 5; i++ {
+		ii := &proto.Instance{}
+		ii.Status = proto.Instance_RUNNING
+		ii.ID = uuid.UUID()
+		ii.Group = spec.Groups[0]
+		ii.Healthy = true
+		dep.Instances = append(dep.Instances, ii)
+	}
+
+	rec := &reconciler{
+		dep:  dep.Deployment,
+		spec: spec,
+	}
+	rec.Compute()
+
+	testExpectReconcile(t, rec, expectedReconciler{
+		place: 5,
+		done:  false,
+	})
+}
+
+func TestReconciler_MultipleGroup_Complete(t *testing.T) {
+	spec := mockClusterSpec()
+	spec.Groups[0].Count = 5
+
+	spec.Groups = append(spec.Groups, &proto.ClusterSpec_Group{
+		Type:  "b",
+		Count: 5,
+	})
+
+	dep := newMockDeployment()
+	for i := 0; i < 10; i++ {
+		ii := &proto.Instance{}
+		ii.Status = proto.Instance_RUNNING
+		ii.ID = uuid.UUID()
+		if i < 5 {
+			ii.Group = spec.Groups[0]
+		} else {
+			ii.Group = spec.Groups[1]
+		}
+		ii.Healthy = true
+		dep.Instances = append(dep.Instances, ii)
+	}
+
+	rec := &reconciler{
+		dep:  dep.Deployment,
+		spec: spec,
+	}
+	rec.Compute()
+
+	testExpectReconcile(t, rec, expectedReconciler{
+		done: true,
+	})
+}
 func TestReconciler_ScaleUp_Blocked(t *testing.T) {
 	spec := mockClusterSpec()
 	spec.Groups[0].Count = 10
