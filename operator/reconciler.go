@@ -341,6 +341,7 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 		r.res.place = append(r.res.place, instancePlaceResult{
 			instance:   i,
 			reschedule: true,
+			group:      i.Group,
 		})
 	}
 
