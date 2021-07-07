@@ -53,7 +53,7 @@ func (t *TestServer) Close() {
 	}
 }
 
-func TestOperator(t *testing.T, factory operator.HandlerFactory) *TestServer {
+func TestOperator(t *testing.T, factories ...operator.HandlerFactory) *TestServer {
 	path := "/tmp/db-" + uuid.UUID()
 
 	state, err := boltdb.Factory(map[string]interface{}{
@@ -77,7 +77,7 @@ func TestOperator(t *testing.T, factory operator.HandlerFactory) *TestServer {
 		HandlerFactories: []operator.HandlerFactory{},
 		GRPCAddr:         grpcAddr,
 	}
-	if factory != nil {
+	for _, factory := range factories {
 		config.HandlerFactories = append(config.HandlerFactories, factory)
 	}
 

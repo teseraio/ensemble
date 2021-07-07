@@ -3,6 +3,7 @@ package server
 import (
 	"github.com/teseraio/ensemble/backends/cassandra"
 	"github.com/teseraio/ensemble/backends/dask"
+	"github.com/teseraio/ensemble/backends/kafka"
 	"github.com/teseraio/ensemble/backends/rabbitmq"
 	"github.com/teseraio/ensemble/backends/zookeeper"
 	"github.com/teseraio/ensemble/operator"
@@ -23,4 +24,5 @@ func init() {
 	registerBackend(rabbitmq.Factory)
 	registerBackend(cassandra.Factory)
 	registerBackend(zookeeper.Factory)
+	registerBackend(kafka.Factory)
 }

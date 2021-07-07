@@ -1,0 +1,23 @@
+---
+title: 'Kafka'
+---
+
+Kafka is a distributed event streaming platform. It uses [ZooKeeper](/docs/databases/zookeeper) to manage and coordinate the brokers and cluster topology.
+
+```yaml
+apiVersion: ensembleoss.io/v1
+kind: Cluster
+metadata:
+  name: kafka1
+spec:
+  backend:
+    name: kafka
+  groups:
+    - replicas: <replicas>
+      params:
+        zookeeper: zk1
+```
+
+### Params
+
+-  <code>zookeeper</code>: Name of the Zookeeper cluster to use. The execution will fail if the deployment does not exists.
