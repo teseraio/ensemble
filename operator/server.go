@@ -258,13 +258,6 @@ func (s *Server) taskQueue5() {
 			panic(err)
 		}
 
-		fmt.Printf("###==>")
-		fmt.Println(comp)
-		fmt.Println(comp.Id, comp.Sequence)
-		if dep != nil {
-			fmt.Printf("Depid: %s\n", dep.Id)
-		}
-
 		switch typ {
 		case proto.EvaluationTypeCluster:
 			err = s.handleCluster(task, dep, comp)
@@ -375,7 +368,6 @@ func (s *Server) taskQueue4() {
 			return
 		}
 
-		// time.Sleep(1 * time.Second)
 		s.logger.Debug("handle eval", "type", eval.Type, "id", eval.Id, "cluster", eval.DeploymentID, "trigger", eval.TriggeredBy.String())
 
 		sched := s.newScheduler(eval.Type)
@@ -394,26 +386,8 @@ func (s *Server) taskQueue4() {
 }
 
 func (s *Server) SubmitPlan(eval *proto.Evaluation, p *proto.Plan) error {
-	if p.Deployment != nil {
-		depp, err := s.State.LoadDeployment(p.Deployment.Id)
-		if err != nil {
-			panic(err)
-		}
-		for _, i := range depp.Instances {
-			fmt.Println("-- pre --")
-			fmt.Println(i.ID, i.Name, i.Status, i.Healthy)
-		}
-	}
-
-	fmt.Println("-- node update --")
-	fmt.Println(p.Done)
-	fmt.Println(len(p.NodeUpdate))
-
 	// update the state
 	for _, i := range p.NodeUpdate {
-		fmt.Println("-- xx --")
-		fmt.Println(i.ID, i.Name, i.Status, i.Healthy)
-
 		if err := s.upsertNode(i); err != nil {
 			return err
 		}
@@ -428,15 +402,6 @@ func (s *Server) SubmitPlan(eval *proto.Evaluation, p *proto.Plan) error {
 			if err := s.State.UpdateDeployment(dep); err != nil {
 				return err
 			}
-		}
-
-		depp, err := s.State.LoadDeployment(dep.Id)
-		if err != nil {
-			panic(err)
-		}
-		for _, i := range depp.Instances {
-			fmt.Println("--")
-			fmt.Println(i.ID, i.Name, i.Status, i.Healthy)
 		}
 	}
 
