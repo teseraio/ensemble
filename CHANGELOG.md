@@ -3,6 +3,7 @@
 
 FEATURES:
 
+- backends: add Clickhouse backend.
 - backends: add VictoriaMetrics backend.
 - backends: add Kafka backend.
 - operator/schema: Use a new schema format to represent database and provider configuration and resources.

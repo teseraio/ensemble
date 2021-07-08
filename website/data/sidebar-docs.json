@@ -33,6 +33,10 @@
                     "href": "/docs/databases/zookeeper"
                 },
                 {
+                    "name": "Clickhouse",
+                    "href": "/docs/databases/clickhouse"
+                },
+                {
                     "name": "Kafka",
                     "href": "/docs/databases/kafka"
                 },

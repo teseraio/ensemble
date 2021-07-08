@@ -49,7 +49,7 @@ func RunTmpl(tmpl string, obj interface{}) ([]byte, error) {
 	}
 	buf1 := new(bytes.Buffer)
 	if err = t.Execute(buf1, obj); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to template: %v", err)
 	}
 
 	// fmt.Println(string(buf1.Bytes()))
@@ -62,7 +62,7 @@ func RunTmpl(tmpl string, obj interface{}) ([]byte, error) {
 	if strings.HasPrefix(out1, "{") {
 		output, err := prettifyJSON([]byte(out1))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to prettify: %v", err)
 		}
 		out1 = string(output)
 	}

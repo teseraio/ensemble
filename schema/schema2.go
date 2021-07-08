@@ -97,38 +97,43 @@ func MapToSpec(m map[string]interface{}) *proto.Spec {
 	if m == nil {
 		m = map[string]interface{}{}
 	}
-	var impl func(i interface{}) (*proto.Spec, error)
+	var impl func(v reflect.Value) *proto.Spec
 
-	impl = func(i interface{}) (*proto.Spec, error) {
-		switch obj := i.(type) {
-		case map[string]interface{}:
+	impl = func(v reflect.Value) *proto.Spec {
+		switch v.Type().Kind() {
+		case reflect.Map:
 			block := &proto.Spec_Block{
 				Attrs: map[string]*proto.Spec{},
 			}
-			for k, v := range obj {
-				elem, err := impl(v)
-				if err != nil {
-					return nil, err
-				}
-				block.Attrs[k] = elem
+			for _, k := range v.MapKeys() {
+				elem := impl(v.MapIndex(k))
+				block.Attrs[k.String()] = elem
 			}
-			return proto.BlockSpec(block), nil
+			return proto.BlockSpec(block)
 
-		case string:
-			return proto.LiteralSpec(&proto.Spec_Literal{Value: obj}), nil
+		case reflect.Interface:
+			return impl(v.Elem())
 
-		case int:
-			return proto.LiteralSpec(&proto.Spec_Literal{Value: strconv.Itoa(obj)}), nil
+		case reflect.String:
+			return proto.LiteralSpec(&proto.Spec_Literal{Value: v.String()})
+
+		case reflect.Slice:
+			values := []*proto.Spec{}
+			for i := 0; i < v.Len(); i++ {
+				elem := impl(v.Index(i))
+				values = append(values, elem)
+			}
+			return proto.ArraySpec(values)
+
+		case reflect.Int:
+			return proto.LiteralSpec(&proto.Spec_Literal{Value: strconv.Itoa(int(v.Int()))})
 
 		default:
-			return nil, fmt.Errorf("type not found %s", reflect.TypeOf(obj))
+			panic("NOT FOUND" + v.Type().Kind().String())
 		}
 	}
 
-	res, err := impl(m)
-	if err != nil {
-		panic(fmt.Sprintf("BUG: %v", err))
-	}
+	res := impl(reflect.ValueOf(m))
 	return res
 }
 
@@ -146,6 +151,18 @@ func validate(t Type, s *proto.Spec) error {
 				if field.Required {
 					return fmt.Errorf("value '%s' not found", k)
 				}
+			}
+		}
+		return nil
+
+	case *Array:
+		arraySch, ok := s.Block.(*proto.Spec_Array_)
+		if !ok {
+			return fmt.Errorf("array expected")
+		}
+		for _, v := range arraySch.Array.Values {
+			if err := validate(obj.Elem, v); err != nil {
+				return err
 			}
 		}
 		return nil

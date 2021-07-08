@@ -128,7 +128,7 @@ func resourcesCrdClusterJson() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/crd-cluster.json", size: 3427, mode: os.FileMode(436), modTime: time.Unix(1625417351, 0)}
+	info := bindataFileInfo{name: "resources/crd-cluster.json", size: 3427, mode: os.FileMode(436), modTime: time.Unix(1625668177, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -308,7 +308,7 @@ func resourcesPodTemplate() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/pod.template", size: 1220, mode: os.FileMode(436), modTime: time.Unix(1625409398, 0)}
+	info := bindataFileInfo{name: "resources/pod.template", size: 1220, mode: os.FileMode(436), modTime: time.Unix(1625668177, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -408,7 +408,7 @@ func resourcesVolumeClaimTemplate() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/volume-claim.template", size: 364, mode: os.FileMode(436), modTime: time.Unix(1623687138, 0)}
+	info := bindataFileInfo{name: "resources/volume-claim.template", size: 364, mode: os.FileMode(436), modTime: time.Unix(1625668177, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }

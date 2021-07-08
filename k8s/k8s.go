@@ -184,6 +184,7 @@ func (p *Provider) upsertConfigMap(name string, files *mount.MountPoint) error {
 	parts := []string{}
 	for name, content := range files.Files {
 		content = strings.Replace(content, "\n", "\\n", -1)
+		content = strings.Replace(content, "\"", "\\\"", -1)
 		parts = append(parts, fmt.Sprintf("\"%s\": \"%s\"", cleanPath(name), content))
 	}
 	obj := map[string]interface{}{
@@ -296,7 +297,7 @@ func (p *Provider) CreateResource(node *proto.Instance) (*proto.Instance, error)
 
 	// create headless service for dns resolving
 	if err := p.createHeadlessService(node.ClusterName); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to upsert headless service: %v", err)
 	}
 
 	// files to be mounted on the pod
@@ -309,7 +310,7 @@ func (p *Provider) CreateResource(node *proto.Instance) (*proto.Instance, error)
 			name := node.ID + "-file-data-" + strconv.Itoa(indx)
 
 			if err := p.upsertConfigMap(name, mountPoint); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to upsert config map: %v", err)
 			}
 		}
 	}
@@ -325,12 +326,12 @@ func (p *Provider) CreateResource(node *proto.Instance) (*proto.Instance, error)
 
 	data, err := MarshalPod(node)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal pod: %v", err)
 	}
 
 	// create the Pod resource
 	if _, _, err = p.post("/api/v1/namespaces/{namespace}/pods", data); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create pod: %v", err)
 	}
 
 	return node, nil

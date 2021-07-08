@@ -1,11 +1,21 @@
 package schema
 
+import "reflect"
+
 //go:generate stringer -type=ScalarType -output=types_string.go
 
 // Type describes a valid type for the schema
 type Type interface {
 	Type() string
+	Kind() reflect.Type
 }
+
+// batch of predefined reflect types
+var (
+	boolT   = reflect.TypeOf(bool(false))
+	stringT = reflect.TypeOf("")
+	tupleT  = reflect.TypeOf(map[string]interface{}{})
+)
 
 const (
 	// TypeString is a string type
@@ -26,6 +36,10 @@ func (s ScalarType) Type() string {
 	return s.String()
 }
 
+func (s ScalarType) Kind() reflect.Type {
+	return stringT
+}
+
 // Array is an array of objects
 type Array struct {
 	Elem Type
@@ -36,6 +50,10 @@ func (a *Array) Type() string {
 	return "array"
 }
 
+func (a *Array) Kind() reflect.Type {
+	panic("X")
+}
+
 // Map is a map<string, interface{}> without specific types
 type Map struct {
 	Elem Type
@@ -44,6 +62,10 @@ type Map struct {
 // Type implements the Type interface
 func (m *Map) Type() string {
 	return "map"
+}
+
+func (m *Map) Kind() reflect.Type {
+	return tupleT
 }
 
 // Record is an object with several values
@@ -78,4 +100,8 @@ type Field struct {
 // Type implements the Type interface
 func (r *Record) Type() string {
 	return "record"
+}
+
+func (r *Record) Kind() reflect.Type {
+	return tupleT
 }

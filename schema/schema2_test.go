@@ -70,11 +70,15 @@ func TestMapToSpec(t *testing.T) {
 		{
 			map[string]interface{}{
 				"a": "b",
+				"c": 1,
 			},
 			proto.BlockSpec(&proto.Spec_Block{
 				Attrs: map[string]*proto.Spec{
 					"a": proto.LiteralSpec(&proto.Spec_Literal{
 						Value: "b",
+					}),
+					"c": proto.LiteralSpec(&proto.Spec_Literal{
+						Value: "1",
 					}),
 				},
 			}),
@@ -83,6 +87,10 @@ func TestMapToSpec(t *testing.T) {
 			map[string]interface{}{
 				"a": map[string]interface{}{
 					"b": "c",
+					"d": []string{
+						"d1",
+						"d2",
+					},
 				},
 			},
 			proto.BlockSpec(&proto.Spec_Block{
@@ -91,6 +99,14 @@ func TestMapToSpec(t *testing.T) {
 						Attrs: map[string]*proto.Spec{
 							"b": proto.LiteralSpec(&proto.Spec_Literal{
 								Value: "c",
+							}),
+							"d": proto.ArraySpec([]*proto.Spec{
+								proto.LiteralSpec(&proto.Spec_Literal{
+									Value: "d1",
+								}),
+								proto.LiteralSpec(&proto.Spec_Literal{
+									Value: "d2",
+								}),
 							}),
 						},
 					}),
@@ -142,6 +158,23 @@ func TestValidate(t *testing.T) {
 				},
 			},
 			map[string]interface{}{},
+		},
+		{
+			&Record{
+				Fields: map[string]*Field{
+					"a": {
+						Type: &Array{
+							Elem: TypeString,
+						},
+					},
+				},
+			},
+			map[string]interface{}{
+				"a": []interface{}{
+					1,
+					2,
+				},
+			},
 		},
 	}
 

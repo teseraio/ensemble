@@ -72,9 +72,9 @@ func (d *Deployment) Copy() *Deployment {
 
 func (n *Instance) FullName() string {
 	if n.ClusterName != "" {
-		if n.DnsSuffix != "" {
-			return n.Name + "." + n.ClusterName + n.DnsSuffix
-		}
+		//if n.DnsSuffix != "" {
+		//	return n.Name + "." + n.ClusterName + n.DnsSuffix
+		//}
 		return n.Name + "." + n.ClusterName
 	}
 	return n.Name
@@ -221,6 +221,16 @@ func LiteralSpec(l *Spec_Literal) *Spec {
 	return &Spec{
 		Block: &Spec_Literal_{
 			Literal: l,
+		},
+	}
+}
+
+func ArraySpec(values []*Spec) *Spec {
+	return &Spec{
+		Block: &Spec_Array_{
+			Array: &Spec_Array{
+				Values: values,
+			},
 		},
 	}
 }
