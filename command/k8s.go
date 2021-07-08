@@ -11,7 +11,12 @@ type K8sCommand struct {
 
 // Help implements the cli.Command interface
 func (k *K8sCommand) Help() string {
-	return ""
+	return `Usage: ensemble <subcommand>
+  This command subgroups actions to interact with Kubernetes.
+
+  $ ensemble k8s artifacts
+
+  $ ensemble k8s init`
 }
 
 // Synopsis implements the cli.Command interface
@@ -21,5 +26,5 @@ func (k *K8sCommand) Synopsis() string {
 
 // Run implements the cli.Command interface
 func (k *K8sCommand) Run(args []string) int {
-	return 0
+	return cli.RunResultHelp
 }
