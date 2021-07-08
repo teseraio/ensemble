@@ -120,6 +120,7 @@ message Spec {
     oneof block {
         Block block_value = 1;
         Literal literal = 2;
+        Array array = 3;
     }
 
     message Literal {
@@ -128,6 +129,10 @@ message Spec {
     
     message Block {
         map<string, Spec> attrs = 1;
+    }
+
+    message Array {
+        repeated Spec values = 1;
     }
 }
 

@@ -225,6 +225,16 @@ func LiteralSpec(l *Spec_Literal) *Spec {
 	}
 }
 
+func ArraySpec(values []*Spec) *Spec {
+	return &Spec{
+		Block: &Spec_Array_{
+			Array: &Spec_Array{
+				Values: values,
+			},
+		},
+	}
+}
+
 func EmptySpec() *Spec {
 	return &Spec{
 		Block: &Spec_BlockValue{
