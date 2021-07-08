@@ -148,7 +148,7 @@ func TestPodFiles(t *testing.T, p operator.Provider) {
 		{
 			Name: "/a/e.txt",
 			Content: `Line1
-Line2
+Line2 "a"
 Line3`,
 		},
 	}

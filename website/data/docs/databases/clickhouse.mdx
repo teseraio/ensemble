@@ -1,0 +1,23 @@
+---
+title: 'Clickhouse'
+---
+
+Clickhouse is a fast open-source column-oriented database management system that allows generating analytical data reports in real-time using SQL queries.
+
+```yaml
+apiVersion: ensembleoss.io/v1
+kind: Cluster
+metadata:
+  name: clickhouse1
+spec:
+  backend:
+    name: clickhouse
+  groups:
+    - replicas: <replicas>
+      params:
+        zookeeper: zk1
+```
+
+### Params
+
+-  <code>zookeeper</code>: Name of the Zookeeper cluster to use. The execution will fail if the deployment does not exists.

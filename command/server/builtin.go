@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/teseraio/ensemble/backends/cassandra"
+	"github.com/teseraio/ensemble/backends/clickhouse"
 	"github.com/teseraio/ensemble/backends/dask"
 	"github.com/teseraio/ensemble/backends/kafka"
 	"github.com/teseraio/ensemble/backends/rabbitmq"
@@ -27,4 +28,5 @@ func init() {
 	registerBackend(zookeeper.Factory)
 	registerBackend(kafka.Factory)
 	registerBackend(victoriametrics.Factory)
+	registerBackend(clickhouse.Factory)
 }

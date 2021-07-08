@@ -72,9 +72,9 @@ func (d *Deployment) Copy() *Deployment {
 
 func (n *Instance) FullName() string {
 	if n.ClusterName != "" {
-		if n.DnsSuffix != "" {
-			return n.Name + "." + n.ClusterName + n.DnsSuffix
-		}
+		//if n.DnsSuffix != "" {
+		//	return n.Name + "." + n.ClusterName + n.DnsSuffix
+		//}
 		return n.Name + "." + n.ClusterName
 	}
 	return n.Name
