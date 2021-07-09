@@ -20,5 +20,5 @@ func (c *DeploymentCommand) Synopsis() string {
 
 // Run implements the cli.Command interface
 func (c *DeploymentCommand) Run(args []string) int {
-	return 0
+	return cli.RunResultHelp
 }

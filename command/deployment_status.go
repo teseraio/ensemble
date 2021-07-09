@@ -23,7 +23,7 @@ func (c *DeploymentStatusCommand) Synopsis() string {
 
 // Run implements the cli.Command interface
 func (c *DeploymentStatusCommand) Run(args []string) int {
-	flags := c.FlagSet("deployment list")
+	flags := c.NewFlagSet("deployment list")
 	if err := flags.Parse(args); err != nil {
 		panic(err)
 	}

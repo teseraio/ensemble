@@ -62,18 +62,7 @@ func (c *K8sArtifactsCommand) Flags() *flagset.Flagset {
 
 // Run implements the cli.Command interface
 func (k *K8sArtifactsCommand) Run(args []string) int {
-
-	/*
-		flags := k.Meta.FlagSet("k8s artifacts")
-		flags.Usage = func() {}
-
-		flags.BoolVar(&k.dev, "dev", false, "")
-		flags.BoolVar(&k.service, "service", false, "")
-		flags.BoolVar(&k.crd, "crd", false, "")
-	*/
-
 	flags := k.Flags()
-
 	if err := flags.Parse(args); err != nil {
 		k.UI.Error(err.Error())
 		return 1

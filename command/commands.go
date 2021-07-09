@@ -1,12 +1,12 @@
 package command
 
 import (
-	"flag"
 	"fmt"
 	"os"
 
 	"github.com/mitchellh/cli"
 	"github.com/ryanuber/columnize"
+	"github.com/teseraio/ensemble/command/flagset"
 	"github.com/teseraio/ensemble/command/server"
 	"github.com/teseraio/ensemble/operator/proto"
 	"google.golang.org/grpc"
@@ -62,7 +62,7 @@ func Commands() map[string]cli.CommandFactory {
 		},
 		"k8s init": func() (cli.Command, error) {
 			return &K8sInitCommand{
-				Meta: meta,
+				UI: ui,
 			}, nil
 		},
 		"k8s artifacts": func() (cli.Command, error) {
@@ -80,9 +80,15 @@ type Meta struct {
 }
 
 // FlagSet adds some default commands to handle grpc connections with the server
-func (m *Meta) FlagSet(n string) *flag.FlagSet {
-	f := flag.NewFlagSet(n, flag.ContinueOnError)
-	f.StringVar(&m.addr, "address", "127.0.0.1:6001", "Address of the http api")
+func (m *Meta) NewFlagSet(n string) *flagset.Flagset {
+	f := flagset.NewFlagSet("apply")
+
+	f.StringFlag(&flagset.StringFlag{
+		Name:  "address",
+		Value: &m.addr,
+		Usage: "address of the remote grpc server",
+	})
+
 	return f
 }
 
