@@ -7,6 +7,7 @@ import (
 
 	"github.com/mitchellh/cli"
 	"github.com/ryanuber/columnize"
+	"github.com/teseraio/ensemble/command/flagset"
 	"github.com/teseraio/ensemble/command/server"
 	"github.com/teseraio/ensemble/operator/proto"
 	"google.golang.org/grpc"
@@ -77,6 +78,18 @@ func Commands() map[string]cli.CommandFactory {
 type Meta struct {
 	UI   cli.Ui
 	addr string
+}
+
+func (m *Meta) NewFlagSet(n string) *flagset.Flagset {
+	f := flagset.NewFlagSet(n)
+
+	f.StringFlag(&flagset.StringFlag{
+		Name:  "address",
+		Value: &m.addr,
+		Usage: "Path of the file to apply",
+	})
+
+	return f
 }
 
 // FlagSet adds some default commands to handle grpc connections with the server

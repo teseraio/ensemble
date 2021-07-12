@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/teseraio/ensemble/command/flagset"
 	"github.com/teseraio/ensemble/operator/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -14,7 +15,15 @@ type DeploymentListCommand struct {
 
 // Help implements the cli.Command interface
 func (c *DeploymentListCommand) Help() string {
-	return ""
+	return `Usage: ensemble deployment list
+
+  List the running deployments.
+
+` + c.Flags().Help()
+}
+
+func (c *DeploymentListCommand) Flags() *flagset.Flagset {
+	return c.NewFlagSet("deployment list")
 }
 
 // Synopsis implements the cli.Command interface
@@ -24,7 +33,7 @@ func (c *DeploymentListCommand) Synopsis() string {
 
 // Run implements the cli.Command interface
 func (c *DeploymentListCommand) Run(args []string) int {
-	flags := c.FlagSet("deployment list")
+	flags := c.Flags()
 	if err := flags.Parse(args); err != nil {
 		panic(err)
 	}

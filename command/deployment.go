@@ -10,7 +10,17 @@ type DeploymentCommand struct {
 
 // Help implements the cli.Command interface
 func (c *DeploymentCommand) Help() string {
-	return ""
+	return `Usage: ensemble deployment <subcommand>
+
+  This command groups actions to interact with deployments.
+  
+  List the running deployments:
+
+    $ ensemble deployment list
+  
+  Check the status of a specific deployment:
+
+    $ ensemble deployment status <deployment_id>`
 }
 
 // Synopsis implements the cli.Command interface
@@ -20,5 +30,5 @@ func (c *DeploymentCommand) Synopsis() string {
 
 // Run implements the cli.Command interface
 func (c *DeploymentCommand) Run(args []string) int {
-	return 0
+	return cli.RunResultHelp
 }

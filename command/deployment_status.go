@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/teseraio/ensemble/command/flagset"
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
@@ -13,7 +14,15 @@ type DeploymentStatusCommand struct {
 
 // Help implements the cli.Command interface
 func (c *DeploymentStatusCommand) Help() string {
-	return ""
+	return `Usage: ensemble deployment status <id>
+
+  Display the status of a specific deployment.
+
+` + c.Flags().Help()
+}
+
+func (c *DeploymentStatusCommand) Flags() *flagset.Flagset {
+	return c.NewFlagSet("deployment status")
 }
 
 // Synopsis implements the cli.Command interface
@@ -23,7 +32,7 @@ func (c *DeploymentStatusCommand) Synopsis() string {
 
 // Run implements the cli.Command interface
 func (c *DeploymentStatusCommand) Run(args []string) int {
-	flags := c.FlagSet("deployment list")
+	flags := c.Flags()
 	if err := flags.Parse(args); err != nil {
 		panic(err)
 	}

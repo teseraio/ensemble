@@ -34,7 +34,7 @@ func (c *ApplyCommand) Help() string {
 }
 
 func (c *ApplyCommand) Flags() *flagset.Flagset {
-	f := flagset.NewFlagSet("apply")
+	f := c.NewFlagSet("apply")
 
 	f.StringFlag(&flagset.StringFlag{
 		Name:  "f",
