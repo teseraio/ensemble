@@ -991,6 +991,8 @@ func (b *BoltDB) UpsertNode(n *proto.Instance) error {
 
 	depsBkt := tx.Bucket(deploymentsBucket)
 
+	fmt.Println(n.ClusterName)
+
 	depID, err := b.nameToDeploymentID(tx, n.ClusterName)
 	if err != nil {
 		return err
@@ -998,7 +1000,7 @@ func (b *BoltDB) UpsertNode(n *proto.Instance) error {
 	// find the sub-bucket for the cluster
 	depBkt := depsBkt.Bucket([]byte(depID))
 	if depBkt == nil {
-		return fmt.Errorf("deployment does not exists")
+		return fmt.Errorf("deployment does not exists '%s'", depID)
 	}
 
 	// upsert under node-<id>

@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/teseraio/ensemble/command/flagset"
 	"github.com/teseraio/ensemble/k8s"
 	"github.com/teseraio/ensemble/lib/template"
 	"gopkg.in/yaml.v2"
@@ -21,23 +22,53 @@ type K8sArtifactsCommand struct {
 
 // Help implements the cli.Command interface
 func (k *K8sArtifactsCommand) Help() string {
-	return ""
+	return `Usage: ensemble k8s artifacts <options>
+
+  Display the YAML artifacts to deploy Ensemble.
+
+  Print only the CRD files:
+
+    $ ensemble k8s artifacts --crd
+
+  Print the service object to deploy the operator on Kubernetes:
+
+    $ ensemble k8s artifacts --service
+
+` + k.Flags().Help()
+}
+
+func (c *K8sArtifactsCommand) Flags() *flagset.Flagset {
+	f := flagset.NewFlagSet("k8s artifacts")
+
+	f.BoolFlag(&flagset.BoolFlag{
+		Name:  "dev",
+		Value: &c.dev,
+		Usage: "Use development images in service artifacts",
+	})
+
+	f.BoolFlag(&flagset.BoolFlag{
+		Name:  "service",
+		Value: &c.service,
+		Usage: "Filter by service artifacts",
+	})
+
+	f.BoolFlag(&flagset.BoolFlag{
+		Name:  "crd",
+		Value: &c.crd,
+		Usage: "Filter by CRD artifacts",
+	})
+
+	return f
 }
 
 // Synopsis implements the cli.Command interface
 func (k *K8sArtifactsCommand) Synopsis() string {
-	return ""
+	return "Display the YAML artifacts to deploy Ensemble"
 }
 
 // Run implements the cli.Command interface
 func (k *K8sArtifactsCommand) Run(args []string) int {
-	flags := k.Meta.FlagSet("k8s artifacts")
-	flags.Usage = func() {}
-
-	flags.BoolVar(&k.dev, "dev", false, "")
-	flags.BoolVar(&k.service, "service", false, "")
-	flags.BoolVar(&k.crd, "crd", false, "")
-
+	flags := k.Flags()
 	if err := flags.Parse(args); err != nil {
 		k.UI.Error(err.Error())
 		return 1

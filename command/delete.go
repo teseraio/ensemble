@@ -3,38 +3,76 @@ package command
 import (
 	"context"
 
+	"github.com/teseraio/ensemble/command/flagset"
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
 type DeleteCommand struct {
 	Meta
-}
 
-// Help implements the cli.Command interface
-func (d *DeleteCommand) Help() string {
-	return ""
+	filename  string
+	recursive bool
 }
 
 // Synopsis implements the cli.Command interface
 func (d *DeleteCommand) Synopsis() string {
-	return ""
+	return "Delete a configuration to a resource by filename or stdin"
+}
+
+// Synopsis implements the cli.Command interface
+func (d *DeleteCommand) Help() string {
+	return `Usage: ensemble delete [options]
+
+  Delete a configuration to a resource by filename or stdin.
+
+  Delete a single yaml file:
+
+    $ ensemble delete -f pod.yaml
+
+  Delete multiple files from a directory:
+
+    $ ensemble delete -f ./components
+
+  Delete a configuration from stdin:
+
+    $ cat pod.yaml | ensemble delete -f -
+
+` + d.Flags().Help()
+}
+
+func (d *DeleteCommand) Flags() *flagset.Flagset {
+	f := d.NewFlagSet("delete")
+
+	f.StringFlag(&flagset.StringFlag{
+		Name:  "f",
+		Value: &d.filename,
+		Usage: "Filename containing the resource to delete",
+	})
+
+	f.BoolFlag(&flagset.BoolFlag{
+		Name:  "R",
+		Value: &d.recursive,
+		Usage: "Process the directory used in -f, --filename recursively",
+	})
+
+	return f
 }
 
 // Run implements the cli.Command interface
 func (d *DeleteCommand) Run(args []string) int {
-	flags := d.FlagSet("delete")
+	flags := d.Flags()
 	if err := flags.Parse(args); err != nil {
 		d.UI.Error(err.Error())
 		return 1
 	}
 
-	args = flags.Args()
-	if len(args) != 1 {
-		d.UI.Error("at least one file expected")
+	comps, err := readComponents(d.filename, d.recursive)
+	if err != nil {
+		d.UI.Error(err.Error())
 		return 1
 	}
 
-	comp, err := readComponentFromFile(args[0])
+	comp, err := parseComponentFromFile([]byte(comps[0]))
 	if err != nil {
 		d.UI.Error(err.Error())
 		return 1

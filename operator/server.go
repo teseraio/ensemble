@@ -388,6 +388,8 @@ func (s *Server) taskQueue4() {
 func (s *Server) SubmitPlan(eval *proto.Evaluation, p *proto.Plan) error {
 	// update the state
 	for _, i := range p.NodeUpdate {
+		fmt.Println(i.DeploymentID)
+
 		if err := s.upsertNode(i); err != nil {
 			return err
 		}
@@ -470,7 +472,7 @@ func (s *Server) validateComponent(component *proto.Component) (*proto.Component
 			return nil, err
 		}
 		if dep == nil {
-			return nil, fmt.Errorf("deployment does not exists %s", depID)
+			return nil, fmt.Errorf("deployment does not exists '%s'", depID)
 		}
 		handler, err := s.GetHandler(dep.Backend)
 		if err != nil {

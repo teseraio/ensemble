@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/teseraio/ensemble/command/flagset"
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
@@ -13,38 +14,50 @@ type DeploymentStatusCommand struct {
 
 // Help implements the cli.Command interface
 func (c *DeploymentStatusCommand) Help() string {
-	return ""
+	return `Usage: ensemble deployment status <id>
+
+  Display the status of a specific deployment.
+
+` + c.Flags().Help()
+}
+
+func (c *DeploymentStatusCommand) Flags() *flagset.Flagset {
+	return c.NewFlagSet("deployment status")
 }
 
 // Synopsis implements the cli.Command interface
 func (c *DeploymentStatusCommand) Synopsis() string {
-	return ""
+	return "Display the status of a specific deployment"
 }
 
 // Run implements the cli.Command interface
 func (c *DeploymentStatusCommand) Run(args []string) int {
-	flags := c.FlagSet("deployment list")
+	flags := c.Flags()
 	if err := flags.Parse(args); err != nil {
-		panic(err)
+		c.UI.Error(err.Error())
+		return 1
 	}
 
 	args = flags.Args()
 	if len(args) != 1 {
-		panic("bad")
+		c.UI.Error("argument <id> expected")
+		return 1
 	}
 	depID := args[0]
 
 	clt, err := c.Conn()
 	if err != nil {
-		panic(err)
+		c.UI.Error(err.Error())
+		return 1
 	}
 
 	dep, err := clt.GetDeployment(context.Background(), &proto.GetDeploymentReq{Cluster: depID})
 	if err != nil {
-		panic(err)
+		c.UI.Error(err.Error())
+		return 1
 	}
 
-	fmt.Println(formatDeployment(dep))
+	c.UI.Output(formatDeployment(dep))
 	return 0
 }
 

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -10,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/teseraio/ensemble/command/flagset"
 	"github.com/teseraio/ensemble/k8s"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/state/boltdb"
@@ -21,36 +21,60 @@ import (
 // Command is the command to run the agent
 type Command struct {
 	UI cli.Ui
+
+	debug      bool
+	logLevel   string
+	boltdbPath string
 }
 
 // Help implements the cli.Command interface
 func (c *Command) Help() string {
-	return ""
+	return `Usage: ensemble server [options]
+  
+  Run the Ensemble operator server.
+
+` + c.Flags().Help()
+}
+
+func (c *Command) Flags() *flagset.Flagset {
+	f := flagset.NewFlagSet("server")
+
+	f.BoolFlag(&flagset.BoolFlag{
+		Name:  "debug",
+		Value: &c.debug,
+		Usage: "Path of the file to apply",
+	})
+
+	f.StringFlag(&flagset.StringFlag{
+		Name:  "log-level",
+		Value: &c.logLevel,
+		Usage: "Follow the directory in -f recursively",
+	})
+
+	f.StringFlag(&flagset.StringFlag{
+		Name:    "boltdb",
+		Value:   &c.boltdbPath,
+		Usage:   "Follow the directory in -f recursively",
+		Default: "test.db",
+	})
+
+	return f
 }
 
 // Synopsis implements the cli.Command interface
 func (c *Command) Synopsis() string {
-	return ""
+	return "Run the Ensemble operator server"
 }
 
 // Run implements the cli.Command interface
 func (c *Command) Run(args []string) int {
-	var debug bool
-	var logLevel, boltdbPath string
-
-	flags := flag.NewFlagSet("operator", flag.ContinueOnError)
-	flags.Usage = func() {}
-
-	flags.BoolVar(&debug, "debug", false, "")
-	flags.StringVar(&logLevel, "log-level", "", "")
-	flags.StringVar(&boltdbPath, "boltdb", "test.db", "")
-
+	flags := c.Flags()
 	if err := flags.Parse(args); err != nil {
 		c.UI.Error(err.Error())
 		return 1
 	}
 
-	if debug {
+	if c.debug {
 		if err := agent.Listen(agent.Options{}); err != nil {
 			c.UI.Error(fmt.Sprintf("Failed to start gops: %v", err))
 			return 1
@@ -59,7 +83,7 @@ func (c *Command) Run(args []string) int {
 
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "ensemble",
-		Level: hclog.LevelFromString(logLevel),
+		Level: hclog.LevelFromString(c.logLevel),
 	})
 
 	// setup resource provider
@@ -75,7 +99,7 @@ func (c *Command) Run(args []string) int {
 
 	// setup state
 	state, err := boltdb.Factory(map[string]interface{}{
-		"path": boltdbPath,
+		"path": c.boltdbPath,
 	})
 	if err != nil {
 		c.UI.Error(fmt.Sprintf("Failed to start boltdb state: %v", err))

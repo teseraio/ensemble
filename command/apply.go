@@ -2,42 +2,86 @@ package command
 
 import (
 	"context"
-	"io/ioutil"
 
+	"github.com/teseraio/ensemble/command/flagset"
 	"github.com/teseraio/ensemble/k8s"
 	"github.com/teseraio/ensemble/operator/proto"
 	"gopkg.in/yaml.v2"
 )
 
 type ApplyCommand struct {
+	filename  string
+	recursive bool
+
 	Meta
 }
 
 // Help implements the cli.Command interface
-func (c *ApplyCommand) Help() string {
-	return ""
+func (c *ApplyCommand) Synopsis() string {
+	return "Apply a configuration to a resource by filename or stdin"
 }
 
 // Synopsis implements the cli.Command interface
-func (c *ApplyCommand) Synopsis() string {
-	return ""
+func (c *ApplyCommand) Help() string {
+	return `Usage: ensemble apply [options]
+
+  Apply a configuration to a resource by filename or stdin.
+
+  Apply a single yaml file:
+
+    $ ensemble apply -f pod.yaml
+
+  Apply multiple files from a directory:
+
+    $ ensemble apply -f ./components
+
+  Apply a configuration from stdin:
+
+    $ cat pod.yaml | ensemble apply -f -
+
+` + c.Flags().Help()
+}
+
+func (c *ApplyCommand) Flags() *flagset.Flagset {
+	f := c.NewFlagSet("apply")
+
+	f.StringFlag(&flagset.StringFlag{
+		Name:  "f",
+		Value: &c.filename,
+		Usage: "Filename containing the resource to delete",
+	})
+
+	f.BoolFlag(&flagset.BoolFlag{
+		Name:  "R",
+		Value: &c.recursive,
+		Usage: "Process the directory used in -f, --filename recursively",
+	})
+
+	return f
 }
 
 // Run implements the cli.Command interface
 func (c *ApplyCommand) Run(args []string) int {
-	flags := c.FlagSet("apply")
-	if err := flags.Parse(args); err != nil {
+	f := c.Flags()
+
+	err := f.Parse(args)
+	if err != nil {
 		c.UI.Error(err.Error())
 		return 1
 	}
 
-	args = flags.Args()
-	if len(args) != 1 {
-		c.UI.Error("at least one file expected")
+	if c.filename == "" {
+		c.UI.Error("-f must be set")
 		return 1
 	}
 
-	comp, err := readComponentFromFile(args[0])
+	comps, err := readComponents(c.filename, c.recursive)
+	if err != nil {
+		c.UI.Error(err.Error())
+		return 1
+	}
+
+	comp, err := parseComponentFromFile([]byte(comps[0]))
 	if err != nil {
 		c.UI.Error(err.Error())
 		return 1
@@ -56,11 +100,7 @@ func (c *ApplyCommand) Run(args []string) int {
 	return 0
 }
 
-func readComponentFromFile(path string) (*proto.Component, error) {
-	raw, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
+func parseComponentFromFile(raw []byte) (*proto.Component, error) {
 	var item *k8s.Item
 	if err := yaml.Unmarshal(raw, &item); err != nil {
 		return nil, err
