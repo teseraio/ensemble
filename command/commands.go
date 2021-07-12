@@ -83,9 +83,10 @@ func (m *Meta) NewFlagSet(n string) *flagset.Flagset {
 	f := flagset.NewFlagSet(n)
 
 	f.StringFlag(&flagset.StringFlag{
-		Name:  "address",
-		Value: &m.addr,
-		Usage: "Path of the file to apply",
+		Name:    "address",
+		Value:   &m.addr,
+		Usage:   "Address of the Ensemble server",
+		Default: "127.0.0.1:6001",
 	})
 
 	return f

@@ -12,16 +12,21 @@ type K8sCommand struct {
 // Help implements the cli.Command interface
 func (k *K8sCommand) Help() string {
 	return `Usage: ensemble <subcommand>
-  This command subgroups actions to interact with Kubernetes.
 
-  $ ensemble k8s artifacts
+  This command groups actions to display Kubernetes YAML files to interact with Ensemble.
 
-  $ ensemble k8s init`
+  Display the YAML artifacts to deploy Ensemble:
+
+    $ ensemble k8s artifacts
+
+  Display a YAML file for a cluster deployment:
+
+    $ ensemble k8s init`
 }
 
 // Synopsis implements the cli.Command interface
 func (k *K8sCommand) Synopsis() string {
-	return ""
+	return "Create Kubernets YAML artifacts"
 }
 
 // Run implements the cli.Command interface

@@ -28,24 +28,27 @@ func (c *DeploymentListCommand) Flags() *flagset.Flagset {
 
 // Synopsis implements the cli.Command interface
 func (c *DeploymentListCommand) Synopsis() string {
-	return ""
+	return "List the running deployments"
 }
 
 // Run implements the cli.Command interface
 func (c *DeploymentListCommand) Run(args []string) int {
 	flags := c.Flags()
 	if err := flags.Parse(args); err != nil {
-		panic(err)
+		c.UI.Error(err.Error())
+		return 1
 	}
 
 	clt, err := c.Conn()
 	if err != nil {
-		panic(err)
+		c.UI.Error(err.Error())
+		return 1
 	}
 
 	resp, err := clt.ListDeployments(context.Background(), &emptypb.Empty{})
 	if err != nil {
-		panic(err)
+		c.UI.Error(err.Error())
+		return 1
 	}
 	fmt.Println(formatDeployments(resp.Deployments))
 	return 0

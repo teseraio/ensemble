@@ -1,9 +1,10 @@
 package command
 
 import (
-	"fmt"
+	"context"
 
 	"github.com/teseraio/ensemble/command/flagset"
+	"github.com/teseraio/ensemble/operator/proto"
 )
 
 type DeleteCommand struct {
@@ -15,33 +16,43 @@ type DeleteCommand struct {
 
 // Synopsis implements the cli.Command interface
 func (d *DeleteCommand) Synopsis() string {
-	return ""
+	return "Delete a configuration to a resource by filename or stdin"
 }
 
 // Synopsis implements the cli.Command interface
 func (d *DeleteCommand) Help() string {
 	return `Usage: ensemble delete [options]
 
-  $ ensemble delete -f pod.yaml
+  Delete a configuration to a resource by filename or stdin.
 
-  $ ensemble delete -f ./components
+  Delete a single yaml file:
+
+    $ ensemble delete -f pod.yaml
+
+  Delete multiple files from a directory:
+
+    $ ensemble delete -f ./components
+
+  Delete a configuration from stdin:
+
+    $ cat pod.yaml | ensemble delete -f -
 
 ` + d.Flags().Help()
 }
 
 func (d *DeleteCommand) Flags() *flagset.Flagset {
-	f := d.NewFlagSet("apply")
+	f := d.NewFlagSet("delete")
 
 	f.StringFlag(&flagset.StringFlag{
 		Name:  "f",
 		Value: &d.filename,
-		Usage: "Path of the file to apply",
+		Usage: "Filename containing the resource to delete",
 	})
 
 	f.BoolFlag(&flagset.BoolFlag{
 		Name:  "R",
 		Value: &d.recursive,
-		Usage: "Follow the directory in -f recursively",
+		Usage: "Process the directory used in -f, --filename recursively",
 	})
 
 	return f
@@ -49,7 +60,6 @@ func (d *DeleteCommand) Flags() *flagset.Flagset {
 
 // Run implements the cli.Command interface
 func (d *DeleteCommand) Run(args []string) int {
-
 	flags := d.Flags()
 	if err := flags.Parse(args); err != nil {
 		d.UI.Error(err.Error())
@@ -61,28 +71,22 @@ func (d *DeleteCommand) Run(args []string) int {
 		d.UI.Error(err.Error())
 		return 1
 	}
-	fmt.Println(comps)
 
-	panic("TODO")
+	comp, err := parseComponentFromFile([]byte(comps[0]))
+	if err != nil {
+		d.UI.Error(err.Error())
+		return 1
+	}
+	comp.Action = proto.Component_DELETE
 
-	/*
-		comp, err := readComponentFromFile(args[0])
-		if err != nil {
-			d.UI.Error(err.Error())
-			return 1
-		}
-		comp.Action = proto.Component_DELETE
-
-		clt, err := d.Conn()
-		if err != nil {
-			d.UI.Error(err.Error())
-			return 1
-		}
-		if _, err := clt.Apply(context.Background(), comp); err != nil {
-			d.UI.Error(err.Error())
-			return 1
-		}
-	*/
-
+	clt, err := d.Conn()
+	if err != nil {
+		d.UI.Error(err.Error())
+		return 1
+	}
+	if _, err := clt.Apply(context.Background(), comp); err != nil {
+		d.UI.Error(err.Error())
+		return 1
+	}
 	return 0
 }

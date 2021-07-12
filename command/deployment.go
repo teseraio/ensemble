@@ -18,14 +18,14 @@ func (c *DeploymentCommand) Help() string {
 
     $ ensemble deployment list
   
-  Check the status of a specific deployment:
+  Display the status of a specific deployment:
 
     $ ensemble deployment status <deployment_id>`
 }
 
 // Synopsis implements the cli.Command interface
 func (c *DeploymentCommand) Synopsis() string {
-	return ""
+	return "Interact with deployments"
 }
 
 // Run implements the cli.Command interface

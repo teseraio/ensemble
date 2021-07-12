@@ -1,8 +1,6 @@
 package command
 
 import (
-	"fmt"
-
 	"github.com/mitchellh/cli"
 	"github.com/teseraio/ensemble/command/flagset"
 	"github.com/teseraio/ensemble/k8s"
@@ -19,7 +17,11 @@ type K8sInitCommand struct {
 
 // Help implements the cli.Command interface
 func (k *K8sInitCommand) Help() string {
-	return ""
+	return `Usage: ensemble k8s init
+
+  Display a YAML file for a cluster deployment.
+
+` + k.Flags().Help()
 }
 
 func (k *K8sInitCommand) Flags() *flagset.Flagset {
@@ -28,19 +30,19 @@ func (k *K8sInitCommand) Flags() *flagset.Flagset {
 	f.StringFlag(&flagset.StringFlag{
 		Name:  "name",
 		Value: &k.name,
-		Usage: "Path of the file to apply",
+		Usage: "Name of the cluster",
 	})
 
 	f.StringFlag(&flagset.StringFlag{
 		Name:  "backend",
 		Value: &k.backend,
-		Usage: "Follow the directory in -f recursively",
+		Usage: "Backend or database to deploy",
 	})
 
 	f.IntFlag(&flagset.IntFlag{
 		Name:  "replicas",
 		Value: &k.replicas,
-		Usage: "replicas to use",
+		Usage: "Number of replicas",
 	})
 
 	return f
@@ -48,7 +50,7 @@ func (k *K8sInitCommand) Flags() *flagset.Flagset {
 
 // Synopsis implements the cli.Command interface
 func (k *K8sInitCommand) Synopsis() string {
-	return ""
+	return "Display a YAML file for a cluster deployment"
 }
 
 // Run implements the cli.Command interface
@@ -76,6 +78,6 @@ func (k *K8sInitCommand) Run(args []string) int {
 		return 1
 	}
 
-	fmt.Println(string(yamlRes))
+	k.UI.Output(string(yamlRes))
 	return 0
 }

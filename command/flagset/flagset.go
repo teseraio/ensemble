@@ -12,10 +12,11 @@ type Flagset struct {
 }
 
 func NewFlagSet(name string) *Flagset {
-	return &Flagset{
+	f := &Flagset{
 		flags: []*FlagVar{},
 		set:   flag.NewFlagSet(name, flag.ContinueOnError),
 	}
+	return f
 }
 
 type FlagVar struct {
@@ -60,7 +61,7 @@ func (f *Flagset) BoolFlag(b *BoolFlag) {
 		Name:  b.Name,
 		Usage: b.Usage,
 	})
-	f.set.BoolVar(b.Value, b.Name, b.Default, "")
+	f.set.BoolVar(b.Value, b.Name, b.Default, b.Usage)
 }
 
 type StringFlag struct {
@@ -75,7 +76,7 @@ func (f *Flagset) StringFlag(b *StringFlag) {
 		Name:  b.Name,
 		Usage: b.Usage,
 	})
-	f.set.StringVar(b.Value, b.Name, b.Default, "")
+	f.set.StringVar(b.Value, b.Name, b.Default, b.Usage)
 }
 
 type IntFlag struct {
@@ -90,5 +91,5 @@ func (f *Flagset) IntFlag(i *IntFlag) {
 		Name:  i.Name,
 		Usage: i.Usage,
 	})
-	f.set.IntVar(i.Value, i.Name, i.Default, "")
+	f.set.IntVar(i.Value, i.Name, i.Default, i.Usage)
 }

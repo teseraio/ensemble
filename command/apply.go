@@ -25,9 +25,19 @@ func (c *ApplyCommand) Synopsis() string {
 func (c *ApplyCommand) Help() string {
 	return `Usage: ensemble apply [options]
 
-  $ ensemble apply -f pod.yaml
+  Apply a configuration to a resource by filename or stdin.
 
-  $ ensemble apply -f ./components
+  Apply a single yaml file:
+
+    $ ensemble apply -f pod.yaml
+
+  Apply multiple files from a directory:
+
+    $ ensemble apply -f ./components
+
+  Apply a configuration from stdin:
+
+    $ cat pod.yaml | ensemble apply -f -
 
 ` + c.Flags().Help()
 }
@@ -38,13 +48,13 @@ func (c *ApplyCommand) Flags() *flagset.Flagset {
 	f.StringFlag(&flagset.StringFlag{
 		Name:  "f",
 		Value: &c.filename,
-		Usage: "Path of the file to apply",
+		Usage: "Filename containing the resource to delete",
 	})
 
 	f.BoolFlag(&flagset.BoolFlag{
 		Name:  "R",
 		Value: &c.recursive,
-		Usage: "Follow the directory in -f recursively",
+		Usage: "Process the directory used in -f, --filename recursively",
 	})
 
 	return f

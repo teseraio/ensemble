@@ -24,16 +24,17 @@ type K8sArtifactsCommand struct {
 func (k *K8sArtifactsCommand) Help() string {
 	return `Usage: ensemble k8s artifacts <options>
 
-  $ ensemble k8s artifacts --crd
+  Display the YAML artifacts to deploy Ensemble.
 
-  $ ensemble k8s artifacts --service
+  Print only the CRD files:
+
+    $ ensemble k8s artifacts --crd
+
+  Print the service object to deploy the operator on Kubernetes:
+
+    $ ensemble k8s artifacts --service
 
 ` + k.Flags().Help()
-}
-
-// Synopsis implements the cli.Command interface
-func (k *K8sArtifactsCommand) Synopsis() string {
-	return ""
 }
 
 func (c *K8sArtifactsCommand) Flags() *flagset.Flagset {
@@ -58,6 +59,11 @@ func (c *K8sArtifactsCommand) Flags() *flagset.Flagset {
 	})
 
 	return f
+}
+
+// Synopsis implements the cli.Command interface
+func (k *K8sArtifactsCommand) Synopsis() string {
+	return "Display the YAML artifacts to deploy Ensemble"
 }
 
 // Run implements the cli.Command interface
