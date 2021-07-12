@@ -1,7 +1,6 @@
 package command
 
 import (
-	"flag"
 	"fmt"
 	"os"
 
@@ -63,7 +62,7 @@ func Commands() map[string]cli.CommandFactory {
 		},
 		"k8s init": func() (cli.Command, error) {
 			return &K8sInitCommand{
-				Meta: meta,
+				UI: ui,
 			}, nil
 		},
 		"k8s artifacts": func() (cli.Command, error) {
@@ -89,13 +88,6 @@ func (m *Meta) NewFlagSet(n string) *flagset.Flagset {
 		Usage: "Path of the file to apply",
 	})
 
-	return f
-}
-
-// FlagSet adds some default commands to handle grpc connections with the server
-func (m *Meta) FlagSet(n string) *flag.FlagSet {
-	f := flag.NewFlagSet(n, flag.ContinueOnError)
-	f.StringVar(&m.addr, "address", "127.0.0.1:6001", "Address of the http api")
 	return f
 }
 

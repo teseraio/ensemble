@@ -77,3 +77,18 @@ func (f *Flagset) StringFlag(b *StringFlag) {
 	})
 	f.set.StringVar(b.Value, b.Name, b.Default, "")
 }
+
+type IntFlag struct {
+	Name    string
+	Usage   string
+	Default int
+	Value   *int
+}
+
+func (f *Flagset) IntFlag(i *IntFlag) {
+	f.addFlag(&FlagVar{
+		Name:  i.Name,
+		Usage: i.Usage,
+	})
+	f.set.IntVar(i.Value, i.Name, i.Default, "")
+}
