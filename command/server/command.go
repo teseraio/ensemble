@@ -68,20 +68,7 @@ func (c *Command) Synopsis() string {
 
 // Run implements the cli.Command interface
 func (c *Command) Run(args []string) int {
-	//var debug bool
-	//var logLevel, boltdbPath string
-
 	flags := c.Flags()
-
-	/*
-		flags := flag.NewFlagSet("operator", flag.ContinueOnError)
-		flags.Usage = func() {}
-
-		flags.BoolVar(&debug, "debug", false, "")
-		flags.StringVar(&logLevel, "log-level", "", "")
-		flags.StringVar(&boltdbPath, "boltdb", "test.db", "")
-	*/
-
 	if err := flags.Parse(args); err != nil {
 		c.UI.Error(err.Error())
 		return 1
