@@ -3,6 +3,7 @@ module github.com/teseraio/ensemble
 go 1.15
 
 require (
+	github.com/ClickHouse/clickhouse-go v1.4.5
 	github.com/Microsoft/go-winio v0.4.14 // indirect
 	github.com/boltdb/bolt v1.3.1
 	github.com/docker/distribution v2.7.1+incompatible // indirect

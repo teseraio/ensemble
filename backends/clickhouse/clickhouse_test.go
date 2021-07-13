@@ -3,7 +3,9 @@ package clickhouse
 import (
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/teseraio/ensemble/backends/zookeeper"
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/schema"
@@ -47,24 +49,37 @@ func TestE2E(t *testing.T) {
 
 	srv.WaitForTask(uuid)
 
-	fmt.Println("___ UPDATE ____")
+	fmt.Println("_ DONE _")
+	time.Sleep(1 * time.Second)
 
-	uuid = srv.Apply(&proto.Component{
-		Name: "AB",
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-			Backend: "Clickhouse",
-			Groups: []*proto.ClusterSpec_Group{
-				{
-					Count: 4,
-					Params: schema.MapToSpec(
-						map[string]interface{}{
-							"zookeeper": "zk1",
-						},
-					),
+	dep := srv.GetDeployment("AB")
+	fmt.Println(dep.Instances[0].Name)
+
+	assert.NoError(t, srv.Remove(dep.Instances[0].Handler))
+
+	time.Sleep(10 * time.Second)
+
+	// remove one node
+	/*
+		fmt.Println("___ UPDATE ____")
+
+		uuid = srv.Apply(&proto.Component{
+			Name: "AB",
+			Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+				Backend: "Clickhouse",
+				Groups: []*proto.ClusterSpec_Group{
+					{
+						Count: 4,
+						Params: schema.MapToSpec(
+							map[string]interface{}{
+								"zookeeper": "zk1",
+							},
+						),
+					},
 				},
-			},
-		}),
-	})
+			}),
+		})
 
-	srv.WaitForTask(uuid)
+		srv.WaitForTask(uuid)
+	*/
 }

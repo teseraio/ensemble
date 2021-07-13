@@ -3,7 +3,6 @@ package operator
 import (
 	"fmt"
 
-	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/schema"
 )
 
@@ -21,14 +20,14 @@ type Provider interface {
 	// Start starts the provider
 	Start() error
 
-	// CreateResource creates the computational resource
-	CreateResource(*proto.Instance) (*proto.Instance, error)
+	// CreateResource creates the computational resource // REMOVE
+	// CreateResource(*proto.Instance) (*proto.Instance, error)
 
-	// DeleteResource deletes the computational resource
-	DeleteResource(*proto.Instance) (*proto.Instance, error)
+	// DeleteResource deletes the computational resource // REMOVE
+	// DeleteResource(*proto.Instance) (*proto.Instance, error)
 
-	// WatchUpdates watches for updates from nodes
-	WatchUpdates() chan *proto.InstanceUpdate
+	// WatchUpdates watches for updates from nodes // REMOVE
+	// WatchUpdates() chan *proto.InstanceUpdate
 
 	// Exec executes a shell script
 	Exec(handler string, path string, args ...string) (string, error)

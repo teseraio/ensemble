@@ -338,6 +338,8 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 	// remove the reschedule nodes if we are stopping any
 	reschedule = reschedule.difference(stop)
 	for _, i := range reschedule {
+		r.res.out = append(r.res.out, i)
+
 		r.res.place = append(r.res.place, instancePlaceResult{
 			instance:   i,
 			reschedule: true,

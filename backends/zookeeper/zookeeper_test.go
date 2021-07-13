@@ -99,7 +99,7 @@ func TestBootstrap(t *testing.T) {
 }
 
 func TestE2E(t *testing.T) {
-	testutil.IsE2EEnabled(t)
+	// testutil.IsE2EEnabled(t)
 
 	srv := testutil.TestOperator(t, Factory)
 	// defer srv.Close()
@@ -123,23 +123,24 @@ func TestE2E(t *testing.T) {
 
 	srv.WaitForTask(uuid)
 
-	uuid = srv.Apply(&proto.Component{
-		Name: "A",
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-			Backend: "Zookeeper",
-			Groups: []*proto.ClusterSpec_Group{
-				{
-					Count: 3,
-					Params: schema.MapToSpec(
-						map[string]interface{}{
-							"tickTime": "3000",
-						},
-					),
+	/*
+		uuid = srv.Apply(&proto.Component{
+			Name: "A",
+			Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+				Backend: "Zookeeper",
+				Groups: []*proto.ClusterSpec_Group{
+					{
+						Count: 3,
+						Params: schema.MapToSpec(
+							map[string]interface{}{
+								"tickTime": "3000",
+							},
+						),
+					},
 				},
-			},
-		}),
-	})
+			}),
+		})
 
-	srv.WaitForTask(uuid)
-
+		srv.WaitForTask(uuid)
+	*/
 }

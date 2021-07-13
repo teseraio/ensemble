@@ -24,6 +24,44 @@ message GetDeploymentReq {
     string cluster = 1;
 }
 
+// BackendService is used by Provider and Backends to interact with the operator
+// an an extension of the scheduler
+service BackendService {
+    rpc UpsertInstance(UpsertInstanceReq) returns (UpsertInstanceResp);
+    rpc GetInstance(GetInstanceReq) returns (GetInstanceResp);
+    rpc GetInstanceUpdates(google.protobuf.Empty) returns (stream GetInstanceUpdatesResp);
+    rpc GetDeploymentByID(GetDeploymentByIDReq) returns (GetDeploymentByIDResp);
+}
+
+message GetDeploymentByIDReq {
+    string id = 1;
+}
+
+message GetDeploymentByIDResp {
+    Deployment deployment = 1;
+}
+
+message UpsertInstanceReq {
+    Instance instance = 1;
+}
+
+message UpsertInstanceResp {
+}
+
+message GetInstanceReq {
+    string id = 1;
+    string cluster = 2;
+}
+
+message GetInstanceResp {
+    Instance instance = 1;
+}
+
+message GetInstanceUpdatesResp {
+    string id = 1;
+    string cluster = 2;
+}
+
 // Task is a task received from the state
 message Task {
     // Name of the cluster
@@ -301,6 +339,8 @@ message Evaluation {
     
     string componentID = 7;
 
+    string other = 8;
+    
     enum Status {
         PENDING   = 0;
         COMPLETE  = 1;

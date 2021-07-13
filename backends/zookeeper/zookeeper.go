@@ -23,6 +23,10 @@ func Factory() operator.Handler {
 	return b
 }
 
+func (b *backend) Setup2() {
+	fmt.Println("_ SETUP _")
+}
+
 func (b *backend) Hooks() []operator.Hook {
 	return []operator.Hook{}
 }
@@ -58,6 +62,7 @@ func (b *backend) Initialize(nodes []*proto.Instance, target *proto.Instance) (*
 		}
 	}
 
+	//target.Healthy = true
 	target.Spec.AddEnv("ZOO_SERVERS", strings.Join(res, " "))
 	return nil, nil
 }

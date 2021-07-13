@@ -44,8 +44,9 @@ type Server struct {
 	grpcServer *grpc.Server
 	stopCh     chan struct{}
 
-	evalQueue *evalQueue
+	evalQueue *EvalQueue
 	service   proto.EnsembleServiceServer
+	bservice  *backendService
 }
 
 // NewServer starts an instance of the operator server
@@ -57,8 +58,10 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		State:     config.State,
 		stopCh:    make(chan struct{}),
 		handlers:  map[string]Handler{},
-		evalQueue: newEvalQueue(),
+		evalQueue: NewEvalQueue(),
 	}
+
+	s.bservice = &backendService{srv: s}
 
 	for _, factory := range config.HandlerFactories {
 		handler := factory()
@@ -69,6 +72,7 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 
 	s.grpcServer = grpc.NewServer(s.withLoggingUnaryInterceptor())
 	proto.RegisterEnsembleServiceServer(s.grpcServer, s.service)
+	proto.RegisterBackendServiceServer(s.grpcServer, s.bservice)
 
 	// grpc address
 	if err := s.setupGRPCServer(s.config.GRPCAddr.String()); err != nil {
@@ -76,11 +80,12 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	}
 
 	// setup the node watcher in the provider
-	go s.startWatcher(s.Provider)
+	// go s.startWatcher(s.Provider)
 
 	// setup watcher for the different backends
 	for _, i := range s.handlers {
 		go s.startWatcher(i)
+		i.Setup()
 	}
 
 	s.logger.Info("Start provider")
@@ -90,6 +95,8 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 
 	go s.taskQueue4()
 	go s.taskQueue5()
+
+	go s.instanceWatcher()
 
 	return s, nil
 }
@@ -106,27 +113,31 @@ func (s *Server) loggingServerInterceptor(ctx context.Context, req interface{}, 
 }
 
 func (s *Server) upsertNode(i *proto.Instance) error {
-	i = i.Copy()
-	if err := s.State.UpsertNode(i); err != nil {
-		return err
-	}
+	fmt.Printf("Upsert node: %s\n", i.ID)
 
-	depID, err := s.State.NameToDeployment(i.ClusterName)
-	if err != nil {
-		return err
-	}
-	// TODO: Aggregate this in the same function or provide it from
-	// the caller function as a context
-	dep, err := s.LoadDeployment(depID)
-	if err != nil {
-		return err
-	}
-	handler, err := s.GetHandler(dep.Backend)
-	if err != nil {
-		return err
-	}
+	_, err := s.bservice.UpsertInstance(context.Background(), &proto.UpsertInstanceReq{
+		Instance: i,
+	})
+	return err
 
-	handler.ApplyHook(ApplyHookRequest{Instance: i, Deployment: dep})
+	/*
+		depID, err := s.State.NameToDeployment(i.ClusterName)
+		if err != nil {
+			return err
+		}
+		// TODO: Aggregate this in the same function or provide it from
+		// the caller function as a context
+		dep, err := s.LoadDeployment(depID)
+		if err != nil {
+			return err
+		}
+		handler, err := s.GetHandler(dep.Backend)
+		if err != nil {
+			return err
+		}
+
+		handler.ApplyHook(ApplyHookRequest{Instance: i, Deployment: dep})
+	*/
 	return nil
 }
 
@@ -141,7 +152,7 @@ func (s *Server) upsertNodeAndEval(deploymentID string, i *proto.Instance) error
 		DeploymentID: deploymentID,
 		Type:         proto.EvaluationTypeCluster,
 	}
-	s.evalQueue.add(eval)
+	s.evalQueue.Add(eval)
 	return nil
 }
 
@@ -193,20 +204,23 @@ type Watcher interface {
 }
 
 func (s *Server) startWatcher(w Watcher) {
-	watchCh := w.WatchUpdates()
-	for {
-		select {
-		case op := <-watchCh:
-			go func() {
-				if err := s.updateStatus(op); err != nil {
-					panic(err)
-				}
-			}()
+	w.WatchUpdates()
 
-		case <-s.stopCh:
-			return
+	/*
+		for {
+			select {
+			case op := <-watchCh:
+				go func() {
+					if err := s.updateStatus(op); err != nil {
+						panic(err)
+					}
+				}()
+
+			case <-s.stopCh:
+				return
+			}
 		}
-	}
+	*/
 }
 
 func (s *Server) setupGRPCServer(addr string) error {
@@ -280,7 +294,7 @@ func (s *Server) handleResource(task *proto.Task, dep *proto.Deployment, cluster
 	}
 
 	// create a specChange evaluation
-	s.evalQueue.add(&proto.Evaluation{
+	s.evalQueue.Add(&proto.Evaluation{
 		Id:           uuid.UUID(),
 		Status:       proto.Evaluation_PENDING,
 		TriggeredBy:  proto.Evaluation_SPECCHANGE,
@@ -322,7 +336,7 @@ func (s *Server) handleCluster(task *proto.Task, dep *proto.Deployment, comp *pr
 	}
 
 	// create a specChange evaluation
-	s.evalQueue.add(&proto.Evaluation{
+	s.evalQueue.Add(&proto.Evaluation{
 		Id:           uuid.UUID(),
 		Status:       proto.Evaluation_PENDING,
 		TriggeredBy:  proto.Evaluation_SPECCHANGE,
@@ -363,7 +377,7 @@ func (s *Server) taskQueue4() {
 	s.logger.Info("Starting evaluation worker")
 
 	for {
-		eval := s.evalQueue.pop(context.Background())
+		eval := s.evalQueue.Pop(context.Background())
 		if eval == nil {
 			return
 		}
@@ -381,14 +395,44 @@ func (s *Server) taskQueue4() {
 		}
 
 		s.logger.Trace("finalize eval", "id", eval.Id)
-		s.evalQueue.finalize(eval.Id)
+		s.evalQueue.Finalize(eval.Id)
+	}
+}
+
+func (s *Server) instanceWatcher() {
+	fmt.Println("INSTANCE WATCHER START")
+
+	stream := s.bservice.createWatcher()
+	for {
+		msg := <-stream
+		fmt.Println("__ INSTANCE WATCHER __")
+		fmt.Println(msg)
+
+		resp, err := s.bservice.GetInstance(context.Background(), &proto.GetInstanceReq{Cluster: msg.Cluster, Id: msg.Id})
+		if err != nil {
+			panic(err)
+		}
+		if resp.Instance.Status == proto.Instance_RUNNING || resp.Instance.Status == proto.Instance_FAILED {
+			// add eval
+			fmt.Println("_ ADD EVAL _")
+			eval := &proto.Evaluation{
+				Id:           uuid.UUID(),
+				Status:       proto.Evaluation_PENDING,
+				TriggeredBy:  proto.Evaluation_NODECHANGE,
+				DeploymentID: msg.Cluster, // this is the deployment
+				Type:         proto.EvaluationTypeCluster,
+			}
+			s.evalQueue.Add(eval)
+		}
 	}
 }
 
 func (s *Server) SubmitPlan(eval *proto.Evaluation, p *proto.Plan) error {
+	fmt.Println("_ submit plan _")
+
 	// update the state
 	for _, i := range p.NodeUpdate {
-		fmt.Println(i.DeploymentID)
+		fmt.Println("Update node", i.ID, i.Status)
 
 		if err := s.upsertNode(i); err != nil {
 			return err
@@ -415,26 +459,31 @@ func (s *Server) SubmitPlan(eval *proto.Evaluation, p *proto.Plan) error {
 		}
 	}
 
-	// send the instances for update
-	for _, i := range p.NodeUpdate {
-		// create the instance
-		if i.Status == proto.Instance_OUT {
-			// instance is out
-		} else {
-			// Provider updates concurrently
-			go func(i *proto.Instance) {
-				if i.Status == proto.Instance_TAINTED {
-					if _, err := s.Provider.DeleteResource(i); err != nil {
-						panic(err)
+	fmt.Println(p.Done)
+	fmt.Println("- done -")
+
+	/*
+		// send the instances for update
+		for _, i := range p.NodeUpdate {
+			// create the instance
+			if i.Status == proto.Instance_OUT {
+				// instance is out
+			} else {
+				// Provider updates concurrently
+				go func(i *proto.Instance) {
+					if i.Status == proto.Instance_TAINTED {
+						if _, err := s.Provider.DeleteResource(i); err != nil {
+							panic(err)
+						}
+					} else if i.Status == proto.Instance_PENDING {
+						if _, err := s.Provider.CreateResource(i); err != nil {
+							panic(err)
+						}
 					}
-				} else if i.Status == proto.Instance_PENDING {
-					if _, err := s.Provider.CreateResource(i); err != nil {
-						panic(err)
-					}
-				}
-			}(i)
+				}(i)
+			}
 		}
-	}
+	*/
 
 	return nil
 }

@@ -1,10 +1,13 @@
 package operator
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/schema"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // HandlerFactory is a factory for Handlers
@@ -14,10 +17,14 @@ type Handler2 interface {
 	Spec() *Spec
 	Initialize(n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error)
 	Client(node *proto.Instance) (interface{}, error)
-	Hooks() []Hook
+	Setup2()
+	// Hooks() []Hook
 }
 
 type nullHandler struct {
+}
+
+func (n *nullHandler) Setup() {
 }
 
 func (n *nullHandler) Name() string {
@@ -52,8 +59,10 @@ type Handler interface {
 	// Name returns the name of the handler (TODO. it can be removed later)
 	Name() string
 
+	Setup()
+
 	// ApplyHook sends a request for an async hook
-	ApplyHook(ApplyHookRequest)
+	// ApplyHook(ApplyHookRequest)
 
 	// Evaluate evaluates a component schema
 	Evaluate(comp *proto.Component) (*proto.Component, error)
@@ -145,18 +154,75 @@ type Resource interface {
 
 type BaseOperator struct {
 	handler Handler2
-	ch      chan *proto.InstanceUpdate
+	// ch        chan *proto.InstanceUpdate
+	evalQueue     *EvalQueue
+	backendClient proto.BackendServiceClient
+	ihandler      func(i *proto.Instance)
+}
+
+func (b *BaseOperator) BClient() proto.BackendServiceClient {
+	return b.backendClient
+}
+
+func (b *BaseOperator) Queue() *EvalQueue {
+	return b.evalQueue
+}
+
+func (b *BaseOperator) Setup() {
+	b.handler.Setup2()
 }
 
 func (b *BaseOperator) SetHandler(h Handler2) {
 	b.handler = h
+	b.evalQueue = NewEvalQueue()
+}
+
+func (b *BaseOperator) run() {
+	stream, err := b.backendClient.GetInstanceUpdates(context.Background(), &emptypb.Empty{})
+	if err != nil {
+		panic(err)
+	}
+	for {
+		msg, err := stream.Recv()
+		if err != nil {
+			panic(err)
+		}
+		ii, err := b.backendClient.GetInstance(context.Background(), &proto.GetInstanceReq{Id: msg.Id, Cluster: msg.Cluster})
+		if err != nil {
+			panic(err)
+		}
+		instance := ii.Instance
+		if b.ihandler != nil {
+			b.ihandler(instance)
+		}
+	}
+}
+
+func (b *BaseOperator) InstanceUpdate(handler func(i *proto.Instance)) {
+	b.ihandler = handler
 }
 
 func (b *BaseOperator) WatchUpdates() chan *proto.InstanceUpdate {
-	if b.ch == nil {
-		b.ch = make(chan *proto.InstanceUpdate, 10)
+	conn, err := grpc.Dial("127.0.0.1:6001", grpc.WithInsecure())
+	if err != nil {
+		panic(err)
 	}
-	return b.ch
+
+	clt := proto.NewBackendServiceClient(conn)
+	fmt.Println("-- clt --")
+	fmt.Println(clt)
+
+	b.backendClient = clt
+
+	go b.run()
+
+	/*
+		if b.ch == nil {
+			b.ch = make(chan *proto.InstanceUpdate, 10)
+		}
+		return b.ch
+	*/
+	return nil
 }
 
 func (b *BaseOperator) Evaluate(comp *proto.Component) (*proto.Component, error) {
@@ -168,32 +234,34 @@ func (b *BaseOperator) Evaluate(comp *proto.Component) (*proto.Component, error)
 }
 
 func (b *BaseOperator) ApplyHook(req ApplyHookRequest) {
-	emit := func(i *proto.InstanceUpdate) {
-		b.ch <- i
-	}
-
-	// check all the hooks
-	done := false
-	for _, h := range b.handler.Hooks() {
-		if h.State == req.Instance.Status {
-			done = true
-			go func() {
-				if err := h.Handler(emit, req); err != nil {
-					// TODO: logger in backends
-					fmt.Printf("Err: %v\n", err)
-				}
-			}()
+	/*
+		emit := func(i *proto.InstanceUpdate) {
+			b.ch <- i
 		}
-	}
 
-	if !done {
-		// default readiness hook if none is provided
-		if req.Instance.Status == proto.Instance_RUNNING && !req.Instance.Healthy {
-			emit(req.Instance.Update(&proto.InstanceUpdate_Healthy_{
-				Healthy: &proto.InstanceUpdate_Healthy{},
-			}))
+		// check all the hooks
+		done := false
+		for _, h := range b.handler.Hooks() {
+			if h.State == req.Instance.Status {
+				done = true
+				go func() {
+					if err := h.Handler(emit, req); err != nil {
+						// TODO: logger in backends
+						fmt.Printf("Err: %v\n", err)
+					}
+				}()
+			}
 		}
-	}
+
+		if !done {
+			// default readiness hook if none is provided
+			if req.Instance.Status == proto.Instance_RUNNING && !req.Instance.Healthy {
+				emit(req.Instance.Update(&proto.InstanceUpdate_Healthy_{
+					Healthy: &proto.InstanceUpdate_Healthy{},
+				}))
+			}
+		}
+	*/
 }
 
 func (b *BaseOperator) GetSchemas() GetSchemasResponse {

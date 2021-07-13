@@ -172,3 +172,225 @@ var EnsembleService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "operator/proto/structs.proto",
 }
+
+// BackendServiceClient is the client API for BackendService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type BackendServiceClient interface {
+	UpsertInstance(ctx context.Context, in *UpsertInstanceReq, opts ...grpc.CallOption) (*UpsertInstanceResp, error)
+	GetInstance(ctx context.Context, in *GetInstanceReq, opts ...grpc.CallOption) (*GetInstanceResp, error)
+	GetInstanceUpdates(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (BackendService_GetInstanceUpdatesClient, error)
+	GetDeploymentByID(ctx context.Context, in *GetDeploymentByIDReq, opts ...grpc.CallOption) (*GetDeploymentByIDResp, error)
+}
+
+type backendServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewBackendServiceClient(cc grpc.ClientConnInterface) BackendServiceClient {
+	return &backendServiceClient{cc}
+}
+
+func (c *backendServiceClient) UpsertInstance(ctx context.Context, in *UpsertInstanceReq, opts ...grpc.CallOption) (*UpsertInstanceResp, error) {
+	out := new(UpsertInstanceResp)
+	err := c.cc.Invoke(ctx, "/proto.BackendService/UpsertInstance", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *backendServiceClient) GetInstance(ctx context.Context, in *GetInstanceReq, opts ...grpc.CallOption) (*GetInstanceResp, error) {
+	out := new(GetInstanceResp)
+	err := c.cc.Invoke(ctx, "/proto.BackendService/GetInstance", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *backendServiceClient) GetInstanceUpdates(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (BackendService_GetInstanceUpdatesClient, error) {
+	stream, err := c.cc.NewStream(ctx, &BackendService_ServiceDesc.Streams[0], "/proto.BackendService/GetInstanceUpdates", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &backendServiceGetInstanceUpdatesClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type BackendService_GetInstanceUpdatesClient interface {
+	Recv() (*GetInstanceUpdatesResp, error)
+	grpc.ClientStream
+}
+
+type backendServiceGetInstanceUpdatesClient struct {
+	grpc.ClientStream
+}
+
+func (x *backendServiceGetInstanceUpdatesClient) Recv() (*GetInstanceUpdatesResp, error) {
+	m := new(GetInstanceUpdatesResp)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *backendServiceClient) GetDeploymentByID(ctx context.Context, in *GetDeploymentByIDReq, opts ...grpc.CallOption) (*GetDeploymentByIDResp, error) {
+	out := new(GetDeploymentByIDResp)
+	err := c.cc.Invoke(ctx, "/proto.BackendService/GetDeploymentByID", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// BackendServiceServer is the server API for BackendService service.
+// All implementations must embed UnimplementedBackendServiceServer
+// for forward compatibility
+type BackendServiceServer interface {
+	UpsertInstance(context.Context, *UpsertInstanceReq) (*UpsertInstanceResp, error)
+	GetInstance(context.Context, *GetInstanceReq) (*GetInstanceResp, error)
+	GetInstanceUpdates(*empty.Empty, BackendService_GetInstanceUpdatesServer) error
+	GetDeploymentByID(context.Context, *GetDeploymentByIDReq) (*GetDeploymentByIDResp, error)
+	mustEmbedUnimplementedBackendServiceServer()
+}
+
+// UnimplementedBackendServiceServer must be embedded to have forward compatible implementations.
+type UnimplementedBackendServiceServer struct {
+}
+
+func (UnimplementedBackendServiceServer) UpsertInstance(context.Context, *UpsertInstanceReq) (*UpsertInstanceResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertInstance not implemented")
+}
+func (UnimplementedBackendServiceServer) GetInstance(context.Context, *GetInstanceReq) (*GetInstanceResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInstance not implemented")
+}
+func (UnimplementedBackendServiceServer) GetInstanceUpdates(*empty.Empty, BackendService_GetInstanceUpdatesServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetInstanceUpdates not implemented")
+}
+func (UnimplementedBackendServiceServer) GetDeploymentByID(context.Context, *GetDeploymentByIDReq) (*GetDeploymentByIDResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetDeploymentByID not implemented")
+}
+func (UnimplementedBackendServiceServer) mustEmbedUnimplementedBackendServiceServer() {}
+
+// UnsafeBackendServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to BackendServiceServer will
+// result in compilation errors.
+type UnsafeBackendServiceServer interface {
+	mustEmbedUnimplementedBackendServiceServer()
+}
+
+func RegisterBackendServiceServer(s grpc.ServiceRegistrar, srv BackendServiceServer) {
+	s.RegisterService(&BackendService_ServiceDesc, srv)
+}
+
+func _BackendService_UpsertInstance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertInstanceReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackendServiceServer).UpsertInstance(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.BackendService/UpsertInstance",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackendServiceServer).UpsertInstance(ctx, req.(*UpsertInstanceReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BackendService_GetInstance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInstanceReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackendServiceServer).GetInstance(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.BackendService/GetInstance",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackendServiceServer).GetInstance(ctx, req.(*GetInstanceReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BackendService_GetInstanceUpdates_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(empty.Empty)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(BackendServiceServer).GetInstanceUpdates(m, &backendServiceGetInstanceUpdatesServer{stream})
+}
+
+type BackendService_GetInstanceUpdatesServer interface {
+	Send(*GetInstanceUpdatesResp) error
+	grpc.ServerStream
+}
+
+type backendServiceGetInstanceUpdatesServer struct {
+	grpc.ServerStream
+}
+
+func (x *backendServiceGetInstanceUpdatesServer) Send(m *GetInstanceUpdatesResp) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _BackendService_GetDeploymentByID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDeploymentByIDReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackendServiceServer).GetDeploymentByID(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.BackendService/GetDeploymentByID",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackendServiceServer).GetDeploymentByID(ctx, req.(*GetDeploymentByIDReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// BackendService_ServiceDesc is the grpc.ServiceDesc for BackendService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var BackendService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "proto.BackendService",
+	HandlerType: (*BackendServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "UpsertInstance",
+			Handler:    _BackendService_UpsertInstance_Handler,
+		},
+		{
+			MethodName: "GetInstance",
+			Handler:    _BackendService_GetInstance_Handler,
+		},
+		{
+			MethodName: "GetDeploymentByID",
+			Handler:    _BackendService_GetDeploymentByID_Handler,
+		},
+	},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "GetInstanceUpdates",
+			Handler:       _BackendService_GetInstanceUpdates_Handler,
+			ServerStreams: true,
+		},
+	},
+	Metadata: "operator/proto/structs.proto",
+}

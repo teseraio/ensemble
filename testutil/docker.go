@@ -19,9 +19,12 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/teseraio/ensemble/lib/mount"
+	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/schema"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 const networkName = "net1"
@@ -46,8 +49,10 @@ type Client struct {
 	workCh chan *proto.Instance
 
 	// TODO: Not here
-	volumes  map[string]string
-	updateCh chan *proto.InstanceUpdate
+	volumes       map[string]string
+	backendClient proto.BackendServiceClient
+
+	//updateCh chan *proto.InstanceUpdate
 }
 
 // NewClient creates a new docker Client
@@ -60,8 +65,8 @@ func NewDockerClient() (*Client, error) {
 		client:    cli,
 		resources: map[string]*resource{},
 		volumes:   map[string]string{},
-		updateCh:  make(chan *proto.InstanceUpdate),
-		workCh:    make(chan *proto.Instance, 5),
+		//updateCh:  make(chan *proto.InstanceUpdate),
+		workCh: make(chan *proto.Instance, 5),
 	}
 
 	// upsert internal docker network 'net1' required for DNS support
@@ -76,6 +81,8 @@ func NewDockerClient() (*Client, error) {
 	}
 
 	go clt.run()
+	go clt.runProvider()
+
 	return clt, nil
 }
 
@@ -97,11 +104,81 @@ func (c *Client) Remove(id string) error {
 	}
 	// do not remove the container name here but on the wait step because this part
 	// is async
+	// add a busybox image every time we delete something so that new instances
+	// do not repeat the same ip addresses. Important for clickhouse that requires
+	// a dns reset every time an item from the db gets removed.
+	if err := c.dummyContainer(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) dummyContainer() error {
+	config := &container.Config{
+		Image: "busybox",
+	}
+	netConfig := &network.NetworkingConfig{
+		EndpointsConfig: map[string]*network.EndpointSettings{
+			networkName: {},
+		},
+	}
+	ctx := context.Background()
+	body, err := c.client.ContainerCreate(ctx, config, &container.HostConfig{}, netConfig, uuid.UUID())
+	if err != nil {
+		return err
+	}
+	if err := c.client.ContainerStart(ctx, body.ID, types.ContainerStartOptions{}); err != nil {
+		return err
+	}
 	return nil
 }
 
 func (c *Client) WatchUpdates() chan *proto.InstanceUpdate {
-	return c.updateCh
+	return make(chan *proto.InstanceUpdate)
+}
+
+func (c *Client) runProvider() {
+
+	conn, err := grpc.Dial("127.0.0.1:6001", grpc.WithInsecure())
+	if err != nil {
+		panic(err)
+	}
+
+	clt := proto.NewBackendServiceClient(conn)
+	fmt.Println("-- clt --")
+	fmt.Println(clt)
+
+	c.backendClient = clt
+
+	go func() {
+		stream, err := clt.GetInstanceUpdates(context.Background(), &emptypb.Empty{})
+		if err != nil {
+			panic(err)
+		}
+		for {
+			msg, err := stream.Recv()
+			if err != nil {
+				panic(err)
+			}
+			ii, err := clt.GetInstance(context.Background(), &proto.GetInstanceReq{Id: msg.Id, Cluster: msg.Cluster})
+			if err != nil {
+				panic(err)
+			}
+			instance := ii.Instance
+
+			if instance.Status == proto.Instance_PENDING {
+				fmt.Println("_ RUN PROVIDER _", ii.Instance.ID, ii.Instance.Name, ii.Instance.Status)
+				// we can work on this
+				bodyID, err := c.createImpl(context.Background(), instance)
+				if err != nil {
+					panic(err)
+				}
+				fmt.Println("-- body id --")
+				fmt.Println(bodyID)
+
+			}
+		}
+	}()
 }
 
 // PullImage pulls a docker image
@@ -135,6 +212,8 @@ func (c *Client) PullImage(ctx context.Context, image string) error {
 }
 
 func (c *Client) Clean() {
+	panic("CLEAN")
+
 	for _, res := range c.resources {
 		if err := c.client.ContainerStop(context.Background(), res.handle, nil); err != nil {
 			panic(err)
@@ -175,18 +254,27 @@ func (c *Client) run() {
 	}
 }
 
+func (c *Client) updateInstance(i *proto.Instance) error {
+	_, err := c.backendClient.UpsertInstance(context.Background(), &proto.UpsertInstanceReq{
+		Instance: i.Copy(),
+	})
+	return err
+}
+
 // Create creates a docker container
 func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, error) {
 	c.resourcesLock.Lock()
 	defer c.resourcesLock.Unlock()
 
-	c.updateCh <- &proto.InstanceUpdate{
-		ID:          node.ID,
-		ClusterName: node.ClusterName,
-		Event: &proto.InstanceUpdate_Scheduled_{
-			Scheduled: &proto.InstanceUpdate_Scheduled{},
-		},
-	}
+	/*
+		c.updateCh <- &proto.InstanceUpdate{
+			ID:          node.ID,
+			ClusterName: node.ClusterName,
+			Event: &proto.InstanceUpdate_Scheduled_{
+				Scheduled: &proto.InstanceUpdate_Scheduled{},
+			},
+		}
+	*/
 
 	// We will use the 'net1' network interface for dns resolving
 	builder := node.Spec
@@ -318,29 +406,64 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 			panic(err)
 		}
 
-		c.resources[node.ID].active = false
-		c.updateCh <- &proto.InstanceUpdate{
-			ID:          node.ID,
-			ClusterName: node.ClusterName,
-			Event: &proto.InstanceUpdate_Killing_{
-				Killing: &proto.InstanceUpdate_Killing{},
-			},
+		// c.resources[node.ID].active = false
+
+		// panic("bad")
+
+		resp, err := c.backendClient.GetInstance(context.Background(), &proto.GetInstanceReq{Cluster: node.DeploymentID, Id: node.ID})
+		if err != nil {
+			panic(err)
 		}
+		// we need all the data stored here so we need to get the instance from db
+		ii := resp.Instance.Copy()
+		ii.Status = proto.Instance_FAILED
+
+		_, err = c.backendClient.UpsertInstance(context.Background(), &proto.UpsertInstanceReq{Instance: ii})
+		if err != nil {
+			panic(err)
+		}
+
+		/*
+			c.updateCh <- &proto.InstanceUpdate{
+				ID:          node.ID,
+				ClusterName: node.ClusterName,
+				Event: &proto.InstanceUpdate_Killing_{
+					Killing: &proto.InstanceUpdate_Killing{},
+				},
+			}
+		*/
+
 	}()
 
 	ip := c.GetIP(body.ID)
 
-	c.resources[node.ID].instance.Ip = ip
-	c.updateCh <- &proto.InstanceUpdate{
-		ID:          node.ID,
-		ClusterName: node.ClusterName,
-		Event: &proto.InstanceUpdate_Running_{
-			Running: &proto.InstanceUpdate_Running{
-				Ip:      ip,
-				Handler: body.ID,
-			},
-		},
+	nn := node.Copy()
+	nn.Ip = ip
+	nn.Handler = body.ID
+	nn.Status = proto.Instance_RUNNING
+	nn.Healthy = true
+
+	fmt.Printf("IP: %s %s\n", nn.Name, ip)
+
+	if err := c.updateInstance(nn); err != nil {
+		panic(err)
 	}
+
+	c.resources[node.ID].instance.Ip = ip
+
+	/*
+		c.updateCh <- &proto.InstanceUpdate{
+			ID:          node.ID,
+			ClusterName: node.ClusterName,
+			Event: &proto.InstanceUpdate_Running_{
+				Running: &proto.InstanceUpdate_Running{
+					Ip:      ip,
+					Handler: body.ID,
+				},
+			},
+		}
+	*/
+
 	return body.ID, nil
 }
 

@@ -9,7 +9,7 @@ import (
 	"github.com/teseraio/ensemble/operator/proto"
 )
 
-type evalQueue struct {
+type EvalQueue struct {
 	heap     taskQueueImpl
 	lock     sync.Mutex
 	items    map[string]*evalTask
@@ -17,8 +17,8 @@ type evalQueue struct {
 	pending  map[string][]*proto.Evaluation
 }
 
-func newEvalQueue() *evalQueue {
-	return &evalQueue{
+func NewEvalQueue() *EvalQueue {
+	return &EvalQueue{
 		heap:     taskQueueImpl{},
 		items:    map[string]*evalTask{},
 		updateCh: make(chan struct{}),
@@ -26,7 +26,7 @@ func newEvalQueue() *evalQueue {
 	}
 }
 
-func (e *evalQueue) add(eval *proto.Evaluation) {
+func (e *EvalQueue) Add(eval *proto.Evaluation) {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
@@ -50,7 +50,7 @@ func (e *evalQueue) add(eval *proto.Evaluation) {
 	}
 }
 
-func (e *evalQueue) addImpl(eval *proto.Evaluation) {
+func (e *EvalQueue) addImpl(eval *proto.Evaluation) {
 	tt := &evalTask{
 		eval:      eval,
 		timestamp: time.Now(),
@@ -66,7 +66,7 @@ func (e *evalQueue) addImpl(eval *proto.Evaluation) {
 	}
 }
 
-func (e *evalQueue) popImpl() *proto.Evaluation {
+func (e *EvalQueue) popImpl() *proto.Evaluation {
 	e.lock.Lock()
 	if len(e.heap) != 0 && e.heap[0].ready {
 		// pop the first value and remove it from the heap
@@ -81,7 +81,7 @@ func (e *evalQueue) popImpl() *proto.Evaluation {
 	return nil
 }
 
-func (e *evalQueue) pop(ctx context.Context) *proto.Evaluation {
+func (e *EvalQueue) Pop(ctx context.Context) *proto.Evaluation {
 POP:
 	tt := e.popImpl()
 	if tt != nil {
@@ -96,7 +96,7 @@ POP:
 	}
 }
 
-func (e *evalQueue) finalize(id string) bool {
+func (e *EvalQueue) Finalize(id string) bool {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 

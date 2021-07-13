@@ -32,6 +32,28 @@ type TestServer struct {
 	clt    proto.EnsembleServiceClient
 }
 
+func (t *TestServer) GetDeployment(name string) *proto.Deployment {
+	deps, err := t.state.ListDeployments()
+	if err != nil {
+		t.t.Fatal(err)
+	}
+	for _, dep := range deps {
+		if dep.Name == name {
+			d, err := t.state.LoadDeployment(dep.Id)
+			if err != nil {
+				t.t.Fatal(err)
+			}
+			return d
+		}
+	}
+	t.t.Fatal("deployment not found")
+	return nil
+}
+
+func (t *TestServer) Remove(id string) error {
+	return t.docker.Remove(id)
+}
+
 func (t *TestServer) Apply(c *proto.Component) string {
 	cc, err := t.clt.Apply(context.Background(), c)
 	if err != nil {

@@ -1,35 +1,33 @@
 package testutil
 
 import (
-	"strings"
 	"testing"
-	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator"
-	"github.com/teseraio/ensemble/operator/proto"
 )
 
 // testing suite for the Provider
 func TestProvider(t *testing.T, p operator.Provider) {
-	t.Run("TestPodLifecycle", func(t *testing.T) {
-		TestPodLifecycle(t, p)
-	})
-	t.Run("TestDNS", func(t *testing.T) {
-		TestDNS(t, p)
-	})
-	t.Run("TestPodMount", func(t *testing.T) {
-		TestPodMount(t, p)
-	})
-	t.Run("TestPodFiles", func(t *testing.T) {
-		TestPodFiles(t, p)
-	})
+	/*
+		t.Run("TestPodLifecycle", func(t *testing.T) {
+			TestPodLifecycle(t, p)
+		})
+		t.Run("TestDNS", func(t *testing.T) {
+			TestDNS(t, p)
+		})
+		t.Run("TestPodMount", func(t *testing.T) {
+			TestPodMount(t, p)
+		})
+		t.Run("TestPodFiles", func(t *testing.T) {
+			TestPodFiles(t, p)
+		})
+	*/
 	// TODO
 	//TestPodBarArgs(t, p)
 	//TestPodJobFailed(t, p)
 }
 
+/*
 func readEvent(p operator.Provider, t *testing.T) *proto.InstanceUpdate {
 	select {
 	case evnt := <-p.WatchUpdates():
@@ -306,3 +304,4 @@ func TestDNS(t *testing.T, p operator.Provider) {
 	_, err = p.Exec(source.ID, "curl", "--fail", "--silent", "--show-error", target.Name+".c12")
 	assert.Error(t, err)
 }
+*/

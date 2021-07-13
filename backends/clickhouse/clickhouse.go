@@ -3,6 +3,10 @@ package clickhouse
 import (
 	"fmt"
 
+	"database/sql"
+
+	_ "github.com/ClickHouse/clickhouse-go"
+
 	gproto "github.com/golang/protobuf/proto"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
@@ -66,10 +70,87 @@ func (b *backend) Initialize(nodes []*proto.Instance, target *proto.Instance) (*
 		panic(err)
 	}
 
+	//
+	//target.Healthy = true
+
 	target.Spec.AddFile("/etc/clickhouse-server/config.xml", string(res))
 	target.Spec.AddFile("/etc/clickhouse-server/users.xml", users)
 
 	return nil, nil
+}
+
+func (b *backend) Setup2() {
+	fmt.Println("_ SETUP _")
+
+	/*
+		queue := b.Queue()
+
+		b.InstanceUpdate(func(i *proto.Instance) {
+			if i.Status == proto.Instance_RUNNING {
+				if strings.Contains(i.Image, "clickhouse") {
+					queue.Add(&proto.Evaluation{
+						Id:           uuid.UUID(),
+						Type:         "A", /// TODO: So that it is not serialized
+						DeploymentID: i.DeploymentID,
+						ComponentID:  i.ID,
+					})
+				}
+			}
+		})
+
+		go func() {
+			for {
+				msg := queue.Pop(context.Background())
+				fmt.Println("-- msg --")
+				fmt.Println(msg)
+
+				if msg.Type == "A" {
+					resp2, err := b.BClient().GetDeploymentByID(context.Background(), &proto.GetDeploymentByIDReq{Id: msg.DeploymentID})
+					if err != nil {
+						panic(err)
+					}
+					running := 0
+					for _, i := range resp2.Deployment.Instances {
+						if i.Status == proto.Instance_RUNNING && i.Healthy {
+							running++
+						}
+					}
+					if running == len(resp2.Deployment.Instances) {
+						// send dns
+						time.Sleep(1 * time.Second) // give it some startup time
+
+						queue.Add(&proto.Evaluation{
+							Id:           uuid.UUID(),
+							Type:         "B",
+							DeploymentID: msg.DeploymentID,
+						})
+					}
+				} else if msg.Type == "B" {
+					resp2, err := b.BClient().GetDeploymentByID(context.Background(), &proto.GetDeploymentByIDReq{Id: msg.DeploymentID})
+					if err != nil {
+						panic(err)
+					}
+					fmt.Println("___XXXX___")
+					fmt.Println(len(resp2.Deployment.Instances))
+
+					for _, n := range resp2.Deployment.Instances {
+						fmt.Println("_ IP _" + n.Ip)
+
+						clt, err := b.Client(n)
+						if err != nil {
+							panic(err)
+						}
+						fmt.Println(clt)
+					}
+
+				} else {
+					panic("NOT DONE")
+				}
+
+				queue.Finalize(msg.Id)
+			}
+		}()
+	*/
 }
 
 // Spec implements the Handler interface
@@ -136,7 +217,22 @@ func (b *backend) Spec() *operator.Spec {
 
 // Client implements the Handler interface
 func (b *backend) Client(node *proto.Instance) (interface{}, error) {
-	return nil, nil
+	connect, err := sql.Open("clickhouse", "tcp://"+node.Ip+":9000?debug=true")
+	if err != nil {
+		return nil, err
+	}
+	if err := connect.Ping(); err != nil {
+		return nil, err
+	}
+	return &client{db: connect}, nil
+}
+
+type client struct {
+	db *sql.DB
+}
+
+func (c *client) ResetDNS() error {
+	return nil
 }
 
 const users = `<?xml version="1.0"?>

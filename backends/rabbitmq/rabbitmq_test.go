@@ -8,7 +8,7 @@ import (
 )
 
 func TestE2E(t *testing.T) {
-	testutil.IsE2EEnabled(t)
+	// testutil.IsE2EEnabled(t)
 
 	srv := testutil.TestOperator(t, Factory)
 	// defer srv.Close()
@@ -27,18 +27,20 @@ func TestE2E(t *testing.T) {
 
 	srv.WaitForTask(uuid)
 
-	// Scale up
-	uuid = srv.Apply(&proto.Component{
-		Name: "A",
-		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-			Backend: "Rabbitmq",
-			Groups: []*proto.ClusterSpec_Group{
-				{
-					Count: 4,
+	/*
+		// Scale up
+		uuid = srv.Apply(&proto.Component{
+			Name: "A",
+			Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+				Backend: "Rabbitmq",
+				Groups: []*proto.ClusterSpec_Group{
+					{
+						Count: 4,
+					},
 				},
-			},
-		}),
-	})
+			}),
+		})
 
-	srv.WaitForTask(uuid)
+		srv.WaitForTask(uuid)
+	*/
 }

@@ -1,11 +1,13 @@
 package rabbitmq
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	rabbithole "github.com/michaelklishin/rabbit-hole/v2"
 	"github.com/teseraio/ensemble/lib/template"
+	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/schema"
@@ -32,6 +34,84 @@ func Factory() operator.Handler {
 	return b
 }
 
+func (b *backend) Setup2() {
+	queue := b.Queue()
+
+	b.InstanceUpdate(func(i *proto.Instance) {
+		if i.Status == proto.Instance_RUNNING && !i.Healthy {
+			queue.Add(&proto.Evaluation{
+				Id:           uuid.UUID(),
+				Type:         i.DeploymentID, /// TODO: So that it is not serialized
+				DeploymentID: uuid.UUID(),
+				ComponentID:  i.ID,
+			})
+		}
+	})
+
+	go func() {
+		for {
+			msg := queue.Pop(context.Background())
+			fmt.Println("-- msg --")
+			fmt.Println(msg)
+
+			go func() {
+				resp1, err := b.BClient().GetInstance(context.Background(), &proto.GetInstanceReq{Id: msg.ComponentID, Cluster: msg.Type})
+				if err != nil {
+					panic(err)
+				}
+				resp2, err := b.BClient().GetDeploymentByID(context.Background(), &proto.GetDeploymentByIDReq{Id: msg.Type})
+				if err != nil {
+					panic(err)
+				}
+				b.startupProbe(resp2.Deployment, resp1.Instance)
+			}()
+		}
+	}()
+}
+
+func (b *backend) startupProbe(deployment *proto.Deployment, instance *proto.Instance) error {
+	clt, err := rabbithole.NewClient("http://"+instance.Ip+":15672", "guest", "guest")
+	if err != nil {
+		return err
+	}
+
+	// check if rabbimq is running
+	err = loopRetry(5*time.Minute, func() error {
+		_, err = clt.Overview()
+		fmt.Println(err)
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("timeout readiness probe")
+	}
+
+	nodesExpected := len(deployment.Instances)
+
+	// check if its syncer with others
+	err = loopRetry(5*time.Minute, func() error {
+		nodes, err := clt.ListNodes()
+		if err != nil {
+			return err
+		}
+		fmt.Println(len(nodes), nodesExpected)
+		if len(nodes) == nodesExpected {
+			return nil
+		}
+		return fmt.Errorf("not yet")
+	})
+	if err != nil {
+		return fmt.Errorf("failed cluster formation")
+	}
+
+	ii := instance.Copy()
+	ii.Healthy = true
+
+	if _, err := b.BClient().UpsertInstance(context.Background(), &proto.UpsertInstanceReq{Instance: ii}); err != nil {
+		return err
+	}
+	return nil
+}
+
 func loopRetry(timeout time.Duration, handler func() error) error {
 	doneCh := make(chan struct{})
 	go func() {
@@ -55,6 +135,7 @@ func loopRetry(timeout time.Duration, handler func() error) error {
 	return nil
 }
 
+/*
 func (b *backend) Hooks() []operator.Hook {
 	return []operator.Hook{
 		{
@@ -108,6 +189,7 @@ func (b *backend) Hooks() []operator.Hook {
 		},
 	}
 }
+*/
 
 func (b *backend) Name() string {
 	return "Rabbitmq"

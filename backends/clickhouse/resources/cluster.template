@@ -27,6 +27,9 @@
     <max_concurrent_queries>100</max_concurrent_queries>
     <uncompressed_cache_size>8589934592</uncompressed_cache_size>
     <mark_cache_size>5368709120</mark_cache_size>
+    
+    <!-- document -->
+    <disable_internal_dns_cache>1</disable_internal_dns_cache>
 
     <path>/var/lib/clickhouse/</path>
     <tmp_path>/var/lib/clickhouse/tmp/</tmp_path>

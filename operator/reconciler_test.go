@@ -688,6 +688,7 @@ func TestReconciler_InstanceFailed_Restart(t *testing.T) {
 
 	testExpectReconcile(t, rec, expectedReconciler{
 		reschedule: 1,
+		out:        1,
 	})
 }
 
@@ -754,6 +755,7 @@ func TestReconciler_InstanceFailed_ScaleDown(t *testing.T) {
 	testExpectReconcile(t, rec, expectedReconciler{
 		stop:       2,
 		reschedule: 1,
+		out:        1,
 	})
 
 	assert.Equal(t, rec.res.stop[0].instance.ID, dep.Instances[2].ID)
