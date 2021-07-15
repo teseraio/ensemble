@@ -1,6 +1,7 @@
 package testutil
 
-/*
+import "testing"
+
 func TestDockerProviderSpec(t *testing.T) {
 	p, err := NewDockerClient()
 	if err != nil {
@@ -8,4 +9,3 @@ func TestDockerProviderSpec(t *testing.T) {
 	}
 	TestProvider(t, p)
 }
-*/

@@ -3,15 +3,17 @@ package testutil
 import (
 	"testing"
 
+	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator"
+	"github.com/teseraio/ensemble/operator/proto"
 )
 
 // testing suite for the Provider
 func TestProvider(t *testing.T, p operator.Provider) {
+	t.Run("TestPodLifecycle", func(t *testing.T) {
+		TestPodLifecycle(t, p)
+	})
 	/*
-		t.Run("TestPodLifecycle", func(t *testing.T) {
-			TestPodLifecycle(t, p)
-		})
 		t.Run("TestDNS", func(t *testing.T) {
 			TestDNS(t, p)
 		})
@@ -91,7 +93,7 @@ func TestPodJobFailed(t *testing.T, p operator.Provider) {
 
 	time.Sleep(10 * time.Second)
 }
-
+*/
 func TestPodLifecycle(t *testing.T, p operator.Provider) {
 	id := uuid.UUID()
 
@@ -131,6 +133,7 @@ func TestPodLifecycle(t *testing.T, p operator.Provider) {
 	}
 }
 
+/*
 func TestPodFiles(t *testing.T, p operator.Provider) {
 	id := uuid.UUID()
 
