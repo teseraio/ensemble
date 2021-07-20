@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
@@ -28,9 +27,10 @@ type Provider struct {
 	stopCh    chan struct{}
 	watchCh   chan *proto.InstanceUpdate
 	evalQueue *operator.EvalQueue
+	cplane    operator.ControlPlane
 
-	instancesLock sync.Mutex
-	instances     map[string]*proto.Instance
+	//instancesLock sync.Mutex
+	//instances     map[string]*proto.Instance
 }
 
 // Stop stops the kubernetes provider
@@ -45,6 +45,7 @@ func getIDFromRef(ref string) string {
 	return spl[0]
 }
 
+/*
 func (p *Provider) getNode(id string) *proto.Instance {
 	p.instancesLock.Lock()
 	defer p.instancesLock.Unlock()
@@ -67,15 +68,41 @@ func (p *Provider) putNode(i *proto.Instance) {
 		ComponentID: i.ID,
 	})
 }
+*/
 
-func (p *Provider) Setup() error {
+func (p *Provider) Setup(cplane operator.ControlPlane) error {
+	p.cplane = cplane
 	p.evalQueue = operator.NewEvalQueue()
 
-	p.instances = map[string]*proto.Instance{}
+	//p.instances = map[string]*proto.Instance{}
+
+	ch := cplane.SubscribeInstanceUpdates()
+
+	go func() {
+		for {
+			msg := <-ch
+			if msg == nil {
+				panic("bad")
+			}
+			instance, err := cplane.GetInstance(msg.Id, msg.Cluster)
+			if err != nil {
+				panic(err)
+			}
+
+			// fow now send everything and we filter on queueRun
+			p.evalQueue.Add(&proto.Evaluation{
+				Id:           uuid.UUID(),
+				DeploymentID: uuid.UUID(),
+				InstanceID:   instance.ID,
+				ComponentID:  instance.DeploymentID,
+			})
+		}
+	}()
 
 	go p.queueRun()
 
 	go func() {
+		fmt.Println("_ WAIT _")
 		store := newStore()
 		newWatcher(store, p.client, eventsURL, &Event{}, false)
 
@@ -89,29 +116,46 @@ func (p *Provider) Setup() error {
 			id := getIDFromRef(event.GetMetadata().Name)
 			cluster := p.getPodCluster(id)
 
+			fmt.Println("-- event --")
+			fmt.Println(event.Reason)
+			fmt.Println(cluster)
+
 			if cluster == "" {
 				continue
 			}
 
-			fmt.Println("-- event --")
-			fmt.Println(event.Reason)
-
-			instance := p.getNode(id)
-			if instance == nil {
-				panic("not found?")
+			i, err := p.cplane.GetInstance(id, "")
+			if err != nil {
+				panic(err)
 			}
 
+			var status proto.Instance_Status
 			switch event.Reason {
 			case "Failed":
-				instance.Status = proto.Instance_FAILED
-			case "Scheduled":
-				instance.Status = proto.Instance_SCHEDULED
+				status = proto.Instance_FAILED
 			case "Started":
-				instance.Status = proto.Instance_RUNNING
+
+				// spetial, set running once we have the ip
+				ii := i.Copy()
+				ii.Set("started", "true")
+
+				if err := p.cplane.UpsertInstance(ii); err != nil {
+					panic(err)
+				}
+
+				continue
+
 			case "Killing":
 			}
 
-			p.putNode(instance)
+			if status != proto.Instance_UNKNOWN {
+				ii := i.Copy()
+				ii.Status = status
+
+				if err := p.cplane.UpsertInstance(ii); err != nil {
+					panic(err)
+				}
+			}
 
 			/*
 				if event.Reason == "Failed" {
@@ -200,6 +244,7 @@ func (p *Provider) WatchUpdates() chan *proto.InstanceUpdate {
 
 var emptyDel = []byte("{}")
 
+/*
 // DeleteResource implements the Provider interface
 func (p *Provider) DeleteResource(node *proto.Instance) (*proto.Instance, error) {
 	if err := p.delete("/api/v1/namespaces/{namespace}/pods/"+node.ID, emptyDel); err != nil {
@@ -207,6 +252,7 @@ func (p *Provider) DeleteResource(node *proto.Instance) (*proto.Instance, error)
 	}
 	return node, nil
 }
+*/
 
 // Exec implements the Provider interface
 func (p *Provider) Exec(handler string, path string, cmdArgs ...string) (string, error) {
@@ -421,10 +467,13 @@ func (p *Provider) queueRun() {
 		fmt.Println("- eval -")
 		fmt.Println(eval.Id)
 
-		ii := p.getNode(eval.ComponentID)
-		if ii == nil {
-			panic("not found")
+		ii, err := p.cplane.GetInstance(eval.InstanceID, eval.ComponentID)
+		if err != nil {
+			panic(err)
 		}
+
+		fmt.Println("-- ii --")
+		fmt.Println(ii)
 
 		if ii.Status == proto.Instance_PENDING {
 			if ii.Get("created") == "" {
@@ -432,96 +481,60 @@ func (p *Provider) queueRun() {
 					panic(err)
 				}
 				ii.Set("created", "true")
-				p.putNode(ii)
+				if err := p.cplane.UpsertInstance(ii); err != nil {
+					panic(err)
+				}
 			}
-		}
-
-		if ii.Status == proto.Instance_RUNNING {
-			// get the ip
-			fmt.Println("- get ip -")
-			fmt.Println(p.getIpImpl(ii.ID))
-			if ii.Ip == "" {
+			if ii.Get("started") == "true" {
+				// its already started, wait for the ip
 				ip := p.getIpImpl(ii.ID)
 				if ip == "" {
 					time.Sleep(1 * time.Second)
 
 					p.evalQueue.Add(&proto.Evaluation{
 						Id:          uuid.UUID(),
-						ComponentID: ii.ID,
+						ComponentID: ii.DeploymentID,
+						InstanceID:  ii.ID,
 					})
 				} else {
+					ii.Status = proto.Instance_RUNNING
 					ii.Ip = ip
-					p.putNode(ii)
+					if err := p.cplane.UpsertInstance(ii); err != nil {
+						panic(err)
+					}
 				}
 			}
 		}
 
-		fmt.Println(ii)
-		fmt.Println(ii.Status)
+		/*
+			if ii.Status == proto.Instance_RUNNING {
+				// get the ip
+				fmt.Println("- get ip -")
+				fmt.Println(p.getIpImpl(ii.ID))
+				if ii.Ip == "" {
+					ip := p.getIpImpl(ii.ID)
+					if ip == "" {
+						time.Sleep(1 * time.Second)
+
+						p.evalQueue.Add(&proto.Evaluation{
+							Id:          uuid.UUID(),
+							ComponentID: ii.ID,
+						})
+					} else {
+						ii.Ip = ip
+						if err := p.cplane.UpsertInstance(ii); err != nil {
+							panic(err)
+						}
+					}
+				}
+			}
+
+			fmt.Println(ii)
+			fmt.Println(ii.Status)
+		*/
 
 		p.evalQueue.Finalize(eval.Id)
 	}
-}
-
-// CreateResource implements the Provider interface
-func (p *Provider) CreateResource(node *proto.Instance) (*proto.Instance, error) {
-	fmt.Println("- create resource -")
-
-	node.Status = proto.Instance_PENDING
-	p.putNode(node)
-
-	eval := &proto.Evaluation{
-		Id:          uuid.UUID(),
-		ComponentID: node.ID,
-	}
-	p.evalQueue.Add(eval)
-
-	return nil, nil
-	/*
-		p.logger.Debug("upsert instance", "id", node.ID, "cluster", node.ClusterName, "name", node.Name)
-		node = node.Copy()
-
-		// create headless service for dns resolving
-		if err := p.createHeadlessService(node.ClusterName); err != nil {
-			return nil, fmt.Errorf("failed to upsert headless service: %v", err)
-		}
-
-		// files to be mounted on the pod
-		if len(node.Spec.Files) != 0 {
-			mountPoints, err := mount.CreateMountPoints(node.Spec.Files)
-			if err != nil {
-				return nil, err
-			}
-			for indx, mountPoint := range mountPoints {
-				name := node.ID + "-file-data-" + strconv.Itoa(indx)
-
-				if err := p.upsertConfigMap(name, mountPoint); err != nil {
-					return nil, fmt.Errorf("failed to upsert config map: %v", err)
-				}
-			}
-		}
-
-		// volume mount
-		if len(node.Mounts) != 0 {
-			for _, m := range node.Mounts {
-				if err := p.createVolume(node, m); err != nil {
-					return nil, err
-				}
-			}
-		}
-
-		data, err := MarshalPod(node)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal pod: %v", err)
-		}
-
-		// create the Pod resource
-		if _, _, err = p.post("/api/v1/namespaces/{namespace}/pods", data); err != nil {
-			return nil, fmt.Errorf("failed to create pod: %v", err)
-		}
-
-		return node, nil
-	*/
 }
 
 func K8sFactory(logger hclog.Logger, c map[string]interface{}) (*Provider, error) {

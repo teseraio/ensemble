@@ -15,7 +15,7 @@ var (
 // for the computing resources and the general resources.
 type Provider interface {
 	// Setup setups the provider (Maybe do this on the factory)
-	Setup() error
+	Setup(ControlPlane) error
 
 	// Start starts the provider
 	Start() error

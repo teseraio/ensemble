@@ -2,72 +2,17 @@ package k8s
 
 import (
 	"testing"
-	"time"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/teseraio/ensemble/lib/uuid"
-	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/testutil"
 )
 
 func TestK8sProviderSpec(t *testing.T) {
-	// TODO
 	p, err := K8sFactory(hclog.NewNullLogger(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := p.Setup(); err != nil {
-		t.Fatal(err)
-	}
 	testutil.TestProvider(t, p)
-}
-
-func TestPodLifecycle(t *testing.T) {
-	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
-	p.Setup()
-
-	id := uuid.UUID()
-
-	i := &proto.Instance{
-		ID:          id,
-		ClusterName: "c11",
-		Name:        "d223",
-		Image:       "busybox",
-		Spec: &proto.NodeSpec{
-			Cmd: "sleep",
-			Args: []string{
-				"30000",
-			},
-		},
-	}
-
-	if _, err := p.CreateResource(i); err != nil {
-		t.Fatal(err)
-	}
-
-	time.Sleep(15 * time.Second)
-
-	/*
-		// wait for the container to be running
-		evnt := readEvent(p, t)
-		if _, ok := evnt.Event.(*proto.InstanceUpdate_Scheduled_); !ok {
-			t.Fatal("expected scheduled")
-		}
-		evnt = readEvent(p, t)
-		if _, ok := evnt.Event.(*proto.InstanceUpdate_Running_); !ok {
-			t.Fatal("expected running")
-		}
-
-		if _, err := p.DeleteResource(i); err != nil {
-			t.Fatal(err)
-		}
-
-		// wait for termination event
-		evnt = readEvent(p, t)
-		if _, ok := evnt.Event.(*proto.InstanceUpdate_Killing_); !ok {
-			t.Fatal("expected stopped")
-		}
-	*/
 }
 
 /*

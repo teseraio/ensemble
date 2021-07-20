@@ -1,8 +1,12 @@
 package testutil
 
 import (
+	"fmt"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
@@ -10,38 +14,48 @@ import (
 
 // testing suite for the Provider
 func TestProvider(t *testing.T, p operator.Provider) {
+	c := &operator.InmemControlPlane{}
+	p.Setup(c)
+
 	t.Run("TestPodLifecycle", func(t *testing.T) {
-		TestPodLifecycle(t, p)
+		TestPodLifecycle(t, c, p)
 	})
 	/*
 		t.Run("TestDNS", func(t *testing.T) {
-			TestDNS(t, p)
+			TestDNS(t, c, p)
 		})
 		t.Run("TestPodMount", func(t *testing.T) {
-			TestPodMount(t, p)
+			TestPodMount(t, c, p)
 		})
 		t.Run("TestPodFiles", func(t *testing.T) {
-			TestPodFiles(t, p)
+			TestPodFiles(t, c, p)
+		})
+		t.Run("TestPodBarArgs", func(t *testing.T) {
+			TestPodBarArgs(t, c, p)
+		})
+		t.Run("TestPodJobFailed", func(t *testing.T) {
+			TestPodJobFailed(t, c, p)
 		})
 	*/
-	// TODO
-	//TestPodBarArgs(t, p)
-	//TestPodJobFailed(t, p)
 }
 
-/*
-func readEvent(p operator.Provider, t *testing.T) *proto.InstanceUpdate {
+func readEvent(p operator.ControlPlane, t *testing.T) *proto.Instance {
+	ch := p.SubscribeInstanceUpdates()
+
 	select {
-	case evnt := <-p.WatchUpdates():
-		return evnt
-	case <-time.After(20 * time.Second):
+	case msg := <-ch:
+		instance, err := p.GetInstance(msg.Id, msg.Cluster)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return instance
+	case <-time.After(10 * time.Second):
+		t.Fatal("timeout")
 	}
-	t.Fatal("timeout")
 	return nil
 }
 
-func TestPodBarArgs(t *testing.T, p operator.Provider) {
-	// TODO
+func TestPodBarArgs(t *testing.T, c operator.ControlPlane, p operator.Provider) {
 	i := &proto.Instance{
 		ID:          uuid.UUID(),
 		ClusterName: "xx11",
@@ -50,91 +64,98 @@ func TestPodBarArgs(t *testing.T, p operator.Provider) {
 		Spec: &proto.NodeSpec{
 			Cmd: "xxx",
 		},
+		Status: proto.Instance_PENDING,
 	}
-	if _, err := p.CreateResource(i); err != nil {
+	if err := c.UpsertInstance(i); err != nil {
 		t.Fatal(err)
 	}
 
-	// the pod is scheduled
-	evnt := readEvent(p, t)
-	if _, ok := evnt.Event.(*proto.InstanceUpdate_Scheduled_); !ok {
-		t.Fatal("expected scheduled")
-	}
-
-	// the pod fails
-	evnt = readEvent(p, t)
-	if _, ok := evnt.Event.(*proto.InstanceUpdate_Failed_); !ok {
-		t.Fatal("expected failed")
-	}
+	ii := readEvent(c, t)
+	assert.Equal(t, ii.Status, proto.Instance_FAILED)
 }
 
-func TestPodJobFailed(t *testing.T, p operator.Provider) {
-	// TODO
+func TestPodJobFailed(t *testing.T, c operator.ControlPlane, p operator.Provider) {
 	i := &proto.Instance{
 		ID:          uuid.UUID(),
 		ClusterName: "xx11",
-		Name:        "yy22",
+		Name:        "yyy22",
 		Image:       "busybox",
 		Spec: &proto.NodeSpec{
 			// it stops gracefully
 			Cmd:  "sleep",
 			Args: []string{"2"},
 		},
+		Status: proto.Instance_PENDING,
 	}
-	if _, err := p.CreateResource(i); err != nil {
+	if err := c.UpsertInstance(i); err != nil {
 		t.Fatal(err)
 	}
 
-	// the pod is scheduled
-	evnt := readEvent(p, t)
-	if _, ok := evnt.Event.(*proto.InstanceUpdate_Scheduled_); !ok {
-		t.Fatal("expected scheduled")
-	}
+	ii := readEvent(c, t)
+	assert.Equal(t, ii.Status, proto.Instance_RUNNING)
 
-	time.Sleep(10 * time.Second)
+	ii = readEvent(c, t)
+	assert.Equal(t, ii.Status, proto.Instance_FAILED)
 }
-*/
-func TestPodLifecycle(t *testing.T, p operator.Provider) {
+
+func TestPodLifecycle(t *testing.T, c operator.ControlPlane, p operator.Provider) {
 	id := uuid.UUID()
 
+	// create the resource
 	i := &proto.Instance{
 		ID:          id,
-		ClusterName: "c11",
+		ClusterName: "c111",
 		Name:        "d22",
 		Image:       "nginx",
 		Spec:        &proto.NodeSpec{},
+		Status:      proto.Instance_PENDING,
 	}
-
-	if _, err := p.CreateResource(i); err != nil {
+	if err := c.UpsertInstance(i); err != nil {
 		t.Fatal(err)
 	}
 
-	// wait for the container to be running
-	evnt := readEvent(p, t)
-	if _, ok := evnt.Event.(*proto.InstanceUpdate_Scheduled_); !ok {
-		t.Fatal("expected scheduled")
+	for {
+		ii := readEvent(c, t)
+
+		fmt.Println("-- ii --")
+		fmt.Println(ii)
 	}
 
-	evnt = readEvent(p, t)
-	obj, ok := evnt.Event.(*proto.InstanceUpdate_Running_)
-	if !ok {
-		t.Fatal("expected running")
-	}
-	i.Handler = obj.Running.Handler
+	/*
+		assert.Equal(t, ii.Status, proto.Instance_RUNNING)
+		assert.NotEmpty(t, ii.Ip, "")
+		assert.NotEmpty(t, ii.Handler, "")
+	*/
 
-	if _, err := p.DeleteResource(i); err != nil {
-		t.Fatal(err)
-	}
+	return
 
-	// wait for termination event
-	evnt = readEvent(p, t)
-	if _, ok := evnt.Event.(*proto.InstanceUpdate_Killing_); !ok {
-		t.Fatal("expected stopped")
-	}
+	/*
+		// delete the resource
+		ii = ii.Copy()
+		ii.Status = proto.Instance_TAINTED
+
+		if err := c.UpsertInstance(ii); err != nil {
+			t.Fatal(err)
+		}
+
+		ii = readEvent(c, t)
+		assert.Equal(t, ii.Status, proto.Instance_FAILED)
+
+		// recreate the resource with the same name and different id
+		ii = ii.Copy()
+		ii.ID = uuid.UUID()
+		ii.Status = proto.Instance_PENDING
+
+		if err := c.UpsertInstance(ii); err != nil {
+			t.Fatal(err)
+		}
+
+		ii = readEvent(c, t)
+		assert.Equal(t, ii.Status, proto.Instance_RUNNING)
+	*/
 }
 
-/*
-func TestPodFiles(t *testing.T, p operator.Provider) {
+func TestPodFiles(t *testing.T, c operator.ControlPlane, p operator.Provider) {
 	id := uuid.UUID()
 
 	files := []*proto.NodeSpec_File{
@@ -161,19 +182,14 @@ Line3`,
 		Spec: &proto.NodeSpec{
 			Files: files,
 		},
+		Status: proto.Instance_PENDING,
 	}
-
-	if _, err := p.CreateResource(i); err != nil {
+	if err := c.UpsertInstance(i); err != nil {
 		t.Fatal(err)
 	}
 
-	// wait for it to be ready
-	for {
-		evnt := <-p.WatchUpdates()
-		if _, ok := evnt.Event.(*proto.InstanceUpdate_Running_); ok {
-			break
-		}
-	}
+	ii := readEvent(c, t)
+	assert.Equal(t, ii.Status, proto.Instance_RUNNING)
 
 	for _, file := range files {
 		out, err := p.Exec(id, "cat", file.Name)
@@ -182,7 +198,7 @@ Line3`,
 	}
 }
 
-func TestPodMount(t *testing.T, p operator.Provider) {
+func TestPodMount(t *testing.T, c operator.ControlPlane, p operator.Provider) {
 	id := uuid.UUID()
 
 	i := &proto.Instance{
@@ -197,85 +213,71 @@ func TestPodMount(t *testing.T, p operator.Provider) {
 				Path: "/data",
 			},
 		},
+		Status: proto.Instance_PENDING,
 	}
 
-	if _, err := p.CreateResource(i); err != nil {
+	if err := c.UpsertInstance(i); err != nil {
 		t.Fatal(err)
 	}
+	ii := readEvent(c, t)
+	assert.Equal(t, ii.Status, proto.Instance_RUNNING)
 
-	// wait for it to be ready
-	for {
-		evnt := <-p.WatchUpdates()
-		if obj, ok := evnt.Event.(*proto.InstanceUpdate_Running_); ok {
-			i.Handler = obj.Running.Handler
-			break
+	{
+		// /data/test.txt does not exists
+		_, err := p.Exec(i.ID, "cat", "/data/test.txt")
+		assert.Error(t, err)
+
+		if _, err := p.Exec(i.ID, "touch", "/data/test.txt"); err != nil {
+			t.Fatal(err)
 		}
 	}
 
-	// /data/test.txt does not exists
-	_, err := p.Exec(i.ID, "cat", "/data/test.txt")
-	assert.Error(t, err)
+	{
+		// stop the container
+		ii = ii.Copy()
+		ii.Status = proto.Instance_TAINTED
 
-	if _, err := p.Exec(i.ID, "touch", "/data/test.txt"); err != nil {
-		t.Fatal(err)
-	}
-
-	// stop the container
-	if _, err := p.DeleteResource(i); err != nil {
-		t.Fatal(err)
-	}
-
-	// wait for the container to stop
-	for {
-		evnt := <-p.WatchUpdates()
-		if _, ok := evnt.Event.(*proto.InstanceUpdate_Killing_); ok {
-			break
+		if err := c.UpsertInstance(ii); err != nil {
+			t.Fatal(err)
 		}
+		ii = readEvent(c, t)
+		assert.Equal(t, ii.Status, proto.Instance_FAILED)
 	}
 
-	// "restart" the instance
-	ii := i.Copy()
-	ii.ID = uuid.UUID()
+	{
+		// "restart" the instance with a different id
+		ii := i.Copy()
+		ii.ID = uuid.UUID()
 
-	if _, err := p.CreateResource(ii); err != nil {
-		t.Fatal(err)
-	}
-
-	// wait for it to be ready
-	for {
-		evnt := <-p.WatchUpdates()
-		if obj, ok := evnt.Event.(*proto.InstanceUpdate_Running_); ok {
-			ii.Handler = obj.Running.Handler
-			break
+		if err := c.UpsertInstance(ii); err != nil {
+			t.Fatal(err)
 		}
-	}
 
-	// /data/test.txt should be available
-	_, err = p.Exec(ii.ID, "cat", "/data/test.txt")
-	assert.NoError(t, err)
+		ii = readEvent(c, t)
+		assert.Equal(t, ii.Status, proto.Instance_RUNNING)
+
+		// /data/test.txt should be available
+		_, err := p.Exec(ii.ID, "cat", "/data/test.txt")
+		assert.NoError(t, err)
+	}
 }
 
-func TestDNS(t *testing.T, p operator.Provider) {
+func TestDNS(t *testing.T, c operator.ControlPlane, p operator.Provider) {
 	target := &proto.Instance{
 		ID:          uuid.UUID(),
 		ClusterName: "c11",
-		Name:        uuid.UUID(),
+		Name:        "target",
 		Image:       "nginx",
 		Spec:        &proto.NodeSpec{},
+		Status:      proto.Instance_PENDING,
 	}
-
-	if _, err := p.CreateResource(target); err != nil {
+	if err := c.UpsertInstance(target); err != nil {
 		t.Fatal(err)
 	}
 
 	// wait for it to be ready
-	for {
-		evnt := <-p.WatchUpdates()
-		if obj, ok := evnt.Event.(*proto.InstanceUpdate_Running_); ok {
-			target.Handler = obj.Running.Handler
-			break
-		}
-	}
+	ii := readEvent(c, t)
+	assert.Equal(t, ii.Status, proto.Instance_RUNNING)
 
 	source := &proto.Instance{
 		ID:          uuid.UUID(),
@@ -283,28 +285,22 @@ func TestDNS(t *testing.T, p operator.Provider) {
 		Name:        uuid.UUID(),
 		Image:       "nginx",
 		Spec:        &proto.NodeSpec{},
+		Status:      proto.Instance_PENDING,
 	}
-
-	if _, err := p.CreateResource(source); err != nil {
+	if err := c.UpsertInstance(source); err != nil {
 		t.Fatal(err)
 	}
 
 	// wait for it to be ready
-	for {
-		evnt := <-p.WatchUpdates()
-		if obj, ok := evnt.Event.(*proto.InstanceUpdate_Running_); ok {
-			source.Handler = obj.Running.Handler
-			break
-		}
-	}
+	ii = readEvent(c, t)
+	assert.Equal(t, ii.Status, proto.Instance_RUNNING)
 
 	// valid dns
-	out, err := p.Exec(source.ID, "curl", "--fail", "--silent", "--show-error", target.Name+".c11")
+	out, err := p.Exec(source.ID, "curl", "--fail", "--silent", "--show-error", "target.c11")
 	assert.NoError(t, err)
 	assert.True(t, strings.HasPrefix(out, "<!DOCTYPE html>"))
 
 	// invalid dns
-	_, err = p.Exec(source.ID, "curl", "--fail", "--silent", "--show-error", target.Name+".c12")
+	_, err = p.Exec(source.ID, "curl", "--fail", "--silent", "--show-error", "target.c12")
 	assert.Error(t, err)
 }
-*/

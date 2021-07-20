@@ -8,12 +8,12 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/client"
@@ -23,8 +23,6 @@ import (
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/schema"
-	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 const networkName = "net1"
@@ -46,11 +44,13 @@ type Client struct {
 	resources     map[string]*resource
 	resourcesLock sync.Mutex
 
-	workCh chan *proto.Instance
+	//workCh chan *proto.Instance
 
 	// TODO: Not here
-	volumes       map[string]string
-	backendClient proto.BackendServiceClient
+	//volumes map[string]string
+	//backendClient proto.BackendServiceClient
+
+	controlPlane operator.ControlPlane
 
 	//updateCh chan *proto.InstanceUpdate
 }
@@ -64,24 +64,18 @@ func NewDockerClient() (*Client, error) {
 	clt := &Client{
 		client:    cli,
 		resources: map[string]*resource{},
-		volumes:   map[string]string{},
-		//updateCh:  make(chan *proto.InstanceUpdate),
-		workCh: make(chan *proto.Instance, 5),
 	}
 
 	// upsert internal docker network 'net1' required for DNS support
 	if _, err := cli.NetworkInspect(context.Background(), networkName); err != nil {
 		if strings.Contains(err.Error(), "No such network") {
 			if _, err := cli.NetworkCreate(context.Background(), networkName, types.NetworkCreate{CheckDuplicate: true}); err != nil {
-				panic(err)
+				return nil, err
 			}
 		} else {
 			return nil, err
 		}
 	}
-
-	go clt.run()
-	go clt.runProvider()
 
 	return clt, nil
 }
@@ -94,7 +88,10 @@ func (c *Client) Start() error {
 	return nil
 }
 
-func (c *Client) Setup() error {
+func (c *Client) Setup(cc operator.ControlPlane) error {
+	c.controlPlane = cc
+
+	c.runProvider()
 	return nil
 }
 
@@ -139,43 +136,46 @@ func (c *Client) WatchUpdates() chan *proto.InstanceUpdate {
 
 func (c *Client) runProvider() {
 
-	conn, err := grpc.Dial("127.0.0.1:6001", grpc.WithInsecure())
-	if err != nil {
-		panic(err)
-	}
+	fmt.Println("- run provider -")
+	fmt.Println(c.controlPlane)
 
-	clt := proto.NewBackendServiceClient(conn)
-	fmt.Println("-- clt --")
-	fmt.Println(clt)
-
-	c.backendClient = clt
+	ch := c.controlPlane.SubscribeInstanceUpdates()
 
 	go func() {
-		stream, err := clt.GetInstanceUpdates(context.Background(), &emptypb.Empty{})
-		if err != nil {
-			panic(err)
-		}
 		for {
-			msg, err := stream.Recv()
-			if err != nil {
-				panic(err)
+			msg := <-ch
+			if msg == nil {
+				panic("bad")
 			}
-			ii, err := clt.GetInstance(context.Background(), &proto.GetInstanceReq{Id: msg.Id, Cluster: msg.Cluster})
-			if err != nil {
-				panic(err)
-			}
-			instance := ii.Instance
 
+			fmt.Println("-- docker msg --")
+			fmt.Println(msg)
+
+			instance, err := c.controlPlane.GetInstance(msg.Id, msg.Cluster)
+			if err != nil {
+				panic(err)
+			}
 			if instance.Status == proto.Instance_PENDING {
-				fmt.Println("_ RUN PROVIDER _", ii.Instance.ID, ii.Instance.Name, ii.Instance.Status)
+				fmt.Println("_ RUN PROVIDER _", instance.ID, instance.Name, instance.Status)
 				// we can work on this
-				bodyID, err := c.createImpl(context.Background(), instance)
-				if err != nil {
+				if _, err := c.createImpl(context.Background(), instance); err != nil {
+
+					ii := instance.Copy()
+					ii.Status = proto.Instance_FAILED
+
+					if err := c.controlPlane.UpsertInstance(ii); err != nil {
+						panic(err)
+					}
+				}
+
+			} else if instance.Status == proto.Instance_TAINTED {
+				if err := c.client.ContainerKill(context.Background(), instance.Handler, "SIGINT"); err != nil {
 					panic(err)
 				}
-				fmt.Println("-- body id --")
-				fmt.Println(bodyID)
-
+				if err := c.client.ContainerStop(context.Background(), instance.Handler, nil); err != nil {
+					panic(err)
+				}
+				fmt.Println("- done -")
 			}
 		}
 	}()
@@ -240,6 +240,7 @@ func createIfNotExists(path string) error {
 	return err
 }
 
+/*
 func (c *Client) run() {
 	worker := func(id string) {
 		for instance := range c.workCh {
@@ -253,28 +254,46 @@ func (c *Client) run() {
 		go worker(strconv.Itoa(i))
 	}
 }
-
-func (c *Client) updateInstance(i *proto.Instance) error {
-	_, err := c.backendClient.UpsertInstance(context.Background(), &proto.UpsertInstanceReq{
-		Instance: i.Copy(),
-	})
-	return err
-}
+*/
 
 // Create creates a docker container
 func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, error) {
 	c.resourcesLock.Lock()
 	defer c.resourcesLock.Unlock()
 
-	/*
-		c.updateCh <- &proto.InstanceUpdate{
-			ID:          node.ID,
-			ClusterName: node.ClusterName,
-			Event: &proto.InstanceUpdate_Scheduled_{
-				Scheduled: &proto.InstanceUpdate_Scheduled{},
-			},
+	// check if there is another container with the same name. Three possibilities
+	// 1. The Provider did not fully removed the container after being removed by the scheduler.
+	// 2. The Scheduler is trying to run another instance with the same name.
+	// 3. There is a container from a previous execution that has not being purged.
+	//
+	// Since the docker provider keeps a local copy of all the valid running instances, cases 1 and 2
+	// can be easily validated (we panic for now), otherwise its case 3 and we remove the name.
+
+	filters := filters.NewArgs()
+	filters.Add("name", node.Name)
+
+	containers, err := c.client.ContainerList(ctx, types.ContainerListOptions{All: true, Filters: filters})
+	if err != nil {
+		return "", err
+	}
+	if size := len(containers); size != 0 {
+		if size != 1 {
+			return "", fmt.Errorf("more than one container expected")
 		}
-	*/
+
+		prevInstance := c.findInstanceLocked(func(i *proto.Instance) bool {
+			return i.Name == node.Name
+		})
+		if prevInstance != nil {
+			// case 1 and 2
+			panic(fmt.Errorf("instance with the same node name %s allocated twice: Now %s Before %s", node.Name, node.ID, prevInstance.ID))
+		} else {
+			// case 3
+			if err := c.client.ContainerRemove(context.Background(), containers[0].ID, types.ContainerRemoveOptions{Force: true}); err != nil {
+				return "", err
+			}
+		}
+	}
 
 	// We will use the 'net1' network interface for dns resolving
 	builder := node.Spec
@@ -369,11 +388,6 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 		ExtraHosts: extraHost,
 	}
 
-	// decode computational resources
-	if node.Group != nil {
-		// TODO
-	}
-
 	netConfig := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
 			networkName: {},
@@ -382,7 +396,7 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 
 	body, err := c.client.ContainerCreate(ctx, config, hostConfig, netConfig, name)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
 	c.resources[node.ID] = &resource{
@@ -406,33 +420,21 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 			panic(err)
 		}
 
-		// c.resources[node.ID].active = false
+		c.resources[node.ID].active = false
 
 		// panic("bad")
 
-		resp, err := c.backendClient.GetInstance(context.Background(), &proto.GetInstanceReq{Cluster: node.DeploymentID, Id: node.ID})
+		ii, err := c.controlPlane.GetInstance(node.ID, node.DeploymentID)
 		if err != nil {
 			panic(err)
 		}
 		// we need all the data stored here so we need to get the instance from db
-		ii := resp.Instance.Copy()
+		ii = ii.Copy()
 		ii.Status = proto.Instance_FAILED
 
-		_, err = c.backendClient.UpsertInstance(context.Background(), &proto.UpsertInstanceReq{Instance: ii})
-		if err != nil {
+		if err := c.controlPlane.UpsertInstance(ii); err != nil {
 			panic(err)
 		}
-
-		/*
-			c.updateCh <- &proto.InstanceUpdate{
-				ID:          node.ID,
-				ClusterName: node.ClusterName,
-				Event: &proto.InstanceUpdate_Killing_{
-					Killing: &proto.InstanceUpdate_Killing{},
-				},
-			}
-		*/
-
 	}()
 
 	ip := c.GetIP(body.ID)
@@ -445,25 +447,11 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 
 	fmt.Printf("IP: %s %s\n", nn.Name, ip)
 
-	if err := c.updateInstance(nn); err != nil {
+	if err := c.controlPlane.UpsertInstance(nn); err != nil {
 		panic(err)
 	}
 
 	c.resources[node.ID].instance.Ip = ip
-
-	/*
-		c.updateCh <- &proto.InstanceUpdate{
-			ID:          node.ID,
-			ClusterName: node.ClusterName,
-			Event: &proto.InstanceUpdate_Running_{
-				Running: &proto.InstanceUpdate_Running{
-					Ip:      ip,
-					Handler: body.ID,
-				},
-			},
-		}
-	*/
-
 	return body.ID, nil
 }
 
@@ -489,6 +477,7 @@ func (c *Client) Resources() operator.ProviderResources {
 	}
 }
 
+/*
 func (c *Client) CreateResource(node *proto.Instance) (*proto.Instance, error) {
 	// fmt.Printf("Create resource: %s %s\n", node.ID, node.Name)
 
@@ -509,6 +498,7 @@ func (c *Client) CreateResource(node *proto.Instance) (*proto.Instance, error) {
 
 	return nil, nil
 }
+*/
 
 func (c *Client) Exec(id string, path string, args ...string) (string, error) {
 	execCmd := []string{path}
@@ -573,6 +563,15 @@ func (c *Client) execImpl(ctx context.Context, id string, execCmd []string) (str
 		return "", fmt.Errorf(errBuf.String())
 	}
 	return outBuf.String(), nil
+}
+
+func (c *Client) findInstanceLocked(handler func(i *proto.Instance) bool) *proto.Instance {
+	for _, i := range c.resources {
+		if handler(i.instance) {
+			return i.instance
+		}
+	}
+	return nil
 }
 
 func (c *Client) DeleteResource(node *proto.Instance) (*proto.Instance, error) {

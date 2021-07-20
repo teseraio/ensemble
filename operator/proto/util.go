@@ -263,3 +263,7 @@ func (d *Deployment) Filter(filter func(n *Instance) bool) (res []*Instance) {
 	}
 	return res
 }
+
+func (i *Instance) Diff(ii *Instance) *InstanceUpdate {
+	return nil
+}
