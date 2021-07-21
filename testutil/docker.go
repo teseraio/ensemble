@@ -155,6 +155,10 @@ func (c *Client) runProvider() {
 			if err != nil {
 				panic(err)
 			}
+
+			fmt.Println("-- docker instance --")
+			fmt.Println(instance)
+
 			if instance.Status == proto.Instance_PENDING {
 				fmt.Println("_ RUN PROVIDER _", instance.ID, instance.Name, instance.Status)
 				// we can work on this
@@ -443,7 +447,7 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 	nn.Ip = ip
 	nn.Handler = body.ID
 	nn.Status = proto.Instance_RUNNING
-	nn.Healthy = true
+	// nn.Healthy = true
 
 	fmt.Printf("IP: %s %s\n", nn.Name, ip)
 
@@ -457,7 +461,7 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 
 func (c *Client) Resources() operator.ProviderResources {
 	return operator.ProviderResources{
-		Resources: schema.Schema2{
+		Node: schema.Schema2{
 			Spec: &schema.Record{
 				Fields: map[string]*schema.Field{
 					"cpuShares": {
@@ -470,9 +474,6 @@ func (c *Client) Resources() operator.ProviderResources {
 					},
 				},
 			},
-		},
-		Storage: schema.Schema2{
-			Spec: &schema.Record{},
 		},
 	}
 }

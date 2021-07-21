@@ -233,8 +233,7 @@ func (p *Provider) Start() error {
 
 func (p *Provider) Resources() operator.ProviderResources {
 	return operator.ProviderResources{
-		Resources: schema.Schema2{},
-		Storage:   schema.Schema2{},
+		Node: schema.Schema2{},
 	}
 }
 

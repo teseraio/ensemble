@@ -424,7 +424,7 @@ func TestReconciler_RollingUpgradeX(t *testing.T) {
 
 	spec1 := spec0.Copy()
 	spec1.Sequence++
-	spec1.Groups[0].Resources = schema.MapToSpec(map[string]interface{}{"A": "B"})
+	spec1.Groups[0].Provider = schema.MapToSpec(map[string]interface{}{"A": "B"})
 
 	dep := newMockDeployment()
 	for i := 0; i < 5; i++ {
@@ -466,7 +466,7 @@ func TestReconciler_RollingUpgrade_SecondEval(t *testing.T) {
 
 	spec1 := spec0.Copy()
 	spec1.Sequence++
-	spec1.Groups[0].Resources = schema.MapToSpec(map[string]interface{}{"A": "B"})
+	spec1.Groups[0].Provider = schema.MapToSpec(map[string]interface{}{"A": "B"})
 
 	dep := newMockDeployment()
 	for i := 0; i < 3; i++ {
@@ -509,7 +509,7 @@ func TestReconciler_RollingUpgrade_PartialPromote(t *testing.T) {
 
 	spec1 := spec0.Copy()
 	spec1.Sequence++
-	spec1.Groups[0].Resources = schema.MapToSpec(map[string]interface{}{"A": "B"})
+	spec1.Groups[0].Provider = schema.MapToSpec(map[string]interface{}{"A": "B"})
 
 	dep := newMockDeployment()
 
@@ -606,7 +606,7 @@ func TestReconciler_RollingUpgrade_ScaleUp(t *testing.T) {
 	spec1 := spec0.Copy()
 	spec1.Sequence++
 	spec1.Groups[0].Count = 8
-	spec1.Groups[0].Resources = schema.MapToSpec(map[string]interface{}{"A": "B"})
+	spec1.Groups[0].Provider = schema.MapToSpec(map[string]interface{}{"A": "B"})
 
 	dep := newMockDeployment()
 
@@ -638,7 +638,7 @@ func TestReconciler_RollingUpgrade_ScaleDown(t *testing.T) {
 	spec1 := spec0.Copy()
 	spec1.Sequence++
 	spec1.Groups[0].Count = 3
-	spec1.Groups[0].Resources = schema.MapToSpec(map[string]interface{}{"A": "B"})
+	spec1.Groups[0].Provider = schema.MapToSpec(map[string]interface{}{"A": "B"})
 
 	dep := newMockDeployment()
 

@@ -1,13 +1,10 @@
 package operator
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/schema"
-	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // HandlerFactory is a factory for Handlers
@@ -24,7 +21,7 @@ type Handler2 interface {
 type nullHandler struct {
 }
 
-func (n *nullHandler) Setup() {
+func (n *nullHandler) Setup(cplane ControlPlane) {
 }
 
 func (n *nullHandler) Name() string {
@@ -59,7 +56,7 @@ type Handler interface {
 	// Name returns the name of the handler (TODO. it can be removed later)
 	Name() string
 
-	Setup()
+	Setup(cplane ControlPlane)
 
 	// ApplyHook sends a request for an async hook
 	// ApplyHook(ApplyHookRequest)
@@ -108,6 +105,12 @@ type Spec struct {
 	Resources []*Resource2
 	Validate  func(comp *proto.Component) (*proto.Component, error)
 	Handlers  map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData)
+
+	// Startup handler
+	Startup func(i *proto.Instance) error
+
+	// Decomission handler
+	Decomission func()
 }
 
 // Nodetype is a type of node for the Backend
@@ -155,67 +158,60 @@ type Resource interface {
 type BaseOperator struct {
 	handler Handler2
 	// ch        chan *proto.InstanceUpdate
-	evalQueue     *EvalQueue
-	backendClient proto.BackendServiceClient
-	ihandler      func(i *proto.Instance)
+	// evalQueue *EvalQueue
+	// ihandler func(i *proto.Instance)
 }
 
-func (b *BaseOperator) BClient() proto.BackendServiceClient {
-	return b.backendClient
-}
-
+/*
 func (b *BaseOperator) Queue() *EvalQueue {
 	return b.evalQueue
 }
+*/
 
-func (b *BaseOperator) Setup() {
+func (b *BaseOperator) Setup(cplane ControlPlane) {
 	b.handler.Setup2()
+
+	stream := cplane.SubscribeInstanceUpdates()
+
+	go func() {
+		for {
+			msg := <-stream
+			instance, err := cplane.GetInstance(msg.Id, msg.Cluster)
+			if err != nil {
+				panic(err)
+			}
+			// TODO::::::Filter by deployment
+			if instance.Status == proto.Instance_RUNNING && !instance.Healthy {
+				go func() {
+					ii := instance.Copy()
+					if err := b.handler.Spec().Startup(ii); err != nil {
+						// move to a failing state directly, or maybe ist just to reuquee the msg
+						panic(err)
+					}
+
+					// the new instance has to update
+					if !ii.Healthy {
+						panic("it should be health at this point of the startup script")
+					}
+					cplane.UpsertInstance(ii)
+				}()
+			}
+		}
+	}()
 }
 
 func (b *BaseOperator) SetHandler(h Handler2) {
 	b.handler = h
-	b.evalQueue = NewEvalQueue()
+	// b.evalQueue = NewEvalQueue()
 }
 
-func (b *BaseOperator) run() {
-	stream, err := b.backendClient.GetInstanceUpdates(context.Background(), &emptypb.Empty{})
-	if err != nil {
-		panic(err)
-	}
-	for {
-		msg, err := stream.Recv()
-		if err != nil {
-			panic(err)
-		}
-		ii, err := b.backendClient.GetInstance(context.Background(), &proto.GetInstanceReq{Id: msg.Id, Cluster: msg.Cluster})
-		if err != nil {
-			panic(err)
-		}
-		instance := ii.Instance
-		if b.ihandler != nil {
-			b.ihandler(instance)
-		}
-	}
-}
-
+/*
 func (b *BaseOperator) InstanceUpdate(handler func(i *proto.Instance)) {
 	b.ihandler = handler
 }
+*/
 
 func (b *BaseOperator) WatchUpdates() chan *proto.InstanceUpdate {
-	conn, err := grpc.Dial("127.0.0.1:6001", grpc.WithInsecure())
-	if err != nil {
-		panic(err)
-	}
-
-	clt := proto.NewBackendServiceClient(conn)
-	fmt.Println("-- clt --")
-	fmt.Println(clt)
-
-	b.backendClient = clt
-
-	go b.run()
-
 	/*
 		if b.ch == nil {
 			b.ch = make(chan *proto.InstanceUpdate, 10)
@@ -308,10 +304,16 @@ func (b *BaseOperator) ApplyNodes(place []*proto.Instance, cluster []*proto.Inst
 	// add the place instances too
 	cluster = append(cluster, placeInstances...)
 
+	postHook := b.handler.Spec().Startup != nil
+
 	// initialize each node
 	for _, i := range placeInstances {
 		if _, err := b.handler.Initialize(cluster, i); err != nil {
 			return nil, err
+		}
+		if !postHook {
+			// there is no posthook so the scheduler can move ahead without problem
+			i.Healthy = true
 		}
 	}
 	return placeInstances, nil

@@ -14,10 +14,7 @@ func diffUpdateFn(grp *proto.ClusterSpec_Group, other *proto.ClusterSpec_Group) 
 	if !reflect.DeepEqual(grp.Params, other.Params) {
 		return true
 	}
-	if !reflect.DeepEqual(grp.Resources, other.Resources) {
-		return true
-	}
-	if !reflect.DeepEqual(grp.Storage, other.Storage) {
+	if !reflect.DeepEqual(grp.Provider, other.Provider) {
 		return true
 	}
 	return false

@@ -6,6 +6,7 @@ import (
 	"net"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	gproto "github.com/golang/protobuf/proto"
@@ -46,7 +47,10 @@ type Server struct {
 
 	evalQueue *EvalQueue
 	service   proto.EnsembleServiceServer
-	bservice  *backendService
+
+	// subscriptions
+	lock sync.Mutex
+	subs []chan *InstanceUpdate
 }
 
 // NewServer starts an instance of the operator server
@@ -59,9 +63,10 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		stopCh:    make(chan struct{}),
 		handlers:  map[string]Handler{},
 		evalQueue: NewEvalQueue(),
+		subs:      []chan *InstanceUpdate{},
 	}
 
-	s.bservice = &backendService{srv: s}
+	// s.bservice = &backendService{srv: s}
 
 	for _, factory := range config.HandlerFactories {
 		handler := factory()
@@ -72,7 +77,7 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 
 	s.grpcServer = grpc.NewServer(s.withLoggingUnaryInterceptor())
 	proto.RegisterEnsembleServiceServer(s.grpcServer, s.service)
-	proto.RegisterBackendServiceServer(s.grpcServer, s.bservice)
+	// proto.RegisterBackendServiceServer(s.grpcServer, s.bservice)
 
 	// grpc address
 	if err := s.setupGRPCServer(s.config.GRPCAddr.String()); err != nil {
@@ -82,10 +87,12 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	// setup the node watcher in the provider
 	// go s.startWatcher(s.Provider)
 
+	s.Provider.Setup(s)
+
 	// setup watcher for the different backends
 	for _, i := range s.handlers {
 		go s.startWatcher(i)
-		i.Setup()
+		i.Setup(s)
 	}
 
 	s.logger.Info("Start provider")
@@ -112,37 +119,9 @@ func (s *Server) loggingServerInterceptor(ctx context.Context, req interface{}, 
 	return h, err
 }
 
-func (s *Server) upsertNode(i *proto.Instance) error {
-	fmt.Printf("Upsert node: %s\n", i.ID)
-
-	_, err := s.bservice.UpsertInstance(context.Background(), &proto.UpsertInstanceReq{
-		Instance: i,
-	})
-	return err
-
-	/*
-		depID, err := s.State.NameToDeployment(i.ClusterName)
-		if err != nil {
-			return err
-		}
-		// TODO: Aggregate this in the same function or provide it from
-		// the caller function as a context
-		dep, err := s.LoadDeployment(depID)
-		if err != nil {
-			return err
-		}
-		handler, err := s.GetHandler(dep.Backend)
-		if err != nil {
-			return err
-		}
-
-		handler.ApplyHook(ApplyHookRequest{Instance: i, Deployment: dep})
-	*/
-	return nil
-}
-
+/*
 func (s *Server) upsertNodeAndEval(deploymentID string, i *proto.Instance) error {
-	if err := s.upsertNode(i); err != nil {
+	if err := s.UpsertInstance(i); err != nil {
 		return err
 	}
 	eval := &proto.Evaluation{
@@ -198,6 +177,7 @@ func (s *Server) updateStatus(op *proto.InstanceUpdate) error {
 	}
 	return nil
 }
+*/
 
 type Watcher interface {
 	WatchUpdates() chan *proto.InstanceUpdate
@@ -402,17 +382,17 @@ func (s *Server) taskQueue4() {
 func (s *Server) instanceWatcher() {
 	fmt.Println("INSTANCE WATCHER START")
 
-	stream := s.bservice.createWatcher()
+	stream := s.SubscribeInstanceUpdates()
 	for {
 		msg := <-stream
 		fmt.Println("__ INSTANCE WATCHER __")
 		fmt.Println(msg)
 
-		resp, err := s.bservice.GetInstance(context.Background(), &proto.GetInstanceReq{Cluster: msg.Cluster, Id: msg.Id})
+		instance, err := s.GetInstance(msg.Id, msg.Cluster)
 		if err != nil {
 			panic(err)
 		}
-		if resp.Instance.Status == proto.Instance_RUNNING || resp.Instance.Status == proto.Instance_FAILED {
+		if instance.Status == proto.Instance_RUNNING || instance.Status == proto.Instance_FAILED {
 			// add eval
 			fmt.Println("_ ADD EVAL _")
 			eval := &proto.Evaluation{
@@ -434,7 +414,7 @@ func (s *Server) SubmitPlan(eval *proto.Evaluation, p *proto.Plan) error {
 	for _, i := range p.NodeUpdate {
 		fmt.Println("Update node", i.ID, i.Status)
 
-		if err := s.upsertNode(i); err != nil {
+		if err := s.UpsertInstance(i); err != nil {
 			return err
 		}
 	}
@@ -544,4 +524,47 @@ func (s *Server) validateComponent(component *proto.Component) (*proto.Component
 		return nil, err
 	}
 	return component, nil
+}
+
+func (s *Server) UpsertInstance(n *proto.Instance) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if err := s.State.UpsertNode(n); err != nil {
+		return err
+	}
+	update := &InstanceUpdate{
+		Id:      n.ID,
+		Cluster: n.DeploymentID,
+	}
+
+	fmt.Println("__ SUBS ___")
+	fmt.Println(s.subs)
+
+	for _, ch := range s.subs {
+		select {
+		case ch <- update:
+		default:
+		}
+	}
+	return nil
+}
+
+func (s *Server) GetInstance(id, cluster string) (*proto.Instance, error) {
+	return s.State.LoadInstance(cluster, id)
+}
+
+func (s *Server) SubscribeInstanceUpdates() <-chan *InstanceUpdate {
+	fmt.Println("=====>")
+
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if s.subs == nil {
+		s.subs = []chan *InstanceUpdate{}
+	}
+	ch := make(chan *InstanceUpdate, 10)
+	s.subs = append(s.subs, ch)
+
+	return ch
 }

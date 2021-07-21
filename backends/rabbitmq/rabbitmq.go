@@ -1,13 +1,11 @@
 package rabbitmq
 
 import (
-	"context"
 	"fmt"
 	"time"
 
 	rabbithole "github.com/michaelklishin/rabbit-hole/v2"
 	"github.com/teseraio/ensemble/lib/template"
-	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/schema"
@@ -35,41 +33,10 @@ func Factory() operator.Handler {
 }
 
 func (b *backend) Setup2() {
-	queue := b.Queue()
 
-	b.InstanceUpdate(func(i *proto.Instance) {
-		if i.Status == proto.Instance_RUNNING && !i.Healthy {
-			queue.Add(&proto.Evaluation{
-				Id:           uuid.UUID(),
-				Type:         i.DeploymentID, /// TODO: So that it is not serialized
-				DeploymentID: uuid.UUID(),
-				ComponentID:  i.ID,
-			})
-		}
-	})
-
-	go func() {
-		for {
-			msg := queue.Pop(context.Background())
-			fmt.Println("-- msg --")
-			fmt.Println(msg)
-
-			go func() {
-				resp1, err := b.BClient().GetInstance(context.Background(), &proto.GetInstanceReq{Id: msg.ComponentID, Cluster: msg.Type})
-				if err != nil {
-					panic(err)
-				}
-				resp2, err := b.BClient().GetDeploymentByID(context.Background(), &proto.GetDeploymentByIDReq{Id: msg.Type})
-				if err != nil {
-					panic(err)
-				}
-				b.startupProbe(resp2.Deployment, resp1.Instance)
-			}()
-		}
-	}()
 }
 
-func (b *backend) startupProbe(deployment *proto.Deployment, instance *proto.Instance) error {
+func (b *backend) startupProbe(instance *proto.Instance) error {
 	clt, err := rabbithole.NewClient("http://"+instance.Ip+":15672", "guest", "guest")
 	if err != nil {
 		return err
@@ -85,7 +52,7 @@ func (b *backend) startupProbe(deployment *proto.Deployment, instance *proto.Ins
 		return fmt.Errorf("timeout readiness probe")
 	}
 
-	nodesExpected := len(deployment.Instances)
+	nodesExpected, _ := instance.GetInt("num")
 
 	// check if its syncer with others
 	err = loopRetry(5*time.Minute, func() error {
@@ -103,12 +70,7 @@ func (b *backend) startupProbe(deployment *proto.Deployment, instance *proto.Ins
 		return fmt.Errorf("failed cluster formation")
 	}
 
-	ii := instance.Copy()
-	ii.Healthy = true
-
-	if _, err := b.BClient().UpsertInstance(context.Background(), &proto.UpsertInstanceReq{Instance: ii}); err != nil {
-		return err
-	}
+	instance.Healthy = true
 	return nil
 }
 
@@ -135,62 +97,6 @@ func loopRetry(timeout time.Duration, handler func() error) error {
 	return nil
 }
 
-/*
-func (b *backend) Hooks() []operator.Hook {
-	return []operator.Hook{
-		{
-			Name:  "readiness",
-			State: proto.Instance_RUNNING,
-			Handler: func(emit func(i *proto.InstanceUpdate), req operator.ApplyHookRequest) error {
-				instance := req.Instance
-				if instance.Healthy {
-					return nil
-				}
-
-				clt, err := rabbithole.NewClient("http://"+instance.Ip+":15672", "guest", "guest")
-				if err != nil {
-					return err
-				}
-
-				// check if rabbimq is running
-				err = loopRetry(5*time.Minute, func() error {
-					_, err = clt.Overview()
-					fmt.Println(err)
-					return err
-				})
-				if err != nil {
-					return fmt.Errorf("timeout readiness probe")
-				}
-
-				nodesExpected := len(req.Deployment.Instances)
-
-				// check if its syncer with others
-				err = loopRetry(5*time.Minute, func() error {
-					nodes, err := clt.ListNodes()
-					if err != nil {
-						return err
-					}
-					// fmt.Println(len(nodes), nodesExpected)
-					if len(nodes) == nodesExpected {
-						return nil
-					}
-					return fmt.Errorf("not yet")
-				})
-				if err != nil {
-					return fmt.Errorf("failed cluster formation")
-				}
-
-				emit(instance.Update(&proto.InstanceUpdate_Healthy_{
-					Healthy: &proto.InstanceUpdate_Healthy{},
-				}))
-
-				return nil
-			},
-		},
-	}
-}
-*/
-
 func (b *backend) Name() string {
 	return "Rabbitmq"
 }
@@ -212,6 +118,8 @@ func (b *backend) Initialize(n []*proto.Instance, target *proto.Instance) (*prot
 
 	target.Spec.AddFile(rabbitmqPlugins, enabledPlugins)
 
+	target.SetInt("num", len(n))
+
 	var nodes []string
 	for _, i := range n {
 		if i.ID != target.ID {
@@ -224,17 +132,6 @@ func (b *backend) Initialize(n []*proto.Instance, target *proto.Instance) (*prot
 	}
 	target.Spec.AddFile(rabbitmqConf, string(configContent))
 	return nil, nil
-}
-
-func (b *backend) Ready(t *proto.Instance) bool {
-	clt, err := rabbithole.NewClient("http://"+t.Ip+":15672", "guest", "guest")
-	if err != nil {
-		return false
-	}
-	if _, err := clt.Overview(); err != nil {
-		return false
-	}
-	return true
 }
 
 // Spec implements the Handler interface
@@ -262,6 +159,9 @@ func (b *backend) Spec() *operator.Spec {
 			user(),
 			exchange(),
 			vhost(),
+		},
+		Startup: func(i *proto.Instance) error {
+			return b.startupProbe(i)
 		},
 	}
 }
