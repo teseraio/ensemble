@@ -1,6 +1,7 @@
 package k8s
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/hashicorp/go-hclog"
@@ -194,3 +195,27 @@ func TestPodBadArgs(t *testing.T) {
 	}
 }
 */
+
+func TestK8sClient_Error(t *testing.T) {
+	// TODO
+	// {"kind":"Status","apiVersion":"v1","metadata":{},"status":"Failure","message":"The resourceVersion for the provided list is too old.","reason":"Expired","code":410}
+	// {"type":"ERROR","object":{"kind":"Status","apiVersion":"v1","metadata":{},"status":"Failure","message":"too old resource version: 10000 (343914)","reason":"Expired","code":410}}
+
+	cases := []struct {
+		obj string
+		err error
+	}{
+		{
+			obj: `{"kind":"Status","apiVersion":"v1","metadata":{},"status":"Failure","message":"The resourceVersion for the provided list is too old.","reason":"Expired","code":410}`,
+			err: errExpired,
+		},
+		{
+			obj: `{"type":"ERROR","object":{"kind":"Status","apiVersion":"v1","metadata":{},"status":"Failure","message":"too old resource version: 10000 (343914)","reason":"Expired","code":410}}`,
+			err: errExpired,
+		},
+	}
+
+	for _, c := range cases {
+		fmt.Println(isError([]byte(c.obj)), c.err)
+	}
+}

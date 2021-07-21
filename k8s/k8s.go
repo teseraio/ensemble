@@ -1,7 +1,6 @@
 package k8s
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -40,71 +39,71 @@ func getIDFromRef(ref string) string {
 }
 
 func (p *Provider) Setup() error {
-	go func() {
-		store := newStore()
-		newWatcher(store, p.client, eventsURL, &Event{}, false)
-
-		for {
-			task := store.pop(context.Background())
-			event := task.item.(*Event)
-
-			id := getIDFromRef(event.GetMetadata().Name)
-			cluster := p.getPodCluster(id)
-
-			if cluster == "" {
-				continue
-			}
-
-			if event.Reason == "Failed" {
-				p.watchCh <- &proto.InstanceUpdate{
-					ID:          id,
-					ClusterName: cluster,
-					Event: &proto.InstanceUpdate_Failed_{
-						Failed: &proto.InstanceUpdate_Failed{},
-					},
-				}
-			}
-
-			if event.Reason == "Scheduled" {
-				// is being started
-				p.watchCh <- &proto.InstanceUpdate{
-					ID:          id,
-					ClusterName: cluster,
-					Event: &proto.InstanceUpdate_Scheduled_{
-						Scheduled: &proto.InstanceUpdate_Scheduled{},
-					},
-				}
-			}
-
-			if event.Reason == "Started" {
-				// query the node and get the ip
-
-				ip := p.getPodIP(id)
-
-				p.watchCh <- &proto.InstanceUpdate{
-					ID:          id,
-					ClusterName: cluster,
-					Event: &proto.InstanceUpdate_Running_{
-						Running: &proto.InstanceUpdate_Running{
-							Ip: ip,
-						},
-					},
-				}
-			}
-
-			if event.Reason == "Killing" {
-				p.watchCh <- &proto.InstanceUpdate{
-					ID:          id,
-					ClusterName: cluster,
-					Event: &proto.InstanceUpdate_Killing_{
-						Killing: &proto.InstanceUpdate_Killing{},
-					},
-				}
-			}
-		}
-	}()
-
+	w, err := NewWatcher(p.logger, p.client, eventsURL, &Event{})
+	if err != nil {
+		return err
+	}
+	w.Run(p.stopCh)
+	w.ForEach(func(task *WatchEntry, i interface{}) {
+		p.handleEvent(i.(*Event))
+	})
 	return nil
+}
+
+func (p *Provider) handleEvent(event *Event) {
+	id := getIDFromRef(event.GetMetadata().Name)
+	cluster := p.getPodCluster(id)
+
+	if cluster == "" {
+		return
+	}
+
+	if event.Reason == "Failed" {
+		p.watchCh <- &proto.InstanceUpdate{
+			ID:          id,
+			ClusterName: cluster,
+			Event: &proto.InstanceUpdate_Failed_{
+				Failed: &proto.InstanceUpdate_Failed{},
+			},
+		}
+	}
+
+	if event.Reason == "Scheduled" {
+		// is being started
+		p.watchCh <- &proto.InstanceUpdate{
+			ID:          id,
+			ClusterName: cluster,
+			Event: &proto.InstanceUpdate_Scheduled_{
+				Scheduled: &proto.InstanceUpdate_Scheduled{},
+			},
+		}
+	}
+
+	if event.Reason == "Started" {
+		// query the node and get the ip
+
+		ip := p.getPodIP(id)
+
+		p.watchCh <- &proto.InstanceUpdate{
+			ID:          id,
+			ClusterName: cluster,
+			Event: &proto.InstanceUpdate_Running_{
+				Running: &proto.InstanceUpdate_Running{
+					Ip: ip,
+				},
+			},
+		}
+	}
+
+	if event.Reason == "Killing" {
+		p.watchCh <- &proto.InstanceUpdate{
+			ID:          id,
+			ClusterName: cluster,
+			Event: &proto.InstanceUpdate_Killing_{
+				Killing: &proto.InstanceUpdate_Killing{},
+			},
+		}
+	}
 }
 
 func (p *Provider) createCRD(crdDefinition []byte) error {
@@ -404,13 +403,17 @@ func (p *Provider) get(rawURL string, out interface{}) ([]byte, error) {
 }
 
 var (
-	errAlreadyExists = fmt.Errorf("Already exists")
+	errAlreadyExists = fmt.Errorf("already exists")
 
-	errInvalidResourceVersion = fmt.Errorf("Invalid resource version")
+	errInvalidResourceVersion = fmt.Errorf("invalid resource version")
 
-	errNotFound = fmt.Errorf("Not found")
+	errNotFound = fmt.Errorf("not found")
 
 	err404NotFound = fmt.Errorf("404 not found")
+
+	errExpired = fmt.Errorf("expired")
+
+	errFutureVersion = fmt.Errorf("future version")
 )
 
 func isError(resp []byte) error {
@@ -422,10 +425,25 @@ func isError(resp []byte) error {
 		Status  string
 		Reason  string
 		Message string
+		Code    int
 	}
 	var res Status
 	if err := json.Unmarshal(resp, &res); err != nil {
 		return nil
+	}
+	if res.Kind == "" {
+		// try to parse as error
+		var errMsg struct {
+			Type   string
+			Object *Status
+		}
+		if err := json.Unmarshal(resp, &errMsg); err != nil {
+			return nil
+		}
+		if errMsg.Type != "ERROR" {
+			return nil
+		}
+		res = *errMsg.Object
 	}
 	if res.Status != "Failure" {
 		return nil
@@ -435,9 +453,16 @@ func isError(resp []byte) error {
 		return errNotFound
 	case "AlreadyExists":
 		return errAlreadyExists
+	case "Expired":
+		return errExpired
 	case "Invalid":
 		return fmt.Errorf(res.Message)
 	default:
-		return fmt.Errorf("Undefined Error: '%s'", string(resp))
+		// filter by code
+		switch res.Code {
+		case 500:
+			return errFutureVersion
+		}
+		return fmt.Errorf("undefined Error: '%s'", string(resp))
 	}
 }

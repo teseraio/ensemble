@@ -2,19 +2,70 @@ package k8s
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/stretchr/testify/assert"
 	"github.com/teseraio/ensemble/lib/uuid"
 )
 
-func TestWatcher(t *testing.T) {
-	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
+type crdSetup struct {
+	name string
 
-	// Create test CRD objects
+	t *testing.T
+	p *Provider
+}
+
+func (c *crdSetup) Delete(name string) {
+	err := c.p.delete(c.Path()+"/"+name, emptyDel)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+}
+
+func (c *crdSetup) Update(name string, resourceVersion string) *Metadata {
+	obj, _ := RunTmpl2("mock", map[string]interface{}{
+		"resource":        strings.Title(c.name),
+		"name":            name,
+		"value":           uuid.UUID(),
+		"resourceVersion": resourceVersion,
+	})
+	_, metadata, err := c.p.put(c.Path()+"/"+name, obj)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	return metadata
+}
+
+func (c *crdSetup) Create(name string) *Metadata {
+	obj, _ := RunTmpl2("mock", map[string]interface{}{
+		"resource": strings.Title(c.name),
+		"name":     name,
+		"value":    uuid.UUID(),
+	})
+	_, metadata, err := c.p.post(c.Path(), obj)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	return metadata
+}
+
+func (c *crdSetup) Path() string {
+	return "/apis/mock.io/v1/namespaces/default/" + c.name + "s"
+}
+
+func (c *crdSetup) Close() {
+	if err := c.p.delete("/apis/apiextensions.k8s.io/v1/customresourcedefinitions/"+c.name+"s.mock.io", emptyDel); err != nil {
+		c.t.Fatal(err)
+	}
+}
+
+func setupCRD(t *testing.T, p *Provider, name string) *crdSetup {
 	crdDefinition, _ := RunTmpl2("mock-crd", map[string]interface{}{
-		"name": "test1",
+		"name": name,
 	})
 	if _, _, err := p.post(crdURL, []byte(crdDefinition)); err != nil {
 		if err != errAlreadyExists {
@@ -23,63 +74,164 @@ func TestWatcher(t *testing.T) {
 	}
 
 	// wait for the CRD to be created
-	time.Sleep(1 * time.Second)
+	time.Sleep(2 * time.Second)
 
-	defer func() {
-		if err := p.delete("/apis/apiextensions.k8s.io/v1/customresourcedefinitions/test1s.mock.io", emptyDel); err != nil {
-			t.Fatal(err)
-		}
+	crd := &crdSetup{
+		name: name,
+		t:    t,
+		p:    p,
+	}
+	return crd
+}
+
+func TestWatcherWrongPath(t *testing.T) {
+	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
+	nullLogger := hclog.NewNullLogger()
+
+	_, err := NewWatcher(nullLogger, p.client, "/apis/mock.io/v1/namespaces/default/test2s", &Item{})
+	assert.Error(t, err)
+}
+
+func TestWatcher_ListErrors(t *testing.T) {
+	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
+
+	crd := setupCRD(t, p, "testgeterror")
+	defer crd.Close()
+
+	watcher, err := NewWatcher(hclog.NewNullLogger(), p.client, crd.Path(), &Item{})
+	assert.NoError(t, err)
+
+	// call an expired resource version that is not available
+	_, err = watcher.listImpl("1")
+	assert.ErrorIs(t, err, errExpired)
+
+	metadata := crd.Create("item")
+
+	// call a future resource version
+	_, err = watcher.listImpl(metadata.ResourceVersion + "0")
+	assert.ErrorIs(t, err, errFutureVersion)
+}
+
+func TestWatcher_ListImpl(t *testing.T) {
+	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
+
+	crd := setupCRD(t, p, "testget")
+	defer crd.Close()
+
+	watcher, err := NewWatcher(hclog.NewNullLogger(), p.client, crd.Path(), &Item{})
+	assert.NoError(t, err)
+	watcher.WithLimit(2)
+
+	// query the latest item
+	pager, err := watcher.listImpl("")
+	assert.NoError(t, err)
+	assert.Zero(t, pager.items)
+
+	metadata := []*Metadata{}
+	for i := 0; i < 20; i++ {
+		metadata = append(metadata, crd.Create(fmt.Sprintf("item-%d", i)))
+	}
+
+	// query from the beginning, IT DOES NOT respect limit and returns all the elements
+	pager, err = watcher.listImpl("0")
+	assert.NoError(t, err)
+	assert.Len(t, pager.items, 20)
+
+	// query from a specific resource version
+	pager, err = watcher.listImpl(metadata[10].ResourceVersion)
+	assert.NoError(t, err)
+	assert.Len(t, pager.items, 11)
+}
+
+func TestWatcher_WatchExpire(t *testing.T) {
+	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
+
+	crd := setupCRD(t, p, "testwatchererror")
+	defer crd.Close()
+
+	watcher, err := NewWatcher(hclog.NewNullLogger(), p.client, crd.Path(), &Item{})
+	assert.NoError(t, err)
+
+	// expires
+	err = watcher.watchImpl("1", func(typ string, item itemObj) error {
+		return nil
+	})
+	assert.ErrorIs(t, err, errExpired)
+}
+
+func TestWatcher_WatchImpl(t *testing.T) {
+	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
+
+	crd := setupCRD(t, p, "testwatcher")
+	defer crd.Close()
+
+	watcher, err := NewWatcher(hclog.NewNullLogger(), p.client, crd.Path(), &Item{})
+	assert.NoError(t, err)
+
+	// create one item to have the resource version reference
+	metadata := crd.Create("item")
+
+	eventCh := make(chan string)
+	go func() {
+		watcher.watchImpl(metadata.ResourceVersion, func(typ string, item itemObj) error {
+			eventCh <- typ
+			return nil
+		})
 	}()
 
-	create := func(name string) {
-		obj, _ := RunTmpl2("mock", map[string]interface{}{
-			"resource": "Test1",
-			"name":     name,
-		})
-		if _, _, err := p.post("/apis/mock.io/v1/namespaces/{namespace}/test1s", obj); err != nil {
-			t.Fatal(err)
-		}
-	}
+	// create
+	metadata = crd.Create("item-2")
+	evnt := <-eventCh
+	assert.Equal(t, evnt, "ADDED")
 
-	ids := []string{}
+	// update
+	crd.Update("item-2", metadata.ResourceVersion)
+	evnt = <-eventCh
+	assert.Equal(t, evnt, "MODIFIED")
+
+	// delete
+	crd.Delete("item-2")
+	evnt = <-eventCh
+	assert.Equal(t, evnt, "DELETED")
+}
+
+func TestWatcher_Lifecycle(t *testing.T) {
+	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
+
+	crd := setupCRD(t, p, "testlifecycle")
+	defer crd.Close()
+
+	watcher, err := NewWatcher(hclog.NewNullLogger(), p.client, crd.Path(), &Item{})
+	assert.NoError(t, err)
+
 	for i := 0; i < 20; i++ {
-		id := uuid.UUID()
-		ids = append(ids, id)
-		create(id)
+		crd.Create(fmt.Sprintf("item-%d", i))
 	}
 
-	store := newStore()
-	newWatcher(store, p.client, "/apis/mock.io/v1/namespaces/default/test1s", &Item{}, true)
+	// wait for the items to be available for the list
+	time.Sleep(2 * time.Second)
+
+	watcher.Run(nil)
 
 	for i := 0; i < 20; i++ {
-		e := store.pop(context.Background())
-		item := e.item.(*Item)
-		if !contains(ids, item.Metadata.Name) {
-			t.Fatal("bad")
-		}
+		obj := watcher.store.pop(context.Background())
+		item := obj.item.(*Item)
+		assert.Equal(t, item.Metadata.Name, fmt.Sprintf("item-%d", i))
 	}
 
-	// delete an element
-	if err := p.delete("/apis/mock.io/v1/namespaces/{namespace}/test1s/"+ids[0], emptyDel); err != nil {
-		t.Fatal(err)
+	// update
+	for i := 0; i < 10; i++ {
+		crd.Delete(fmt.Sprintf("item-%d", i))
 	}
 
-	tt := store.pop(context.Background())
-	if tt.item.(*Item).Metadata.Name != ids[0] {
-		t.Fatal("bad")
+	for i := 0; i < 10; i++ {
+		obj := watcher.store.pop(context.Background())
+		item := obj.item.(*Item)
+		assert.Equal(t, item.Metadata.Name, fmt.Sprintf("item-%d", i))
 	}
 }
 
-func contains(i []string, j string) bool {
-	for _, o := range i {
-		if o == j {
-			return true
-		}
-	}
-	return false
-}
-
-func TestWatcherStore(t *testing.T) {
+func TestWatcher_Queue(t *testing.T) {
 	s := newStore()
 
 	s.add("", &Item{

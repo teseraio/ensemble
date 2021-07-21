@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -43,6 +44,23 @@ type WatchEvent struct {
 	Object interface{}
 }
 
+func (c *KubeClient) GetFull(url string, out interface{}) ([]byte, error) {
+	resp, err := c.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	if err := isError(resp); err != nil {
+		return nil, err
+	}
+	if out == nil {
+		return resp, nil
+	}
+	if err := json.Unmarshal(resp, out); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 func (c *KubeClient) Get(path string) ([]byte, error) {
 	return c.HTTPReq(http.MethodGet, path, nil)
 }
@@ -57,6 +75,10 @@ func (c *KubeClient) Put(path string, obj []byte) ([]byte, error) {
 
 func (c *KubeClient) Post(path string, obj []byte) ([]byte, error) {
 	return c.HTTPReq(http.MethodPost, path, obj)
+}
+
+func (c *KubeClient) Watch(path string) (*http.Response, error) {
+	return c.HTTPReqWithResponse(http.MethodGet, path, nil)
 }
 
 // HTTPReqWithResponse is a generic method to make http requests that returns the response object
