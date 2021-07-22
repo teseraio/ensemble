@@ -761,3 +761,30 @@ func TestReconciler_InstanceFailed_ScaleDown(t *testing.T) {
 	assert.Equal(t, rec.res.stop[0].instance.ID, dep.Instances[2].ID)
 	assert.Equal(t, rec.res.stop[1].instance.ID, dep.Instances[3].ID)
 }
+
+func TestReconciler_InstancePending_NotDone(t *testing.T) {
+	// the deployment is not done if instances are pending
+	spec := mockClusterSpec()
+	spec.Groups[0].Count = 3
+
+	dep := newMockDeployment()
+
+	for i := 0; i < 3; i++ {
+		ii := &proto.Instance{}
+		ii.Status = proto.Instance_PENDING
+		ii.ID = uuid.UUID()
+		ii.Group = spec.Groups[0]
+		ii.Healthy = true
+		dep.Instances = append(dep.Instances, ii)
+	}
+
+	rec := &reconciler{
+		dep:  dep.Deployment,
+		spec: spec,
+	}
+	rec.Compute()
+
+	testExpectReconcile(t, rec, expectedReconciler{
+		done: false,
+	})
+}

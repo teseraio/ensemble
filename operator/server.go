@@ -380,13 +380,13 @@ func (s *Server) taskQueue4() {
 }
 
 func (s *Server) instanceWatcher() {
-	fmt.Println("INSTANCE WATCHER START")
+	//fmt.Println("INSTANCE WATCHER START")
 
 	stream := s.SubscribeInstanceUpdates()
 	for {
 		msg := <-stream
-		fmt.Println("__ INSTANCE WATCHER __")
-		fmt.Println(msg)
+		//fmt.Println("__ INSTANCE WATCHER __")
+		//fmt.Println(msg)
 
 		instance, err := s.GetInstance(msg.Id, msg.Cluster)
 		if err != nil {
@@ -394,7 +394,7 @@ func (s *Server) instanceWatcher() {
 		}
 		if instance.Status == proto.Instance_RUNNING || instance.Status == proto.Instance_FAILED {
 			// add eval
-			fmt.Println("_ ADD EVAL _")
+			//fmt.Println("_ ADD EVAL _")
 			eval := &proto.Evaluation{
 				Id:           uuid.UUID(),
 				Status:       proto.Evaluation_PENDING,
@@ -428,6 +428,15 @@ func (s *Server) SubmitPlan(eval *proto.Evaluation, p *proto.Plan) error {
 			if err := s.State.UpdateDeployment(dep); err != nil {
 				return err
 			}
+		}
+
+		ddd, err := s.State.LoadDeployment(dep.Id)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("__ CURRENT STATE __")
+		for _, i := range ddd.Instances {
+			fmt.Printf("ID: %s, Name: %s, State: %s, Healthy: %v\n", i.ID, i.Name, i.Status, i.Healthy)
 		}
 	}
 
@@ -527,6 +536,8 @@ func (s *Server) validateComponent(component *proto.Component) (*proto.Component
 }
 
 func (s *Server) UpsertInstance(n *proto.Instance) error {
+	fmt.Printf("Upsert instance %s %s\n", n.ID, n.Status)
+
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -537,9 +548,6 @@ func (s *Server) UpsertInstance(n *proto.Instance) error {
 		Id:      n.ID,
 		Cluster: n.DeploymentID,
 	}
-
-	fmt.Println("__ SUBS ___")
-	fmt.Println(s.subs)
 
 	for _, ch := range s.subs {
 		select {

@@ -192,7 +192,7 @@ type reconcileResult struct {
 }
 
 func (r *reconcileResult) print() {
-	fmt.Printf("place: %d, stop: %d, ready: %d\n", len(r.place), len(r.stop), len(r.ready))
+	fmt.Printf("place: %d, stop: %d, ready: %d, out: %d done: %v\n", len(r.place), len(r.stop), len(r.ready), len(r.out), r.done)
 }
 
 type instanceStopResult struct {
@@ -278,6 +278,11 @@ func (r *reconciler) Compute() {
 	}
 	r.res = &reconcileResult{}
 
+	fmt.Println("__ CURRENT STATE IN RECONCILER __")
+	for _, i := range r.dep.Instances {
+		fmt.Printf("ID: %s, Name: %s, State: %s, Healthy: %v\n", i.ID, i.Name, i.Status, i.Healthy)
+	}
+
 	if r.delete {
 		// remove all the running instances
 		pending := false
@@ -331,6 +336,10 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 		// scale down
 		stop = r.computeStop(grp, reschedule, untainted)
 	}
+
+	// get the pending nodes
+	var pending allocSet
+	pending, untainted = untainted.filterByStatus(proto.Instance_PENDING)
 
 	// remove the reschedule nodes if we are stopping any
 	reschedule = reschedule.difference(stop)
@@ -441,7 +450,7 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 
 	done := false
 	if allHealthy {
-		if len(reschedule) == 0 && len(readyToAllocate) == 0 && len(stopping) == 0 && len(updates) == 0 && len(place) == 0 && len(lost) == 0 && !isRolling {
+		if len(reschedule) == 0 && len(readyToAllocate) == 0 && len(stopping) == 0 && len(updates) == 0 && len(place) == 0 && len(lost) == 0 && len(pending) == 0 && !isRolling {
 			done = true
 		}
 	}

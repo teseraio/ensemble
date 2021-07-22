@@ -1,6 +1,7 @@
 package zookeeper
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/teseraio/ensemble/operator"
@@ -111,11 +112,24 @@ func TestE2E(t *testing.T) {
 			Groups: []*proto.ClusterSpec_Group{
 				{
 					Count: 3,
-					Params: schema.MapToSpec(
-						map[string]interface{}{
-							// "tickTime": "2000",
-						},
-					),
+				},
+			},
+		}),
+	})
+
+	srv.WaitForTask(uuid)
+
+	fmt.Printf("\n\n\n\n")
+
+	// scale up cluster
+
+	uuid = srv.Apply(&proto.Component{
+		Name: "A",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			Backend: "Zookeeper",
+			Groups: []*proto.ClusterSpec_Group{
+				{
+					Count: 5,
 				},
 			},
 		}),

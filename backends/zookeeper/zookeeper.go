@@ -88,6 +88,10 @@ func (b *backend) Spec() *operator.Spec {
 								Type:    schema.TypeString,
 								Default: "2000",
 							},
+							"nodes": {
+								Type:     schema.TypeInt,
+								Computed: true,
+							},
 						},
 					},
 				},
@@ -107,9 +111,16 @@ func (b *backend) Spec() *operator.Spec {
 					return nil, fmt.Errorf("either 1 or 3 expected")
 				}
 			}
+
+			grp.Params = schema.MapToSpec(map[string]interface{}{
+				"nodes": int(grp.Count),
+			})
+
 			if grp.Count%2 == 0 {
 				return nil, fmt.Errorf("odd number of nodes required")
 			}
+
+			comp.Spec = proto.MustMarshalAny(&spec)
 			return comp, nil
 		},
 		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData){

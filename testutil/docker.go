@@ -148,19 +148,19 @@ func (c *Client) runProvider() {
 				panic("bad")
 			}
 
-			fmt.Println("-- docker msg --")
-			fmt.Println(msg)
+			//fmt.Println("-- docker msg --")
+			//fmt.Println(msg)
 
 			instance, err := c.controlPlane.GetInstance(msg.Id, msg.Cluster)
 			if err != nil {
 				panic(err)
 			}
 
-			fmt.Println("-- docker instance --")
-			fmt.Println(instance)
+			//fmt.Println("-- docker instance --")
+			//fmt.Println(instance)
 
 			if instance.Status == proto.Instance_PENDING {
-				fmt.Println("_ RUN PROVIDER _", instance.ID, instance.Name, instance.Status)
+				fmt.Println("_ CREATE INSTANCE _", instance.ID, instance.Name, instance.Status)
 				// we can work on this
 				if _, err := c.createImpl(context.Background(), instance); err != nil {
 
@@ -173,6 +173,8 @@ func (c *Client) runProvider() {
 				}
 
 			} else if instance.Status == proto.Instance_TAINTED {
+				fmt.Printf("_ DELETE INSTANCE: %s %s _\n", instance.ID, instance.Name)
+
 				if err := c.client.ContainerKill(context.Background(), instance.Handler, "SIGINT"); err != nil {
 					panic(err)
 				}

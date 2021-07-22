@@ -1,6 +1,8 @@
 package operator
 
 import (
+	"fmt"
+
 	gproto "github.com/golang/protobuf/proto"
 	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
@@ -58,6 +60,9 @@ func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 		spec:   spec,
 	}
 	r.Compute()
+
+	fmt.Println("-- reconcile --")
+	r.res.print()
 
 	plan := &proto.Plan{
 		EvalID:     eval.Id,
