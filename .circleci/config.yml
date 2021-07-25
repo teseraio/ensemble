@@ -9,6 +9,9 @@ jobs:
           version: 19.03.13
       - run:
           command: |
+            go mod vendor
+      - run:
+          command: |
             go test -v ./operator/... -test.short
       - run:
           command: |
