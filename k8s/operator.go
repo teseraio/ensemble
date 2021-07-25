@@ -64,45 +64,47 @@ func (p *Provider) trackCRDs(clt proto.EnsembleServiceClient) error {
 		return err
 	}
 
-	store := newStore()
+	crdHandler := func(task *WatchEntry, i interface{}) {
+		item := i.(*Item)
+
+		spec, err := DecodeItem(item)
+		if err != nil {
+			p.logger.Error("failed to decode watch item", "err", err)
+			return
+		}
+
+		action := proto.Component_CREATE
+		if task.typ == "DELETED" {
+			action = proto.Component_DELETE
+		}
+		c := &proto.Component{
+			Name:     item.Metadata.Name,
+			Spec:     spec,
+			Metadata: item.Metadata.Labels,
+			Action:   action,
+		}
+
+		p.logger.Debug("apply component", "name", item.Metadata.Name, "kind", item.Kind, "action", task.typ)
+		if _, err := clt.Apply(context.Background(), c); err != nil {
+			p.logger.Error("failed to apply component", "err", err)
+		}
+	}
+
 	for _, res := range validResources {
 		ok := apiResourceList.findResource(res)
 		if ok {
-			newWatcher(store, p.client, "/apis/ensembleoss.io/v1/namespaces/default/"+res, &Item{}, true)
+			w, err := NewWatcher(p.logger, p.client, "/apis/ensembleoss.io/v1/namespaces/default/"+res, &Item{})
+			if err != nil {
+				return err
+			}
+			w.WithList().Run(p.stopCh)
+			w.ForEach(crdHandler)
+
 			p.logger.Info("CRD tracker started", "name", res)
 		} else {
 			p.logger.Warn("CRD resource not defined", "name", res)
 		}
 	}
-
-	go func() {
-		for {
-			task := store.pop(context.Background())
-			item := task.item.(*Item)
-
-			spec, err := DecodeItem(item)
-			if err != nil {
-				panic(err)
-			}
-
-			action := proto.Component_CREATE
-			if task.typ == "DELETED" {
-				action = proto.Component_DELETE
-			}
-
-			c := &proto.Component{
-				Name:     item.Metadata.Name,
-				Spec:     spec,
-				Metadata: item.Metadata.Labels,
-				Action:   action,
-			}
-
-			p.logger.Debug("apply component", "name", item.Metadata.Name, "kind", item.Kind, "action", task.typ)
-			if _, err := clt.Apply(context.Background(), c); err != nil {
-				panic(err)
-			}
-		}
-	}()
 
 	return nil
 }

@@ -2,8 +2,12 @@
     "apiVersion": "mock.io/v1",
     "kind": "{{.resource}}",
     "metadata": {
+        {{if .resourceVersion}}
+		"resourceVersion": "{{.resourceVersion}}",
+		{{end}}
         "name": "{{.name}}"
     },
     "spec": {
+        "b": "{{.value}}"
     }
 }
