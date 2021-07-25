@@ -191,10 +191,24 @@ func TestWatcher_Lifecycle(t *testing.T) {
 	// wait for the items to be available for the list
 	time.Sleep(2 * time.Second)
 
+	watcher.WithList(true)
 	watcher.Run(nil)
 
+	popItem := func() *WatchEntry {
+		ctx, cancelFn := context.WithCancel(context.Background())
+		go func() {
+			<-time.After(2 * time.Second)
+			cancelFn()
+		}()
+		obj := watcher.store.pop(ctx)
+		if obj == nil {
+			t.Fatal("timeout")
+		}
+		return obj
+	}
+
 	for i := 0; i < 20; i++ {
-		obj := watcher.store.pop(context.Background())
+		obj := popItem()
 		item := obj.item.(*Item)
 		assert.Equal(t, item.Metadata.Name, fmt.Sprintf("item-%d", i))
 	}
@@ -205,7 +219,7 @@ func TestWatcher_Lifecycle(t *testing.T) {
 	}
 
 	for i := 0; i < 10; i++ {
-		obj := watcher.store.pop(context.Background())
+		obj := popItem()
 		item := obj.item.(*Item)
 		assert.Equal(t, item.Metadata.Name, fmt.Sprintf("item-%d", i))
 	}

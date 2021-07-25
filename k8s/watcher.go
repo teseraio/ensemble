@@ -205,16 +205,16 @@ func (w *Watcher) Run(stopCh chan struct{}) {
 
 func (w *Watcher) runWithBackoff(stopCh chan struct{}) {
 	for {
+		err := w.runImpl()
+		if err != nil {
+			w.logger.Error("failed to watch", "err", err)
+		}
+
 		// TODO: Use exponential backoff
 		select {
 		case <-time.After(2 * time.Second):
 		case <-stopCh:
 			return
-		}
-
-		err := w.runImpl()
-		if err != nil {
-			w.logger.Error("failed to watch", "err", err)
 		}
 	}
 }
