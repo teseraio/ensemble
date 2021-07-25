@@ -5,6 +5,8 @@ jobs:
       - image: circleci/golang:1.15
     steps:
       - checkout
+      - setup_remote_docker:
+          version: 19.03.13
       - run:
           command: |
             go test -v ./operator/... -test.short
