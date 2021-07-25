@@ -40,6 +40,39 @@ func readEvent(p operator.Provider, t *testing.T) *proto.InstanceUpdate {
 	return nil
 }
 
+func waitForRunning(p operator.Provider, t *testing.T) *proto.InstanceUpdate_Running_ {
+	evnt := waitForEvent(p, t, func(evnt *proto.InstanceUpdate) bool {
+		_, ok := evnt.Event.(*proto.InstanceUpdate_Running_)
+		return ok
+	})
+	return evnt.Event.(*proto.InstanceUpdate_Running_)
+}
+
+func waitForDeleted(p operator.Provider, t *testing.T) {
+	waitForEvent(p, t, func(evnt *proto.InstanceUpdate) bool {
+		_, ok := evnt.Event.(*proto.InstanceUpdate_Killing_)
+		return ok
+	})
+}
+
+func waitForEvent(p operator.Provider, t *testing.T, handler func(i *proto.InstanceUpdate) bool) *proto.InstanceUpdate {
+	doneCh := make(chan struct{})
+	go func() {
+		<-time.After(20 * time.Second)
+		close(doneCh)
+	}()
+	for {
+		select {
+		case evnt := <-p.WatchUpdates():
+			if handler(evnt) {
+				return evnt
+			}
+		case <-doneCh:
+			t.Fatal("timeout")
+		}
+	}
+}
+
 func TestPodBarArgs(t *testing.T, p operator.Provider) {
 	// TODO
 	i := &proto.Instance{
@@ -109,28 +142,22 @@ func TestPodLifecycle(t *testing.T, p operator.Provider) {
 		t.Fatal(err)
 	}
 
-	// wait for the container to be running
-	evnt := readEvent(p, t)
-	if _, ok := evnt.Event.(*proto.InstanceUpdate_Scheduled_); !ok {
-		t.Fatal("expected scheduled")
-	}
+	// wait for running event
+	evnt := waitForEvent(p, t, func(evnt *proto.InstanceUpdate) bool {
+		_, ok := evnt.Event.(*proto.InstanceUpdate_Running_)
+		return ok
+	})
 
-	evnt = readEvent(p, t)
-	obj, ok := evnt.Event.(*proto.InstanceUpdate_Running_)
-	if !ok {
-		t.Fatal("expected running")
-	}
-	i.Handler = obj.Running.Handler
-
+	i.Handler = evnt.Event.(*proto.InstanceUpdate_Running_).Running.Handler
 	if _, err := p.DeleteResource(i); err != nil {
 		t.Fatal(err)
 	}
 
 	// wait for termination event
-	evnt = readEvent(p, t)
-	if _, ok := evnt.Event.(*proto.InstanceUpdate_Killing_); !ok {
-		t.Fatal("expected stopped")
-	}
+	waitForEvent(p, t, func(evnt *proto.InstanceUpdate) bool {
+		_, ok := evnt.Event.(*proto.InstanceUpdate_Killing_)
+		return ok
+	})
 }
 
 func TestPodFiles(t *testing.T, p operator.Provider) {
@@ -167,12 +194,7 @@ Line3`,
 	}
 
 	// wait for it to be ready
-	for {
-		evnt := <-p.WatchUpdates()
-		if _, ok := evnt.Event.(*proto.InstanceUpdate_Running_); ok {
-			break
-		}
-	}
+	waitForRunning(p, t)
 
 	for _, file := range files {
 		out, err := p.Exec(id, "cat", file.Name)
@@ -203,13 +225,8 @@ func TestPodMount(t *testing.T, p operator.Provider) {
 	}
 
 	// wait for it to be ready
-	for {
-		evnt := <-p.WatchUpdates()
-		if obj, ok := evnt.Event.(*proto.InstanceUpdate_Running_); ok {
-			i.Handler = obj.Running.Handler
-			break
-		}
-	}
+	evnt := waitForRunning(p, t)
+	i.Handler = evnt.Running.Handler
 
 	// /data/test.txt does not exists
 	_, err := p.Exec(i.ID, "cat", "/data/test.txt")
@@ -225,12 +242,7 @@ func TestPodMount(t *testing.T, p operator.Provider) {
 	}
 
 	// wait for the container to stop
-	for {
-		evnt := <-p.WatchUpdates()
-		if _, ok := evnt.Event.(*proto.InstanceUpdate_Killing_); ok {
-			break
-		}
-	}
+	waitForDeleted(p, t)
 
 	// "restart" the instance
 	ii := i.Copy()
@@ -241,13 +253,8 @@ func TestPodMount(t *testing.T, p operator.Provider) {
 	}
 
 	// wait for it to be ready
-	for {
-		evnt := <-p.WatchUpdates()
-		if obj, ok := evnt.Event.(*proto.InstanceUpdate_Running_); ok {
-			ii.Handler = obj.Running.Handler
-			break
-		}
-	}
+	evnt = waitForRunning(p, t)
+	i.Handler = evnt.Running.Handler
 
 	// /data/test.txt should be available
 	_, err = p.Exec(ii.ID, "cat", "/data/test.txt")
@@ -268,13 +275,8 @@ func TestDNS(t *testing.T, p operator.Provider) {
 	}
 
 	// wait for it to be ready
-	for {
-		evnt := <-p.WatchUpdates()
-		if obj, ok := evnt.Event.(*proto.InstanceUpdate_Running_); ok {
-			target.Handler = obj.Running.Handler
-			break
-		}
-	}
+	evnt := waitForRunning(p, t)
+	target.Handler = evnt.Running.Handler
 
 	source := &proto.Instance{
 		ID:          uuid.UUID(),
@@ -289,13 +291,8 @@ func TestDNS(t *testing.T, p operator.Provider) {
 	}
 
 	// wait for it to be ready
-	for {
-		evnt := <-p.WatchUpdates()
-		if obj, ok := evnt.Event.(*proto.InstanceUpdate_Running_); ok {
-			source.Handler = obj.Running.Handler
-			break
-		}
-	}
+	evnt = waitForRunning(p, t)
+	source.Handler = evnt.Running.Handler
 
 	// valid dns
 	out, err := p.Exec(source.ID, "curl", "--fail", "--silent", "--show-error", target.Name+".c11")

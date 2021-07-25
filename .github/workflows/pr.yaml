@@ -1,0 +1,24 @@
+name: Unit tests
+on: [pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-16.04
+    name: Go test
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup go
+        uses: actions/setup-go@v1
+        with:
+          go-version: '1.15.10'
+      - uses: AbsaOSS/k3d-action@v1.5.0
+        name: "Create Single Cluster"
+        with:
+          cluster-name: "test-cluster-1"
+          args: --agents 1
+      - run: go mod vendor
+      - name: Go test
+        run: go test -v ./operator/... -test.short
+      - name: Docker provider integration
+        run: go test -v ./testutil/...
+      - name: Kubernetes provider integration
+        run: go test -v ./k8s/...
