@@ -263,7 +263,7 @@ func (r *reconciler) computePlacements(grp *proto.ClusterSpec_Group, untainted, 
 	return
 }
 
-var maxParallel = 2
+var maxParallel = 1
 
 func min(i, j int) int {
 	if i < j {

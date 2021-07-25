@@ -3,11 +3,11 @@ package dask
 import (
 	"testing"
 
-	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/testutil"
 )
 
+/*
 func TestBootstrap(t *testing.T) {
 	h := operator.NewHarness(t)
 	h.Handler = Factory()
@@ -57,9 +57,35 @@ func TestBootstrap(t *testing.T) {
 		},
 	})
 }
+*/
 
-func TestE2E(t *testing.T) {
-	testutil.IsE2EEnabled(t)
+func TestDask_Initial(t *testing.T) {
+	// testutil.IsE2EEnabled(t)
+
+	srv := testutil.TestOperator(t, Factory)
+	// defer srv.Close()
+
+	uuid := srv.Apply(&proto.Component{
+		Name: "A",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			Backend: "Dask",
+			Groups: []*proto.ClusterSpec_Group{
+				{
+					Type:  "scheduler",
+					Count: 1,
+				},
+				{
+					Type:  "worker",
+					Count: 1,
+				},
+			},
+		}),
+	})
+
+	srv.WaitForTask(uuid)
+}
+
+func TestDask_ScaleUp(t *testing.T) {
 
 	srv := testutil.TestOperator(t, Factory)
 	// defer srv.Close()
@@ -84,10 +110,19 @@ func TestE2E(t *testing.T) {
 	srv.WaitForTask(uuid)
 
 	uuid = srv.Apply(&proto.Component{
-		Name:   "A",
-		Action: proto.Component_DELETE,
+		Name: "A",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
 			Backend: "Dask",
+			Groups: []*proto.ClusterSpec_Group{
+				{
+					Type:  "scheduler",
+					Count: 1,
+				},
+				{
+					Type:  "worker",
+					Count: 1,
+				},
+			},
 		}),
 	})
 

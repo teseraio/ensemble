@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	gproto "github.com/golang/protobuf/proto"
 	"github.com/teseraio/ensemble/operator"
@@ -62,8 +63,9 @@ func (b *backend) Initialize(nodes []*proto.Instance, target *proto.Instance) (*
 		}
 	}
 
-	//target.Healthy = true
 	target.Spec.AddEnv("ZOO_SERVERS", strings.Join(res, " "))
+	target.Spec.AddEnv("ZOO_4LW_COMMANDS_WHITELIST", "*")
+
 	return nil, nil
 }
 
@@ -112,9 +114,29 @@ func (b *backend) Spec() *operator.Spec {
 				}
 			}
 
-			grp.Params = schema.MapToSpec(map[string]interface{}{
+			/*
+				if grp.Params == nil {
+					grp.Params = schema.MapToSpec(map[string]interface{}{})
+				}
+			*/
+
+			/*
+				// build params
+				sch := b.Spec().Nodetypes[""].Schema
+				data := schema.NewResourceData(&sch, grp.Params)
+			*/
+
+			params := map[string]interface{}{
 				"nodes": int(grp.Count),
-			})
+			}
+
+			/*
+				tickTime, ok := data.GetOK("tickTime")
+				if ok {
+					params["tickTime"] = tickTime.(string)
+				}
+			*/
+			grp.Params = schema.MapToSpec(params)
 
 			if grp.Count%2 == 0 {
 				return nil, fmt.Errorf("odd number of nodes required")
@@ -127,6 +149,20 @@ func (b *backend) Spec() *operator.Spec {
 			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData) {
 				spec.AddEnv("ZOO_TICK_TIME", data.Get("tickTime").(string))
 			},
+		},
+		Startup: func(i *proto.Instance) error {
+			fmt.Println("___ STARTUP _____")
+
+			for ii := 0; ii < 10000; ii++ {
+				fmt.Printf("- try again %s %s %s\n", i.ID, i.Name, i.Ip)
+				if err := dialIsReadyForRequests(i.Ip + ":2181"); err == nil {
+					break
+				}
+				time.Sleep(1 * time.Second)
+			}
+
+			i.Healthy = true
+			return nil
 		},
 	}
 }

@@ -4,10 +4,11 @@ import (
 	"testing"
 
 	"github.com/teseraio/ensemble/operator/proto"
+	"github.com/teseraio/ensemble/schema"
 	"github.com/teseraio/ensemble/testutil"
 )
 
-func TestE2E(t *testing.T) {
+func TestRabbitmq_Initial(t *testing.T) {
 	// testutil.IsE2EEnabled(t)
 
 	srv := testutil.TestOperator(t, Factory)
@@ -20,6 +21,9 @@ func TestE2E(t *testing.T) {
 			Groups: []*proto.ClusterSpec_Group{
 				{
 					Count: 3,
+					Params: schema.MapToSpec(map[string]interface{}{
+						"cookie": "cookie",
+					}),
 				},
 			},
 		}),
@@ -27,20 +31,20 @@ func TestE2E(t *testing.T) {
 
 	srv.WaitForTask(uuid)
 
-	/*
-		// Scale up
-		uuid = srv.Apply(&proto.Component{
-			Name: "A",
-			Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-				Backend: "Rabbitmq",
-				Groups: []*proto.ClusterSpec_Group{
-					{
-						Count: 4,
-					},
+	uuid = srv.Apply(&proto.Component{
+		Name: "A",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			Backend: "Rabbitmq",
+			Groups: []*proto.ClusterSpec_Group{
+				{
+					Count: 4,
+					Params: schema.MapToSpec(map[string]interface{}{
+						"cookie": "cookie",
+					}),
 				},
-			}),
-		})
+			},
+		}),
+	})
 
-		srv.WaitForTask(uuid)
-	*/
+	srv.WaitForTask(uuid)
 }

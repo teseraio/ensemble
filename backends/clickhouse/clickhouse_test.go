@@ -12,7 +12,7 @@ import (
 	"github.com/teseraio/ensemble/testutil"
 )
 
-func TestE2E(t *testing.T) {
+func TestClickhouse_Initial(t *testing.T) {
 	// testutil.IsE2EEnabled(t)
 
 	srv := testutil.TestOperator(t, Factory, zookeeper.Factory)

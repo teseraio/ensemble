@@ -14,7 +14,7 @@ type Handler2 interface {
 	Spec() *Spec
 	Initialize(n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error)
 	Client(node *proto.Instance) (interface{}, error)
-	Setup2()
+	// Setup2()
 	// Hooks() []Hook
 }
 
@@ -169,7 +169,7 @@ func (b *BaseOperator) Queue() *EvalQueue {
 */
 
 func (b *BaseOperator) Setup(cplane ControlPlane) {
-	b.handler.Setup2()
+	// b.handler.Setup2()
 
 	stream := cplane.SubscribeInstanceUpdates()
 

@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/teseraio/ensemble/lib/uuid"
@@ -30,6 +31,16 @@ type TestServer struct {
 	path   string
 	docker *Client
 	clt    proto.EnsembleServiceClient
+}
+
+func (t *TestServer) LoadInstance(name string, handler func(i *proto.Instance) bool) *proto.Instance {
+	dep := t.GetDeployment(name)
+	for _, i := range dep.Instances {
+		if handler(i) {
+			return i
+		}
+	}
+	return nil
 }
 
 func (t *TestServer) GetDeployment(name string) *proto.Deployment {
@@ -60,6 +71,16 @@ func (t *TestServer) Apply(c *proto.Component) string {
 		t.t.Fatal(err)
 	}
 	return cc.Id
+}
+
+func (t *TestServer) WaitForComplete(name string) {
+	for i := 0; i < 100; i++ {
+		dep := t.GetDeployment(name)
+		if dep.Status == proto.DeploymentDone {
+			return
+		}
+		time.Sleep(1 * time.Second)
+	}
 }
 
 func (t *TestServer) WaitForTask(id string) {

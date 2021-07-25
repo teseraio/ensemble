@@ -92,10 +92,6 @@ func (c *Command) Run(args []string) int {
 		c.UI.Error(fmt.Sprintf("Failed to create the provider: %v", err))
 		return 1
 	}
-	if err := k8sProvider.Setup(); err != nil {
-		c.UI.Error(fmt.Sprintf("Failed to start the provider: %v", err))
-		return 1
-	}
 
 	// setup state
 	state, err := boltdb.Factory(map[string]interface{}{

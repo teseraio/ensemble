@@ -3,7 +3,10 @@ package zookeeper
 import (
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/go-zookeeper/zk"
+	"github.com/stretchr/testify/assert"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/schema"
@@ -99,9 +102,53 @@ func TestBootstrap(t *testing.T) {
 	})
 }
 
-func TestE2E(t *testing.T) {
-	// testutil.IsE2EEnabled(t)
+func testCorrectness(t *testing.T, srv *testutil.TestServer, name string) {
+	dep := srv.GetDeployment(name)
 
+	leaderFound := false
+
+	var stat *Stat
+	for _, i := range dep.Instances {
+		elem, err := dialStat(i.Ip)
+		assert.NoError(t, err)
+
+		fmt.Println("-- elem --")
+		fmt.Println(elem)
+
+		if stat == nil {
+			stat = elem
+		} else {
+			assert.Equal(t, stat.Counter, elem.Counter)
+			assert.Equal(t, stat.Epoch, elem.Epoch)
+			assert.Equal(t, stat.NodeCount, elem.NodeCount)
+		}
+		if elem.Mode == leader {
+			if leaderFound {
+				t.Fatal("multiple leaders")
+			}
+			leaderFound = true
+		}
+	}
+}
+
+func populateKV(srv *testutil.TestServer, num int) error {
+	dep := srv.GetDeployment("A")
+
+	c, _, err := zk.Connect([]string{dep.Instances[1].Ip}, time.Second)
+	if err != nil {
+		return err
+	}
+
+	for i := 0; i < num; i++ {
+		_, err := c.Create(fmt.Sprintf("/item%d", i), []byte{0x1, 0x2}, 0, zk.WorldACL(zk.PermAll))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func TestZookeeper_Initial(t *testing.T) {
 	srv := testutil.TestOperator(t, Factory)
 	// defer srv.Close()
 
@@ -118,18 +165,85 @@ func TestE2E(t *testing.T) {
 	})
 
 	srv.WaitForTask(uuid)
+	assert.NoError(t, populateKV(srv, 1000))
 
-	fmt.Printf("\n\n\n\n")
+	testCorrectness(t, srv, "A")
+}
 
-	// scale up cluster
+func TestZookeeper_FailedLeader(t *testing.T) {
+	srv := testutil.TestOperator(t, Factory)
+	// defer srv.Close()
 
-	uuid = srv.Apply(&proto.Component{
+	srv.Apply(&proto.Component{
 		Name: "A",
 		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
 			Backend: "Zookeeper",
 			Groups: []*proto.ClusterSpec_Group{
 				{
-					Count: 5,
+					Count: 3,
+				},
+			},
+		}),
+	})
+
+	srv.WaitForComplete("A")
+	assert.NoError(t, populateKV(srv, 1000))
+
+	leader := srv.LoadInstance("A", func(i *proto.Instance) bool {
+		stat, err := dialStat(i.Ip)
+		assert.NoError(t, err)
+		return stat.Mode == leader
+	})
+	srv.Remove(leader.ID)
+	srv.WaitForComplete("A")
+
+	testCorrectness(t, srv, "A")
+}
+
+func TestZookeeper_FailedFollower(t *testing.T) {
+	srv := testutil.TestOperator(t, Factory)
+	// defer srv.Close()
+
+	srv.Apply(&proto.Component{
+		Name: "A",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			Backend: "Zookeeper",
+			Groups: []*proto.ClusterSpec_Group{
+				{
+					Count: 3,
+				},
+			},
+		}),
+	})
+
+	srv.WaitForComplete("A")
+	assert.NoError(t, populateKV(srv, 1000))
+
+	follower := srv.LoadInstance("A", func(i *proto.Instance) bool {
+		stat, err := dialStat(i.Ip)
+		assert.NoError(t, err)
+		return stat.Mode == follower
+	})
+	srv.Remove(follower.ID)
+	srv.WaitForComplete("A")
+
+	testCorrectness(t, srv, "A")
+}
+
+func TestZookeeper_Configuration(t *testing.T) {
+	srv := testutil.TestOperator(t, Factory)
+	// defer srv.Close()
+
+	uuid := srv.Apply(&proto.Component{
+		Name: "A",
+		Spec: proto.MustMarshalAny(&proto.ClusterSpec{
+			Backend: "Zookeeper",
+			Groups: []*proto.ClusterSpec_Group{
+				{
+					Count: 3,
+					Params: schema.MapToSpec(map[string]interface{}{
+						"tickTime": 1001,
+					}),
 				},
 			},
 		}),
@@ -137,24 +251,12 @@ func TestE2E(t *testing.T) {
 
 	srv.WaitForTask(uuid)
 
-	/*
-		uuid = srv.Apply(&proto.Component{
-			Name: "A",
-			Spec: proto.MustMarshalAny(&proto.ClusterSpec{
-				Backend: "Zookeeper",
-				Groups: []*proto.ClusterSpec_Group{
-					{
-						Count: 3,
-						Params: schema.MapToSpec(
-							map[string]interface{}{
-								"tickTime": "3000",
-							},
-						),
-					},
-				},
-			}),
-		})
+	ii := srv.LoadInstance("A", first)
+	conf, err := dialConf(ii.Ip + ":2181")
+	assert.NoError(t, err)
+	assert.Equal(t, conf.Get("tickTime"), "1001")
+}
 
-		srv.WaitForTask(uuid)
-	*/
+func first(i *proto.Instance) bool {
+	return true
 }

@@ -68,6 +68,9 @@ github.com/docker/spdystream
 github.com/docker/spdystream/spdy
 # github.com/fatih/color v1.7.0
 github.com/fatih/color
+# github.com/go-zookeeper/zk v1.0.2
+## explicit
+github.com/go-zookeeper/zk
 # github.com/golang/protobuf v1.4.3
 ## explicit
 github.com/golang/protobuf/proto

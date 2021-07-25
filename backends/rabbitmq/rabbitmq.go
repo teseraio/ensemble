@@ -113,7 +113,6 @@ cluster_formation.classic_config.nodes.{{ $i }} = rabbit@{{ $elem }}
 {{ end }}`
 
 func (b *backend) Initialize(n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
-	target.Spec.AddEnv("RABBITMQ_ERLANG_COOKIE", "TODO")
 	target.Spec.AddEnv("RABBITMQ_USE_LONGNAME", "true")
 
 	target.Spec.AddFile(rabbitmqPlugins, enabledPlugins)
@@ -147,12 +146,20 @@ func (b *backend) Spec() *operator.Spec {
 					// http-api 15672
 				},
 				Schema: schema.Schema2{
-					Spec: &schema.Record{},
+					Spec: &schema.Record{
+						Fields: map[string]*schema.Field{
+							"cookie": {
+								Type:     schema.TypeString,
+								Required: true,
+							},
+						},
+					},
 				},
 			},
 		},
 		Handlers: map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData){
 			"": func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData) {
+				spec.AddEnv("RABBITMQ_ERLANG_COOKIE", data.Get("cookie").(string))
 			},
 		},
 		Resources: []*operator.Resource2{

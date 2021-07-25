@@ -35,6 +35,7 @@ type resource struct {
 	clusterID string
 	instance  *proto.Instance
 	active    bool
+	failed    bool
 }
 
 // Client is a sugarcoat version of the docker client
@@ -96,8 +97,15 @@ func (c *Client) Setup(cc operator.ControlPlane) error {
 }
 
 func (c *Client) Remove(id string) error {
-	if err := c.client.ContainerStop(context.Background(), id, nil); err != nil {
-		return err
+	r := c.resources[id]
+	r.failed = true
+	/*
+		if err := c.client.ContainerStop(context.Background(), id, nil); err != nil {
+			return err
+		}
+	*/
+	if err := c.client.ContainerRemove(context.Background(), r.handle, types.ContainerRemoveOptions{Force: true}); err != nil {
+		panic(err)
 	}
 	// do not remove the container name here but on the wait step because this part
 	// is async
@@ -292,6 +300,9 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 		})
 		if prevInstance != nil {
 			// case 1 and 2
+			fmt.Println("-- status --")
+			fmt.Println(prevInstance.Status)
+
 			panic(fmt.Errorf("instance with the same node name %s allocated twice: Now %s Before %s", node.Name, node.ID, prevInstance.ID))
 		} else {
 			// case 3
@@ -421,12 +432,17 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 		if err != nil {
 			panic(err)
 		}
-		// we need to remove it here so that we can reuse the name
-		if err := c.client.ContainerRemove(context.Background(), body.ID, types.ContainerRemoveOptions{}); err != nil {
-			panic(err)
-		}
+		fmt.Println("- container stopped -")
 
-		c.resources[node.ID].active = false
+		rr := c.resources[node.ID]
+
+		if !rr.failed {
+			// failed already removes the container on his end
+			if err := c.client.ContainerRemove(context.Background(), body.ID, types.ContainerRemoveOptions{}); err != nil {
+				panic(err)
+			}
+		}
+		rr.active = false
 
 		// panic("bad")
 
@@ -436,7 +452,11 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 		}
 		// we need all the data stored here so we need to get the instance from db
 		ii = ii.Copy()
-		ii.Status = proto.Instance_FAILED
+		if rr.failed {
+			ii.Status = proto.Instance_FAILED
+		} else {
+			ii.Status = proto.Instance_STOPPED
+		}
 
 		if err := c.controlPlane.UpsertInstance(ii); err != nil {
 			panic(err)

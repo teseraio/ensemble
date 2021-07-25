@@ -96,6 +96,9 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	}
 
 	s.logger.Info("Start provider")
+	if err := s.Provider.Setup(s); err != nil {
+		return nil, err
+	}
 	if err := s.Provider.Start(); err != nil {
 		return nil, err
 	}
@@ -370,7 +373,7 @@ func (s *Server) taskQueue4() {
 			s.logger.Error("failed to process", "err", err)
 		} else {
 			if err := s.SubmitPlan(eval, plan); err != nil {
-				panic(err)
+				s.logger.Error("failed to submit plan", "err", err)
 			}
 		}
 
@@ -392,8 +395,24 @@ func (s *Server) instanceWatcher() {
 		if err != nil {
 			panic(err)
 		}
-		if instance.Status == proto.Instance_RUNNING || instance.Status == proto.Instance_FAILED {
+		if instance.Status == proto.Instance_RUNNING || instance.Status == proto.Instance_FAILED || instance.Status == proto.Instance_STOPPED {
 			// add eval
+
+			if instance.Status == proto.Instance_FAILED {
+				// update the deployment to running in case it is not already
+				dep, err := s.LoadDeployment(instance.DeploymentID)
+				if err != nil {
+					panic(err)
+				}
+				if dep.Status != proto.DeploymentRunning {
+					dep = dep.Copy()
+					dep.Status = proto.DeploymentRunning
+					if err := s.State.UpdateDeployment(dep); err != nil {
+						panic(err)
+					}
+				}
+			}
+
 			//fmt.Println("_ ADD EVAL _")
 			eval := &proto.Evaluation{
 				Id:           uuid.UUID(),
