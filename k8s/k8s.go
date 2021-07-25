@@ -271,7 +271,7 @@ func (p *Provider) createVolume(instance *proto.Instance, m *proto.Instance_Moun
 
 	res, err := RunTmpl2("volume-claim", map[string]interface{}{
 		"Name":        claimName,
-		"StorageName": "standard",
+		"StorageName": "local-path",
 		"Storage":     "1Gi", // TODO
 	})
 	if err != nil {

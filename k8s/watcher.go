@@ -194,8 +194,8 @@ func (w *Watcher) WithLimit(l int) *Watcher {
 	return w
 }
 
-func (w *Watcher) WithList() *Watcher {
-	w.list = true
+func (w *Watcher) WithList(list bool) *Watcher {
+	w.list = list
 	return w
 }
 
@@ -259,16 +259,18 @@ func (w *Watcher) runImpl() error {
 	}
 
 	// decode and insert all the objects
-	objs := []itemObj{}
-	for _, i := range pager.items {
-		item, err := w.decodeObj(i)
-		if err != nil {
-			return err
+	if w.list {
+		objs := []itemObj{}
+		for _, i := range pager.items {
+			item, err := w.decodeObj(i)
+			if err != nil {
+				return err
+			}
+			objs = append(objs, item)
 		}
-		objs = append(objs, item)
-	}
-	for _, obj := range objs {
-		w.store.add("", obj)
+		for _, obj := range objs {
+			w.store.add("", obj)
+		}
 	}
 
 	resourceVersion = pager.resourceVersion

@@ -97,7 +97,7 @@ func (p *Provider) trackCRDs(clt proto.EnsembleServiceClient) error {
 			if err != nil {
 				return err
 			}
-			w.WithList().Run(p.stopCh)
+			w.Run(p.stopCh)
 			w.ForEach(crdHandler)
 
 			p.logger.Info("CRD tracker started", "name", res)
