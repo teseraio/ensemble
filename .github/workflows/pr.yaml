@@ -10,6 +10,12 @@ jobs:
         uses: actions/setup-go@v1
         with:
           go-version: '1.15.10'
+      - uses: AbsaOSS/k3d-action@v1.5.0
+        name: "Create Single Cluster"
+        with:
+          cluster-name: "test-cluster-1"
+          args: --agents 1
       - run: go mod vendor
       - run: go test -v ./operator/... -test.short
       - run: go test -v ./testutil/...
+      - run: go test -v ./k8s/... -run TestWatcher
