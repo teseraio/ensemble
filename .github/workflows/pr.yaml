@@ -1,5 +1,5 @@
 name: GitHub Actions Demo
-on: [push]
+on: [pr]
 jobs:
   build:
     runs-on: ubuntu-16.04
