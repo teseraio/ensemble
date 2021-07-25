@@ -116,16 +116,14 @@ func NewWatcher(logger hclog.Logger, client *KubeClient, path string, obj itemOb
 		path:   path,
 	}
 
-	/*
-		// validate that we can get the items
-		if _, err := w.client.GetFull(path, nil); err != nil {
-			return nil, err
-		}
-		// validate that we can watch the items
-		if _, err := w.client.Watch(path); err != nil {
-			return nil, err
-		}
-	*/
+	// validate that we can get the items
+	if _, err := w.client.GetFull(path, nil); err != nil {
+		return nil, err
+	}
+	// validate that we can watch the items
+	if _, err := w.client.Watch(path); err != nil {
+		return nil, err
+	}
 
 	return w, nil
 }
@@ -202,8 +200,23 @@ func (w *Watcher) WithList() *Watcher {
 }
 
 func (w *Watcher) Run(stopCh chan struct{}) {
-	// impl with backoff
-	go w.runImpl()
+	go w.runWithBackoff(stopCh)
+}
+
+func (w *Watcher) runWithBackoff(stopCh chan struct{}) {
+	for {
+		// TODO: Use exponential backoff
+		select {
+		case <-time.After(2 * time.Second):
+		case <-stopCh:
+			return
+		}
+
+		err := w.runImpl()
+		if err != nil {
+			w.logger.Error("failed to watch", "err", err)
+		}
+	}
 }
 
 func (w *Watcher) listImpl(resourceVersion string) (*pager, error) {
@@ -356,7 +369,6 @@ func (t storeHeapImpl) Len() int { return len(t) }
 
 func (t storeHeapImpl) Less(i, j int) bool {
 	return t[i].item.GetMetadata().ResourceVersion < t[j].item.GetMetadata().ResourceVersion
-	// return t[i].timestamp.Before(t[j].timestamp)
 }
 
 func (t storeHeapImpl) Swap(i, j int) {

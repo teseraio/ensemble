@@ -84,32 +84,12 @@ func setupCRD(t *testing.T, p *Provider, name string) *crdSetup {
 	return crd
 }
 
-func TestWatcherWrongPath(t *testing.T) {
+func TestWatcher_WrongPath(t *testing.T) {
 	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
 	nullLogger := hclog.NewNullLogger()
 
 	_, err := NewWatcher(nullLogger, p.client, "/apis/mock.io/v1/namespaces/default/test2s", &Item{})
 	assert.Error(t, err)
-}
-
-func TestWatcher_ListErrors(t *testing.T) {
-	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
-
-	crd := setupCRD(t, p, "testgeterror")
-	defer crd.Close()
-
-	watcher, err := NewWatcher(hclog.NewNullLogger(), p.client, crd.Path(), &Item{})
-	assert.NoError(t, err)
-
-	// call an expired resource version that is not available
-	_, err = watcher.listImpl("1")
-	assert.ErrorIs(t, err, errExpired)
-
-	metadata := crd.Create("item")
-
-	// call a future resource version
-	_, err = watcher.listImpl(metadata.ResourceVersion + "0")
-	assert.ErrorIs(t, err, errFutureVersion)
 }
 
 func TestWatcher_ListImpl(t *testing.T) {
@@ -258,10 +238,13 @@ func TestWatcher_Queue(t *testing.T) {
 		t.Fatal("bad")
 	}
 
-	// B pop first because A was modified
+	// A pops updated
 	e := s.pop(context.Background())
-	if e.item.(*Item).Metadata.Name != "B" {
+	if e.item.(*Item).Metadata.Name != "A" {
 		t.Fatal("B expected")
+	}
+	if e.item.(*Item).Kind != "Update" {
+		t.Fatal("bad")
 	}
 
 	// 1 element left
@@ -269,12 +252,31 @@ func TestWatcher_Queue(t *testing.T) {
 		t.Fatal("bad")
 	}
 
-	// A pops
+	// B pops
 	e = s.pop(context.Background())
-	if e.item.(*Item).Metadata.Name != "A" {
+	if e.item.(*Item).Metadata.Name != "B" {
 		t.Fatal("B expected")
 	}
-	if e.item.(*Item).Kind != "Update" {
-		t.Fatal("bad")
-	}
+}
+
+func TestWatcher_ListErrors(t *testing.T) {
+	t.Skip("Not sure how to test this yet")
+
+	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
+
+	crd := setupCRD(t, p, "testgeterror")
+	defer crd.Close()
+
+	watcher, err := NewWatcher(hclog.NewNullLogger(), p.client, crd.Path(), &Item{})
+	assert.NoError(t, err)
+
+	// call an expired resource version that is not available
+	_, err = watcher.listImpl("1")
+	assert.ErrorIs(t, err, errExpired)
+
+	metadata := crd.Create("item")
+
+	// call a future resource version
+	_, err = watcher.listImpl(metadata.ResourceVersion + "0")
+	assert.ErrorIs(t, err, errFutureVersion)
 }
