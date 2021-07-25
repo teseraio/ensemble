@@ -10,3 +10,6 @@ jobs:
       - run:
           command: |
             go test -v ./operator/... -test.short
+      - run:
+          command: |
+            go test -v ./testutil/...
