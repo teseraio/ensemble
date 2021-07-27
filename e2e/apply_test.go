@@ -21,21 +21,22 @@ func TestE2E_Apply(t *testing.T) {
 
 	clt := newClient(t)
 
-	for i := 0; i < 20; i++ {
+	getDeployment := func() *proto.Deployment {
 		resp, err := clt.ListDeployments(context.Background(), &empty.Empty{})
 		assert.NoError(t, err)
 
 		for _, dep := range resp.Deployments {
 			if dep.Name == "dask-simple" {
-				if dep.Status == proto.DeploymentDone {
-					// correct
-					return
-				}
+				return dep
 			}
 		}
-		time.Sleep(30 * time.Second)
+		return nil
 	}
-	t.Fatal("timeout")
+
+	for i := 0; i < 60; i++ {
+		fmt.Println(getDeployment())
+		time.Sleep(1 * time.Second)
+	}
 }
 
 func newClient(t *testing.T) proto.EnsembleServiceClient {
