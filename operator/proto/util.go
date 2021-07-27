@@ -107,6 +107,15 @@ func (n *Instance) Set(k, v string) {
 	n.KV[k] = v
 }
 
+func (n *Instance) GetInt(k string) (int, error) {
+	raw := n.Get(k)
+	return strconv.Atoi(raw)
+}
+
+func (n *Instance) SetInt(k string, i int) {
+	n.Set(k, fmt.Sprintf("%d", i))
+}
+
 func (n *Instance) Unmarshal(src []byte) error {
 	return json.Unmarshal(src, &n)
 }

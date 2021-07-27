@@ -39,7 +39,7 @@ func TestE2E_Apply(t *testing.T) {
 		if dep.Status == proto.DeploymentDone {
 			return
 		}
-		time.Sleep(1 * time.Second)
+		time.Sleep(5 * time.Second)
 	}
 	t.Fatal("timeout")
 }

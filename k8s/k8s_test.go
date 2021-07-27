@@ -9,13 +9,8 @@ import (
 )
 
 func TestK8sProviderSpec(t *testing.T) {
-	return
-
 	p, err := K8sFactory(hclog.NewNullLogger(), nil)
 	if err != nil {
-		t.Fatal(err)
-	}
-	if err := p.Setup(); err != nil {
 		t.Fatal(err)
 	}
 	testutil.TestProvider(t, p)

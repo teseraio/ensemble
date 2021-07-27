@@ -39,22 +39,24 @@ func TestEncodePod(t *testing.T) {
 	}{
 		{
 			Node: &proto.Instance{
-				ID:          "a",
-				ClusterName: "b",
-				Name:        "a",
-				Image:       "image",
-				Version:     "latest",
-				Spec:        &proto.NodeSpec{},
+				ID:           "a",
+				ClusterName:  "b",
+				DeploymentID: "b2",
+				Name:         "a",
+				Image:        "image",
+				Version:      "latest",
+				Spec:         &proto.NodeSpec{},
 			},
 			Name: "example1",
 		},
 		{
 			Node: &proto.Instance{
-				ID:          "id",
-				ClusterName: "b",
-				Name:        "c",
-				Image:       "image",
-				Version:     "latest",
+				ID:           "id",
+				ClusterName:  "b",
+				DeploymentID: "b2",
+				Name:         "c",
+				Image:        "image",
+				Version:      "latest",
 				Spec: &proto.NodeSpec{
 					Cmd: "sleep",
 					Args: []string{
@@ -72,11 +74,12 @@ func TestEncodePod(t *testing.T) {
 		},
 		{
 			Node: &proto.Instance{
-				ID:          "id",
-				ClusterName: "b",
-				Name:        "c",
-				Image:       "image",
-				Version:     "latest",
+				ID:           "id",
+				ClusterName:  "b",
+				DeploymentID: "b2",
+				Name:         "c",
+				Image:        "image",
+				Version:      "latest",
 				Spec: &proto.NodeSpec{
 					Files: []*proto.NodeSpec_File{
 						{
