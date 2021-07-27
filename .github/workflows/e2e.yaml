@@ -24,4 +24,5 @@ jobs:
       - name: Deploy ensemble
         run: |
           go run main.go k8s artifacts --dev | kubectl apply -f -
+          sleep 15
           kubectl port-forward deployment/ensemble-operator 6001:6001
