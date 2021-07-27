@@ -1,0 +1,22 @@
+---
+apiVersion: ensembleoss.io/v1
+kind: Cluster
+metadata:
+  name: zk-kafka
+spec:
+  backend:
+    name: zookeeper
+  groups:
+    - replicas: 3
+---
+apiVersion: ensembleoss.io/v1
+kind: Cluster
+metadata:
+  name: kafka-simple
+spec:
+  backend:
+    name: kafka
+  groups:
+    - replicas: 3
+      params:
+        zookeeper: zk-kafka

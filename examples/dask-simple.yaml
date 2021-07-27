@@ -1,0 +1,12 @@
+apiVersion: ensembleoss.io/v1
+kind: Cluster
+metadata:
+  name: dask-simple
+spec:
+  backend:
+    name: dask
+  groups:
+  - type: scheduler
+    replicas: 1
+  - type: worker
+    replicas: 4

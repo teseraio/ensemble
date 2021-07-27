@@ -48,7 +48,9 @@
                         "args": [
                             "server",
                             "--boltdb",
-                            "/usr/local/ensemble/state.db"
+                            "/usr/local/ensemble/state.db",
+                            "--bind",
+                            "0.0.0.0"
                         ],
                         "volumeMounts": [
                             {

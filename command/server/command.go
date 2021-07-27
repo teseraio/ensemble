@@ -25,6 +25,7 @@ type Command struct {
 	debug      bool
 	logLevel   string
 	boltdbPath string
+	bind       string
 }
 
 // Help implements the cli.Command interface
@@ -56,6 +57,13 @@ func (c *Command) Flags() *flagset.Flagset {
 		Value:   &c.boltdbPath,
 		Usage:   "Follow the directory in -f recursively",
 		Default: "test.db",
+	})
+
+	f.StringFlag(&flagset.StringFlag{
+		Name:    "bind",
+		Value:   &c.bind,
+		Usage:   "Bind IP address for the GRPC server",
+		Default: "127.0.0.1",
 	})
 
 	return f
@@ -110,7 +118,7 @@ func (c *Command) Run(args []string) int {
 		Provider:         k8sProvider,
 		State:            state,
 		HandlerFactories: BuiltinBackends,
-		GRPCAddr:         &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 6001},
+		GRPCAddr:         &net.TCPAddr{IP: net.ParseIP(c.bind), Port: 6001},
 	}
 	srv, err := operator.NewServer(logger, config)
 	if err != nil {

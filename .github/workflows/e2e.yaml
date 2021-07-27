@@ -1,0 +1,30 @@
+name: E2E tests
+on: [pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-16.04
+    name: E2E test
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup go
+        uses: actions/setup-go@v1
+        with:
+          go-version: '1.15.10'
+      - run: go mod vendor
+      - uses: AbsaOSS/k3d-action@v1.5.0
+        name: "Create Single Cluster"
+        with:
+          cluster-name: "e2e-cluster"
+          args: --agents 1
+      - name: Setup ensemble
+        run: |
+          kubectl config use-context k3d-e2e-cluster
+          make build-dev-docker
+          k3d image import ensemble:dev -c e2e-cluster --verbose
+      - name: Deploy ensemble
+        run: |
+          go run main.go k8s artifacts --dev | kubectl apply -f -
+          sleep 5
+          kubectl port-forward deployment/ensemble-operator 6001:6001 &
+      - name: Go test
+        run: go test -v ./e2e/...
