@@ -1,4 +1,4 @@
-name: Unit tests
+name: E2E tests
 on: [pull_request]
 jobs:
   build:
@@ -15,8 +15,11 @@ jobs:
         with:
           cluster-name: "e2e-cluster"
           args: --agents 1
+      - run: kubectl config use-context k3d-e2e-cluster
       - run: go mod vendor
       - name: Build docker
         run: make build-dev-docker
       - name: Upload dev image
         run: k3d image import ensemble:dev -c e2e-cluster --verbose
+      - name: Test
+        run: kubectl get pods
