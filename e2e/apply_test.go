@@ -34,9 +34,14 @@ func TestE2E_Apply(t *testing.T) {
 	}
 
 	for i := 0; i < 60; i++ {
-		fmt.Println(getDeployment())
+		dep := getDeployment()
+		fmt.Println(dep)
+		if dep.Status == proto.DeploymentDone {
+			return
+		}
 		time.Sleep(1 * time.Second)
 	}
+	t.Fatal("timeout")
 }
 
 func newClient(t *testing.T) proto.EnsembleServiceClient {
