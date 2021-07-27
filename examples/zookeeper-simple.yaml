@@ -1,0 +1,9 @@
+apiVersion: ensembleoss.io/v1
+kind: Cluster
+metadata:
+  name: zk1
+spec:
+  backend:
+    name: zookeeper
+  groups:
+    - replicas: 3

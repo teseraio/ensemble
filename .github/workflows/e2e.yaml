@@ -3,7 +3,7 @@ on: [pull_request]
 jobs:
   build:
     runs-on: ubuntu-16.04
-    name: Go test
+    name: E2E test
     steps:
       - uses: actions/checkout@v2
       - name: Setup go
@@ -24,5 +24,5 @@ jobs:
       - name: Deploy ensemble
         run: |
           go run main.go k8s artifacts --dev | kubectl apply -f -
-          sleep 15
+          sleep 5
           kubectl port-forward deployment/ensemble-operator 6001:6001

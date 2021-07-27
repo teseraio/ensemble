@@ -1,0 +1,22 @@
+---
+apiVersion: ensembleoss.io/v1
+kind: Cluster
+metadata:
+  name: zk-clickhouse
+spec:
+  backend:
+    name: zookeeper
+  groups:
+    - replicas: 3
+---
+apiVersion: ensembleoss.io/v1
+kind: Cluster
+metadata:
+  name: clickhouse-simple
+spec:
+  backend:
+    name: clickhouse
+  groups:
+    - replicas: 3
+      params:
+        zookeeper: zk-clickhouse
