@@ -25,4 +25,6 @@ jobs:
         run: |
           go run main.go k8s artifacts --dev | kubectl apply -f -
           sleep 5
-          kubectl port-forward deployment/ensemble-operator 6001:6001
+          kubectl port-forward deployment/ensemble-operator 6001:6001 &
+      - name: Go test
+        run: go test -v ./e2e/...
