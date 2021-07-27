@@ -14,10 +14,12 @@ type Handler2 interface {
 	Spec() *Spec
 	Initialize(n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error)
 	Client(node *proto.Instance) (interface{}, error)
-	Hooks() []Hook
 }
 
 type nullHandler struct {
+}
+
+func (n *nullHandler) Setup(cplane ControlPlane) {
 }
 
 func (n *nullHandler) Name() string {
@@ -30,9 +32,6 @@ func (n *nullHandler) WatchUpdates() chan *proto.InstanceUpdate {
 
 func (n *nullHandler) Evaluate(comp *proto.Component) (*proto.Component, error) {
 	return comp, nil
-}
-
-func (n *nullHandler) ApplyHook(ApplyHookRequest) {
 }
 
 func (n *nullHandler) GetSchemas() GetSchemasResponse {
@@ -52,14 +51,11 @@ type Handler interface {
 	// Name returns the name of the handler (TODO. it can be removed later)
 	Name() string
 
-	// ApplyHook sends a request for an async hook
-	ApplyHook(ApplyHookRequest)
+	// Setup starts the backend and passes the control plane reference
+	Setup(cplane ControlPlane)
 
 	// Evaluate evaluates a component schema
 	Evaluate(comp *proto.Component) (*proto.Component, error)
-
-	// WatchUpdates returns updates from nodes
-	WatchUpdates() chan *proto.InstanceUpdate
 
 	// GetSchemas returns the schemas for the backend
 	GetSchemas() GetSchemasResponse
@@ -69,11 +65,6 @@ type Handler interface {
 
 	// ApplyResource applies a resource change
 	ApplyResource(req *ApplyResourceRequest) error
-}
-
-type ApplyHookRequest struct {
-	Instance   *proto.Instance
-	Deployment *proto.Deployment
 }
 
 const (
@@ -99,6 +90,7 @@ type Spec struct {
 	Resources []*Resource2
 	Validate  func(comp *proto.Component) (*proto.Component, error)
 	Handlers  map[string]func(spec *proto.NodeSpec, grp *proto.ClusterSpec_Group, data *schema.ResourceData)
+	Startup   func(i *proto.Instance) error
 }
 
 // Nodetype is a type of node for the Backend
@@ -145,18 +137,48 @@ type Resource interface {
 
 type BaseOperator struct {
 	handler Handler2
-	ch      chan *proto.InstanceUpdate
+	cplane  ControlPlane
+	// ch      chan *proto.InstanceUpdate
 }
 
 func (b *BaseOperator) SetHandler(h Handler2) {
 	b.handler = h
 }
 
-func (b *BaseOperator) WatchUpdates() chan *proto.InstanceUpdate {
-	if b.ch == nil {
-		b.ch = make(chan *proto.InstanceUpdate, 10)
+func (b *BaseOperator) Setup(cplane ControlPlane) {
+	// b.handler.Setup2()
+	b.cplane = cplane
+	stream := cplane.SubscribeInstanceUpdates()
+
+	go func() {
+		for {
+			msg := <-stream
+			if err := b.handleMsg(msg); err != nil {
+				fmt.Printf("[ERR]: failed to handle backend message: %s", err.Error())
+			}
+		}
+	}()
+}
+
+func (b *BaseOperator) handleMsg(msg *InstanceUpdate) error {
+	instance, err := b.cplane.GetInstance(msg.Id, msg.Cluster)
+	if err != nil {
+		return err
 	}
-	return b.ch
+	if instance.Status == proto.Instance_RUNNING && !instance.Healthy {
+		ii := instance.Copy()
+		if err := b.handler.Spec().Startup(ii); err != nil {
+			// move to a failing state directly, or maybe ist just to reuquee the msg
+			return err
+		}
+
+		// the new instance has to update
+		if !ii.Healthy {
+			return fmt.Errorf("it should be healtyh after startup time")
+		}
+		b.cplane.UpsertInstance(ii)
+	}
+	return nil
 }
 
 func (b *BaseOperator) Evaluate(comp *proto.Component) (*proto.Component, error) {
@@ -165,35 +187,6 @@ func (b *BaseOperator) Evaluate(comp *proto.Component) (*proto.Component, error)
 		return valFunc(comp)
 	}
 	return comp, nil
-}
-
-func (b *BaseOperator) ApplyHook(req ApplyHookRequest) {
-	emit := func(i *proto.InstanceUpdate) {
-		b.ch <- i
-	}
-
-	// check all the hooks
-	done := false
-	for _, h := range b.handler.Hooks() {
-		if h.State == req.Instance.Status {
-			done = true
-			go func() {
-				if err := h.Handler(emit, req); err != nil {
-					// TODO: logger in backends
-					fmt.Printf("Err: %v\n", err)
-				}
-			}()
-		}
-	}
-
-	if !done {
-		// default readiness hook if none is provided
-		if req.Instance.Status == proto.Instance_RUNNING && !req.Instance.Healthy {
-			emit(req.Instance.Update(&proto.InstanceUpdate_Healthy_{
-				Healthy: &proto.InstanceUpdate_Healthy{},
-			}))
-		}
-	}
 }
 
 func (b *BaseOperator) GetSchemas() GetSchemasResponse {
@@ -240,10 +233,16 @@ func (b *BaseOperator) ApplyNodes(place []*proto.Instance, cluster []*proto.Inst
 	// add the place instances too
 	cluster = append(cluster, placeInstances...)
 
+	postHook := b.handler.Spec().Startup != nil
+
 	// initialize each node
 	for _, i := range placeInstances {
 		if _, err := b.handler.Initialize(cluster, i); err != nil {
 			return nil, err
+		}
+		if !postHook {
+			// there is no posthook so the scheduler can move ahead without problem
+			i.Healthy = true
 		}
 	}
 	return placeInstances, nil
@@ -303,10 +302,4 @@ type Resource2 struct {
 	Schema   schema.Schema2
 	DeleteFn func(req *CallbackRequest) error
 	ApplyFn  func(req *CallbackRequest) error
-}
-
-type Hook struct {
-	Name    string
-	Handler func(emit func(i *proto.InstanceUpdate), req ApplyHookRequest) error
-	State   proto.Instance_Status
 }

@@ -17,10 +17,6 @@ func Factory() operator.Handler {
 	return b
 }
 
-func (b *backend) Hooks() []operator.Hook {
-	return []operator.Hook{}
-}
-
 func (b *backend) Name() string {
 	return "Dask"
 }

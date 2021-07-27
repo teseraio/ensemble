@@ -13,59 +13,71 @@ import (
 
 // testing suite for the Provider
 func TestProvider(t *testing.T, p operator.Provider) {
+	c := &operator.InmemControlPlane{}
+	p.Setup(c)
+
 	t.Run("TestPodLifecycle", func(t *testing.T) {
-		TestPodLifecycle(t, p)
+		TestPodLifecycle(t, c, p)
 	})
 	t.Run("TestDNS", func(t *testing.T) {
-		TestDNS(t, p)
+		TestDNS(t, c, p)
 	})
 	t.Run("TestPodMount", func(t *testing.T) {
-		TestPodMount(t, p)
+		TestPodMount(t, c, p)
 	})
 	t.Run("TestPodFiles", func(t *testing.T) {
-		TestPodFiles(t, p)
+		TestPodFiles(t, c, p)
 	})
+
 	// TODO
 	//TestPodBarArgs(t, p)
 	//TestPodJobFailed(t, p)
 }
 
-func readEvent(p operator.Provider, t *testing.T) *proto.InstanceUpdate {
+func readEvent(p operator.ControlPlane, t *testing.T) *proto.Instance {
+	ch := p.SubscribeInstanceUpdates()
+
 	select {
-	case evnt := <-p.WatchUpdates():
-		return evnt
-	case <-time.After(20 * time.Second):
+	case msg := <-ch:
+		instance, err := p.GetInstance(msg.Id, msg.Cluster)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return instance
+	case <-time.After(10 * time.Second):
+		t.Fatal("timeout")
 	}
-	t.Fatal("timeout")
 	return nil
 }
 
-func waitForRunning(p operator.Provider, t *testing.T) *proto.InstanceUpdate_Running_ {
-	evnt := waitForEvent(p, t, func(evnt *proto.InstanceUpdate) bool {
-		_, ok := evnt.Event.(*proto.InstanceUpdate_Running_)
-		return ok
-	})
-	return evnt.Event.(*proto.InstanceUpdate_Running_)
-}
-
-func waitForDeleted(p operator.Provider, t *testing.T) {
-	waitForEvent(p, t, func(evnt *proto.InstanceUpdate) bool {
-		_, ok := evnt.Event.(*proto.InstanceUpdate_Killing_)
-		return ok
+func waitForRunning(c operator.ControlPlane, t *testing.T) *proto.Instance {
+	return waitForEvent(c, t, func(evnt *proto.Instance) bool {
+		return evnt.Status == proto.Instance_RUNNING
 	})
 }
 
-func waitForEvent(p operator.Provider, t *testing.T, handler func(i *proto.InstanceUpdate) bool) *proto.InstanceUpdate {
+func waitForStopped(c operator.ControlPlane, t *testing.T) *proto.Instance {
+	return waitForEvent(c, t, func(evnt *proto.Instance) bool {
+		return evnt.Status == proto.Instance_STOPPED
+	})
+}
+
+func waitForEvent(c operator.ControlPlane, t *testing.T, handler func(i *proto.Instance) bool) *proto.Instance {
 	doneCh := make(chan struct{})
 	go func() {
 		<-time.After(20 * time.Second)
 		close(doneCh)
 	}()
+	evnts := c.SubscribeInstanceUpdates()
 	for {
 		select {
-		case evnt := <-p.WatchUpdates():
-			if handler(evnt) {
-				return evnt
+		case evnt := <-evnts:
+			instance, err := c.GetInstance(evnt.Id, evnt.Cluster)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if handler(instance) {
+				return instance.Copy()
 			}
 		case <-doneCh:
 			t.Fatal("timeout")
@@ -73,6 +85,7 @@ func waitForEvent(p operator.Provider, t *testing.T, handler func(i *proto.Insta
 	}
 }
 
+/*
 func TestPodBarArgs(t *testing.T, p operator.Provider) {
 	// TODO
 	i := &proto.Instance{
@@ -126,8 +139,9 @@ func TestPodJobFailed(t *testing.T, p operator.Provider) {
 
 	time.Sleep(10 * time.Second)
 }
+*/
 
-func TestPodLifecycle(t *testing.T, p operator.Provider) {
+func TestPodLifecycle(t *testing.T, c operator.ControlPlane, p operator.Provider) {
 	id := uuid.UUID()
 
 	i := &proto.Instance{
@@ -136,31 +150,25 @@ func TestPodLifecycle(t *testing.T, p operator.Provider) {
 		Name:        "d22",
 		Image:       "nginx",
 		Spec:        &proto.NodeSpec{},
+		Status:      proto.Instance_PENDING,
 	}
-
-	if _, err := p.CreateResource(i); err != nil {
+	if err := c.UpsertInstance(i); err != nil {
 		t.Fatal(err)
 	}
 
 	// wait for running event
-	evnt := waitForEvent(p, t, func(evnt *proto.InstanceUpdate) bool {
-		_, ok := evnt.Event.(*proto.InstanceUpdate_Running_)
-		return ok
-	})
+	i = waitForRunning(c, t)
 
-	i.Handler = evnt.Event.(*proto.InstanceUpdate_Running_).Running.Handler
-	if _, err := p.DeleteResource(i); err != nil {
+	i.Status = proto.Instance_TAINTED
+	if err := c.UpsertInstance(i); err != nil {
 		t.Fatal(err)
 	}
 
 	// wait for termination event
-	waitForEvent(p, t, func(evnt *proto.InstanceUpdate) bool {
-		_, ok := evnt.Event.(*proto.InstanceUpdate_Killing_)
-		return ok
-	})
+	waitForStopped(c, t)
 }
 
-func TestPodFiles(t *testing.T, p operator.Provider) {
+func TestPodFiles(t *testing.T, c operator.ControlPlane, p operator.Provider) {
 	id := uuid.UUID()
 
 	files := []*proto.NodeSpec_File{
@@ -187,14 +195,14 @@ Line3`,
 		Spec: &proto.NodeSpec{
 			Files: files,
 		},
+		Status: proto.Instance_PENDING,
 	}
-
-	if _, err := p.CreateResource(i); err != nil {
+	if err := c.UpsertInstance(i); err != nil {
 		t.Fatal(err)
 	}
 
 	// wait for it to be ready
-	waitForRunning(p, t)
+	waitForRunning(c, t)
 
 	for _, file := range files {
 		out, err := p.Exec(id, "cat", file.Name)
@@ -203,10 +211,10 @@ Line3`,
 	}
 }
 
-func TestPodMount(t *testing.T, p operator.Provider) {
+func TestPodMount(t *testing.T, c operator.ControlPlane, p operator.Provider) {
 	id := uuid.UUID()
 
-	i := &proto.Instance{
+	initial := &proto.Instance{
 		ID:          id,
 		ClusterName: "c11",
 		Name:        uuid.UUID(),
@@ -218,15 +226,14 @@ func TestPodMount(t *testing.T, p operator.Provider) {
 				Path: "/data",
 			},
 		},
+		Status: proto.Instance_PENDING,
 	}
-
-	if _, err := p.CreateResource(i); err != nil {
+	if err := c.UpsertInstance(initial); err != nil {
 		t.Fatal(err)
 	}
 
 	// wait for it to be ready
-	evnt := waitForRunning(p, t)
-	i.Handler = evnt.Running.Handler
+	i := waitForRunning(c, t)
 
 	// /data/test.txt does not exists
 	_, err := p.Exec(i.ID, "cat", "/data/test.txt")
@@ -237,46 +244,45 @@ func TestPodMount(t *testing.T, p operator.Provider) {
 	}
 
 	// stop the container
-	if _, err := p.DeleteResource(i); err != nil {
+	i.Status = proto.Instance_TAINTED
+	if err := c.UpsertInstance(i); err != nil {
 		t.Fatal(err)
 	}
 
 	// wait for the container to stop
-	waitForDeleted(p, t)
+	waitForStopped(c, t)
 
 	// "restart" the instance
-	ii := i.Copy()
-	ii.ID = uuid.UUID()
+	initial = initial.Copy()
+	initial.ID = uuid.UUID()
 
-	if _, err := p.CreateResource(ii); err != nil {
+	if err := c.UpsertInstance(initial); err != nil {
 		t.Fatal(err)
 	}
 
 	// wait for it to be ready
-	evnt = waitForRunning(p, t)
-	i.Handler = evnt.Running.Handler
+	ii := waitForRunning(c, t)
 
 	// /data/test.txt should be available
 	_, err = p.Exec(ii.ID, "cat", "/data/test.txt")
 	assert.NoError(t, err)
 }
 
-func TestDNS(t *testing.T, p operator.Provider) {
+func TestDNS(t *testing.T, c operator.ControlPlane, p operator.Provider) {
 	target := &proto.Instance{
 		ID:          uuid.UUID(),
 		ClusterName: "c11",
 		Name:        uuid.UUID(),
 		Image:       "nginx",
 		Spec:        &proto.NodeSpec{},
+		Status:      proto.Instance_PENDING,
 	}
-
-	if _, err := p.CreateResource(target); err != nil {
+	if err := c.UpsertInstance(target); err != nil {
 		t.Fatal(err)
 	}
 
 	// wait for it to be ready
-	evnt := waitForRunning(p, t)
-	target.Handler = evnt.Running.Handler
+	target = waitForRunning(c, t)
 
 	source := &proto.Instance{
 		ID:          uuid.UUID(),
@@ -284,15 +290,14 @@ func TestDNS(t *testing.T, p operator.Provider) {
 		Name:        uuid.UUID(),
 		Image:       "nginx",
 		Spec:        &proto.NodeSpec{},
+		Status:      proto.Instance_PENDING,
 	}
-
-	if _, err := p.CreateResource(source); err != nil {
+	if err := c.UpsertInstance(source); err != nil {
 		t.Fatal(err)
 	}
 
 	// wait for it to be ready
-	evnt = waitForRunning(p, t)
-	source.Handler = evnt.Running.Handler
+	source = waitForRunning(c, t)
 
 	// valid dns
 	out, err := p.Exec(source.ID, "curl", "--fail", "--silent", "--show-error", target.Name+".c11")

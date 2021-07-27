@@ -6,6 +6,7 @@ import (
 	"net"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	gproto "github.com/golang/protobuf/proto"
@@ -46,6 +47,10 @@ type Server struct {
 
 	evalQueue *evalQueue
 	service   proto.EnsembleServiceServer
+
+	// subscriptions
+	lock sync.Mutex
+	subs []chan *InstanceUpdate
 }
 
 // NewServer starts an instance of the operator server
@@ -58,6 +63,7 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 		stopCh:    make(chan struct{}),
 		handlers:  map[string]Handler{},
 		evalQueue: newEvalQueue(),
+		subs:      []chan *InstanceUpdate{},
 	}
 
 	for _, factory := range config.HandlerFactories {
@@ -76,11 +82,11 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 	}
 
 	// setup the node watcher in the provider
-	go s.startWatcher(s.Provider)
+	s.Provider.Setup(s)
 
 	// setup watcher for the different backends
 	for _, i := range s.handlers {
-		go s.startWatcher(i)
+		i.Setup(s)
 	}
 
 	s.logger.Info("Start provider")
@@ -90,6 +96,8 @@ func NewServer(logger hclog.Logger, config *Config) (*Server, error) {
 
 	go s.taskQueue4()
 	go s.taskQueue5()
+
+	go s.instanceWatcher()
 
 	return s, nil
 }
@@ -105,106 +113,46 @@ func (s *Server) loggingServerInterceptor(ctx context.Context, req interface{}, 
 	return h, err
 }
 
-func (s *Server) upsertNode(i *proto.Instance) error {
-	i = i.Copy()
-	if err := s.State.UpsertNode(i); err != nil {
-		return err
-	}
+func (s *Server) instanceWatcher() {
+	//fmt.Println("INSTANCE WATCHER START")
 
-	depID, err := s.State.NameToDeployment(i.ClusterName)
-	if err != nil {
-		return err
-	}
-	// TODO: Aggregate this in the same function or provide it from
-	// the caller function as a context
-	dep, err := s.LoadDeployment(depID)
-	if err != nil {
-		return err
-	}
-	handler, err := s.GetHandler(dep.Backend)
-	if err != nil {
-		return err
-	}
-
-	handler.ApplyHook(ApplyHookRequest{Instance: i, Deployment: dep})
-	return nil
-}
-
-func (s *Server) upsertNodeAndEval(deploymentID string, i *proto.Instance) error {
-	if err := s.upsertNode(i); err != nil {
-		return err
-	}
-	eval := &proto.Evaluation{
-		Id:           uuid.UUID(),
-		Status:       proto.Evaluation_PENDING,
-		TriggeredBy:  proto.Evaluation_NODECHANGE,
-		DeploymentID: deploymentID,
-		Type:         proto.EvaluationTypeCluster,
-	}
-	s.evalQueue.add(eval)
-	return nil
-}
-
-func (s *Server) updateStatus(op *proto.InstanceUpdate) error {
-	s.logger.Debug("update instance status", "id", op.ID, "cluster", op.ClusterName, "op", op)
-
-	deploymentID, err := s.State.NameToDeployment(op.ClusterName)
-	if err != nil {
-		return err
-	}
-	i, err := s.State.LoadInstance(deploymentID, op.ID)
-	if err != nil {
-		return err
-	}
-
-	i = i.Copy()
-
-	switch obj := op.Event.(type) {
-	case *proto.InstanceUpdate_Running_:
-		i.Ip = obj.Running.Ip
-		i.Handler = obj.Running.Handler
-		i.Status = proto.Instance_RUNNING
-
-	case *proto.InstanceUpdate_Healthy_:
-		i.Healthy = true
-
-	case *proto.InstanceUpdate_Killing_:
-		if i.Status == proto.Instance_TAINTED {
-			// expected to be down
-			i.Status = proto.Instance_STOPPED // It is moved to out by reconciler
-			// dont do evaluation now
-			return s.upsertNodeAndEval(deploymentID, i)
-		} else {
-			// the node is not expected to fail
-			i.Status = proto.Instance_FAILED
-			return s.upsertNodeAndEval(deploymentID, i)
-		}
-	}
-
-	// update in the db
-	if err := s.upsertNodeAndEval(deploymentID, i); err != nil {
-		return err
-	}
-	return nil
-}
-
-type Watcher interface {
-	WatchUpdates() chan *proto.InstanceUpdate
-}
-
-func (s *Server) startWatcher(w Watcher) {
-	watchCh := w.WatchUpdates()
+	stream := s.SubscribeInstanceUpdates()
 	for {
-		select {
-		case op := <-watchCh:
-			go func() {
-				if err := s.updateStatus(op); err != nil {
+		msg := <-stream
+		//fmt.Println("__ INSTANCE WATCHER __")
+		//fmt.Println(msg)
+
+		instance, err := s.GetInstance(msg.Id, msg.Cluster)
+		if err != nil {
+			panic(err)
+		}
+		if instance.Status == proto.Instance_RUNNING || instance.Status == proto.Instance_FAILED || instance.Status == proto.Instance_STOPPED {
+			// add eval
+
+			if instance.Status == proto.Instance_FAILED {
+				// update the deployment to running in case it is not already
+				dep, err := s.LoadDeployment(instance.DeploymentID)
+				if err != nil {
 					panic(err)
 				}
-			}()
+				if dep.Status != proto.DeploymentRunning {
+					dep = dep.Copy()
+					dep.Status = proto.DeploymentRunning
+					if err := s.State.UpdateDeployment(dep); err != nil {
+						panic(err)
+					}
+				}
+			}
 
-		case <-s.stopCh:
-			return
+			//fmt.Println("_ ADD EVAL _")
+			eval := &proto.Evaluation{
+				Id:           uuid.UUID(),
+				Status:       proto.Evaluation_PENDING,
+				TriggeredBy:  proto.Evaluation_NODECHANGE,
+				DeploymentID: msg.Cluster, // this is the deployment
+				Type:         proto.EvaluationTypeCluster,
+			}
+			s.evalQueue.add(eval)
 		}
 	}
 }
@@ -388,9 +336,7 @@ func (s *Server) taskQueue4() {
 func (s *Server) SubmitPlan(eval *proto.Evaluation, p *proto.Plan) error {
 	// update the state
 	for _, i := range p.NodeUpdate {
-		fmt.Println(i.DeploymentID)
-
-		if err := s.upsertNode(i); err != nil {
+		if err := s.UpsertInstance(i); err != nil {
 			return err
 		}
 	}
@@ -414,28 +360,6 @@ func (s *Server) SubmitPlan(eval *proto.Evaluation, p *proto.Plan) error {
 			return err
 		}
 	}
-
-	// send the instances for update
-	for _, i := range p.NodeUpdate {
-		// create the instance
-		if i.Status == proto.Instance_OUT {
-			// instance is out
-		} else {
-			// Provider updates concurrently
-			go func(i *proto.Instance) {
-				if i.Status == proto.Instance_TAINTED {
-					if _, err := s.Provider.DeleteResource(i); err != nil {
-						panic(err)
-					}
-				} else if i.Status == proto.Instance_PENDING {
-					if _, err := s.Provider.CreateResource(i); err != nil {
-						panic(err)
-					}
-				}
-			}(i)
-		}
-	}
-
 	return nil
 }
 
@@ -495,4 +419,46 @@ func (s *Server) validateComponent(component *proto.Component) (*proto.Component
 		return nil, err
 	}
 	return component, nil
+}
+
+func (s *Server) UpsertInstance(n *proto.Instance) error {
+	fmt.Printf("Upsert instance %s %s\n", n.ID, n.Status)
+
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if err := s.State.UpsertNode(n); err != nil {
+		return err
+	}
+	update := &InstanceUpdate{
+		Id:      n.ID,
+		Cluster: n.DeploymentID,
+	}
+
+	for _, ch := range s.subs {
+		select {
+		case ch <- update:
+		default:
+		}
+	}
+	return nil
+}
+
+func (s *Server) GetInstance(id, cluster string) (*proto.Instance, error) {
+	return s.State.LoadInstance(cluster, id)
+}
+
+func (s *Server) SubscribeInstanceUpdates() <-chan *InstanceUpdate {
+	fmt.Println("=====>")
+
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if s.subs == nil {
+		s.subs = []chan *InstanceUpdate{}
+	}
+	ch := make(chan *InstanceUpdate, 10)
+	s.subs = append(s.subs, ch)
+
+	return ch
 }

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
@@ -20,10 +21,12 @@ const crdURL = "/apis/apiextensions.k8s.io/v1/customresourcedefinitions"
 
 // Provider is a Provider implementation for kubernetes.
 type Provider struct {
-	client  *KubeClient
-	logger  hclog.Logger
-	stopCh  chan struct{}
-	watchCh chan *proto.InstanceUpdate
+	client *KubeClient
+	logger hclog.Logger
+	stopCh chan struct{}
+	cplane operator.ControlPlane
+	queue  *eventQueue
+	// watchCh chan *proto.InstanceUpdate
 }
 
 // Stop stops the kubernetes provider
@@ -38,72 +41,76 @@ func getIDFromRef(ref string) string {
 	return spl[0]
 }
 
-func (p *Provider) Setup() error {
+func (p *Provider) Setup(cplane operator.ControlPlane) error {
+	p.cplane = cplane
+
 	w, err := NewWatcher(p.logger, p.client, eventsURL, &Event{})
 	if err != nil {
 		return err
 	}
 	w.Run(p.stopCh)
 	w.ForEach(func(task *WatchEntry, i interface{}) {
-		p.handleEvent(i.(*Event))
+		if err := p.handleEvent(i.(*Event)); err != nil {
+			p.logger.Error("failed to handle event", "err", err)
+		}
 	})
+
+	ch := cplane.SubscribeInstanceUpdates()
+	go func() {
+		for {
+			msg := <-ch
+			if msg == nil {
+				return
+			}
+			instance, err := cplane.GetInstance(msg.Id, msg.Cluster)
+			if err != nil {
+				p.logger.Error("failed to get instance", "err", err)
+				continue
+			}
+
+			if instance.Status == proto.Instance_PENDING {
+				p.queue.add(instance)
+			} else if instance.Status == proto.Instance_TAINTED {
+				p.queue.add(instance)
+			}
+		}
+	}()
+
+	go p.queueRun()
 	return nil
 }
 
-func (p *Provider) handleEvent(event *Event) {
+func (p *Provider) handleEvent(event *Event) error {
 	id := getIDFromRef(event.GetMetadata().Name)
 	cluster := p.getPodCluster(id)
 
 	if cluster == "" {
-		return
+		return fmt.Errorf("cluster not found")
 	}
 
-	if event.Reason == "Failed" {
-		p.watchCh <- &proto.InstanceUpdate{
-			ID:          id,
-			ClusterName: cluster,
-			Event: &proto.InstanceUpdate_Failed_{
-				Failed: &proto.InstanceUpdate_Failed{},
-			},
-		}
+	i, err := p.cplane.GetInstance(id, "")
+	if err != nil {
+		return err
 	}
-
-	if event.Reason == "Scheduled" {
-		// is being started
-		p.watchCh <- &proto.InstanceUpdate{
-			ID:          id,
-			ClusterName: cluster,
-			Event: &proto.InstanceUpdate_Scheduled_{
-				Scheduled: &proto.InstanceUpdate_Scheduled{},
-			},
-		}
-	}
+	i = i.Copy()
 
 	if event.Reason == "Started" {
-		// query the node and get the ip
-
-		ip := p.getPodIP(id)
-
-		p.watchCh <- &proto.InstanceUpdate{
-			ID:          id,
-			ClusterName: cluster,
-			Event: &proto.InstanceUpdate_Running_{
-				Running: &proto.InstanceUpdate_Running{
-					Ip: ip,
-				},
-			},
+		// spetial, set running once we have the ip
+		i.Set("started", "true")
+		if err := p.cplane.UpsertInstance(i); err != nil {
+			return err
 		}
 	}
 
 	if event.Reason == "Killing" {
-		p.watchCh <- &proto.InstanceUpdate{
-			ID:          id,
-			ClusterName: cluster,
-			Event: &proto.InstanceUpdate_Killing_{
-				Killing: &proto.InstanceUpdate_Killing{},
-			},
+		// How to differentiate from a failed instance
+		i.Status = proto.Instance_STOPPED
+		if err := p.cplane.UpsertInstance(i); err != nil {
+			return err
 		}
 	}
+
+	return nil
 }
 
 func (p *Provider) createCRD(crdDefinition []byte) error {
@@ -133,9 +140,11 @@ func (p *Provider) Resources() operator.ProviderResources {
 	}
 }
 
+/*
 func (p *Provider) WatchUpdates() chan *proto.InstanceUpdate {
 	return p.watchCh
 }
+*/
 
 var emptyDel = []byte("{}")
 
@@ -289,27 +298,89 @@ func (p *Provider) Name() string {
 	return "Kubernetes"
 }
 
-// CreateResource implements the Provider interface
-func (p *Provider) CreateResource(node *proto.Instance) (*proto.Instance, error) {
-	p.logger.Debug("upsert instance", "id", node.ID, "cluster", node.ClusterName, "name", node.Name)
+func (p *Provider) queueRun() {
+	for {
+		eval := p.queue.pop(p.stopCh)
+		if eval == nil {
+			return
+		}
+
+		instance := eval.(*proto.Instance)
+		if err := p.handleQueueEvent(instance); err != nil {
+			p.logger.Error("failed to handle event", "err", err)
+		}
+	}
+}
+
+func (p *Provider) handleQueueEvent(instance *proto.Instance) error {
+	if instance.Status == proto.Instance_PENDING {
+		if instance.Get("created") == "" {
+			if err := p.createImpl(instance); err != nil {
+				return err
+			}
+			instance.Set("created", "true")
+			if err := p.cplane.UpsertInstance(instance); err != nil {
+				return err
+			}
+		}
+		if instance.Get("started") == "true" {
+			// its already started, wait for the ip
+			ip := p.getIpImpl(instance.ID)
+			if ip == "" {
+				// enqueue again
+				time.Sleep(1 * time.Second)
+				p.queue.add(instance)
+			} else {
+				instance.Status = proto.Instance_RUNNING
+				instance.Ip = ip
+				if err := p.cplane.UpsertInstance(instance); err != nil {
+					return err
+				}
+			}
+		}
+	} else if instance.Status == proto.Instance_TAINTED {
+		if _, err := p.DeleteResource(instance); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *Provider) getIpImpl(id string) string {
+	var res struct {
+		Status struct {
+			Phase string
+			PodIP string
+		}
+	}
+	if _, err := p.get("/api/v1/namespaces/{namespace}/pods/"+id, &res); err != nil {
+		panic(err)
+	}
+	if res.Status.Phase == "Running" {
+		return res.Status.PodIP
+	}
+	return ""
+}
+
+func (p *Provider) createImpl(node *proto.Instance) error {
 	node = node.Copy()
 
 	// create headless service for dns resolving
 	if err := p.createHeadlessService(node.ClusterName); err != nil {
-		return nil, fmt.Errorf("failed to upsert headless service: %v", err)
+		return fmt.Errorf("failed to upsert headless service: %v", err)
 	}
 
 	// files to be mounted on the pod
 	if len(node.Spec.Files) != 0 {
 		mountPoints, err := mount.CreateMountPoints(node.Spec.Files)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		for indx, mountPoint := range mountPoints {
 			name := node.ID + "-file-data-" + strconv.Itoa(indx)
 
 			if err := p.upsertConfigMap(name, mountPoint); err != nil {
-				return nil, fmt.Errorf("failed to upsert config map: %v", err)
+				return fmt.Errorf("failed to upsert config map: %v", err)
 			}
 		}
 	}
@@ -318,22 +389,19 @@ func (p *Provider) CreateResource(node *proto.Instance) (*proto.Instance, error)
 	if len(node.Mounts) != 0 {
 		for _, m := range node.Mounts {
 			if err := p.createVolume(node, m); err != nil {
-				return nil, err
+				return err
 			}
 		}
 	}
 
 	data, err := MarshalPod(node)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal pod: %v", err)
+		return fmt.Errorf("failed to marshal pod: %v", err)
 	}
-
-	// create the Pod resource
 	if _, _, err = p.post("/api/v1/namespaces/{namespace}/pods", data); err != nil {
-		return nil, fmt.Errorf("failed to create pod: %v", err)
+		return fmt.Errorf("failed to create pod: %v", err)
 	}
-
-	return node, nil
+	return nil
 }
 
 func K8sFactory(logger hclog.Logger, c map[string]interface{}) (*Provider, error) {
@@ -342,10 +410,11 @@ func K8sFactory(logger hclog.Logger, c map[string]interface{}) (*Provider, error
 		return nil, err
 	}
 	p := &Provider{
-		client:  NewKubeClient(config),
-		logger:  logger.Named("k8s"),
-		stopCh:  make(chan struct{}),
-		watchCh: make(chan *proto.InstanceUpdate, 5),
+		client: NewKubeClient(config),
+		logger: logger.Named("k8s"),
+		stopCh: make(chan struct{}),
+		queue:  newEventQueue(),
+		//watchCh: make(chan *proto.InstanceUpdate, 5),
 	}
 	return p, nil
 }
@@ -464,5 +533,59 @@ func isError(resp []byte) error {
 			return errFutureVersion
 		}
 		return fmt.Errorf("undefined Error: '%s'", string(resp))
+	}
+}
+
+type eventQueue struct {
+	lock     sync.Mutex
+	events   []interface{}
+	updateCh chan struct{}
+}
+
+func newEventQueue() *eventQueue {
+	return &eventQueue{
+		events:   []interface{}{},
+		updateCh: make(chan struct{}),
+	}
+}
+
+func (e *eventQueue) add(task interface{}) {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+
+	e.events = append(e.events, task)
+
+	select {
+	case e.updateCh <- struct{}{}:
+	default:
+	}
+}
+
+func (e *eventQueue) popImpl() interface{} {
+	e.lock.Lock()
+	if len(e.events) != 0 {
+		// pop the first value and remove it from the heap
+		var pop interface{}
+		pop, e.events = e.events[0], e.events[1:]
+		e.lock.Unlock()
+
+		return pop
+	}
+	e.lock.Unlock()
+	return nil
+}
+
+func (e *eventQueue) pop(stopCh chan struct{}) interface{} {
+POP:
+	tt := e.popImpl()
+	if tt != nil {
+		return tt
+	}
+
+	select {
+	case <-e.updateCh:
+		goto POP
+	case <-stopCh:
+		return nil
 	}
 }

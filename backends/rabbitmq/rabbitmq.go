@@ -32,6 +32,44 @@ func Factory() operator.Handler {
 	return b
 }
 
+func (b *backend) startupProbe(instance *proto.Instance) error {
+	clt, err := rabbithole.NewClient("http://"+instance.Ip+":15672", "guest", "guest")
+	if err != nil {
+		return err
+	}
+
+	// check if rabbimq is running
+	err = loopRetry(5*time.Minute, func() error {
+		_, err = clt.Overview()
+		fmt.Println(err)
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("timeout readiness probe")
+	}
+
+	nodesExpected, _ := instance.GetInt("num")
+
+	// check if its syncer with others
+	err = loopRetry(5*time.Minute, func() error {
+		nodes, err := clt.ListNodes()
+		if err != nil {
+			return err
+		}
+		fmt.Println(len(nodes), nodesExpected)
+		if len(nodes) == nodesExpected {
+			return nil
+		}
+		return fmt.Errorf("not yet")
+	})
+	if err != nil {
+		return fmt.Errorf("failed cluster formation")
+	}
+
+	instance.Healthy = true
+	return nil
+}
+
 func loopRetry(timeout time.Duration, handler func() error) error {
 	doneCh := make(chan struct{})
 	go func() {
@@ -55,69 +93,13 @@ func loopRetry(timeout time.Duration, handler func() error) error {
 	return nil
 }
 
-func (b *backend) Hooks() []operator.Hook {
-	return []operator.Hook{
-		{
-			Name:  "readiness",
-			State: proto.Instance_RUNNING,
-			Handler: func(emit func(i *proto.InstanceUpdate), req operator.ApplyHookRequest) error {
-				instance := req.Instance
-				if instance.Healthy {
-					return nil
-				}
-
-				clt, err := rabbithole.NewClient("http://"+instance.Ip+":15672", "guest", "guest")
-				if err != nil {
-					return err
-				}
-
-				// check if rabbimq is running
-				err = loopRetry(5*time.Minute, func() error {
-					_, err = clt.Overview()
-					fmt.Println(err)
-					return err
-				})
-				if err != nil {
-					return fmt.Errorf("timeout readiness probe")
-				}
-
-				nodesExpected := len(req.Deployment.Instances)
-
-				// check if its syncer with others
-				err = loopRetry(5*time.Minute, func() error {
-					nodes, err := clt.ListNodes()
-					if err != nil {
-						return err
-					}
-					// fmt.Println(len(nodes), nodesExpected)
-					if len(nodes) == nodesExpected {
-						return nil
-					}
-					return fmt.Errorf("not yet")
-				})
-				if err != nil {
-					return fmt.Errorf("failed cluster formation")
-				}
-
-				emit(instance.Update(&proto.InstanceUpdate_Healthy_{
-					Healthy: &proto.InstanceUpdate_Healthy{},
-				}))
-
-				return nil
-			},
-		},
-	}
-}
-
 func (b *backend) Name() string {
 	return "Rabbitmq"
 }
 
 const rabbitmqConfFile = `
 cluster_formation.peer_discovery_backend = classic_config
-
 loopback_users = none
-
 {{ if .Nodes }}
 {{ range $i, $elem := .Nodes }}
 cluster_formation.classic_config.nodes.{{ $i }} = rabbit@{{ $elem }}
@@ -129,6 +111,8 @@ func (b *backend) Initialize(n []*proto.Instance, target *proto.Instance) (*prot
 	target.Spec.AddEnv("RABBITMQ_USE_LONGNAME", "true")
 
 	target.Spec.AddFile(rabbitmqPlugins, enabledPlugins)
+
+	target.SetInt("num", len(n))
 
 	var nodes []string
 	for _, i := range n {
@@ -142,17 +126,6 @@ func (b *backend) Initialize(n []*proto.Instance, target *proto.Instance) (*prot
 	}
 	target.Spec.AddFile(rabbitmqConf, string(configContent))
 	return nil, nil
-}
-
-func (b *backend) Ready(t *proto.Instance) bool {
-	clt, err := rabbithole.NewClient("http://"+t.Ip+":15672", "guest", "guest")
-	if err != nil {
-		return false
-	}
-	if _, err := clt.Overview(); err != nil {
-		return false
-	}
-	return true
 }
 
 // Spec implements the Handler interface
@@ -180,6 +153,9 @@ func (b *backend) Spec() *operator.Spec {
 			user(),
 			exchange(),
 			vhost(),
+		},
+		Startup: func(i *proto.Instance) error {
+			return b.startupProbe(i)
 		},
 	}
 }

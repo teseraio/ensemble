@@ -40,7 +40,7 @@ func createOpCRDs(t *testing.T, p *Provider) func() {
 
 func TestItemDecoding(t *testing.T) {
 	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
-	p.Setup()
+	p.Setup(nil)
 
 	// create CRDs for clusters and resources
 	closeFn := createOpCRDs(t, p)
