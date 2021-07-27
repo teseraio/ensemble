@@ -82,13 +82,15 @@ func (p *Provider) Setup(cplane operator.ControlPlane) error {
 
 func (p *Provider) handleEvent(event *Event) error {
 	id := getIDFromRef(event.GetMetadata().Name)
-	cluster := p.getPodCluster(id)
+	deploymentID := p.getPodDeployment(id)
 
-	if cluster == "" {
-		return fmt.Errorf("cluster not found")
+	p.logger.Debug("event", "deployment", deploymentID, "id", id, "reason", event.Reason)
+
+	if deploymentID == "" {
+		return fmt.Errorf("deploymentID not found")
 	}
 
-	i, err := p.cplane.GetInstance(id, "")
+	i, err := p.cplane.GetInstance(id, deploymentID)
 	if err != nil {
 		return err
 	}
@@ -237,7 +239,7 @@ func (p *Provider) createHeadlessService(cluster string) error {
 	return nil
 }
 
-func (p *Provider) getPodCluster(id string) string {
+func (p *Provider) getPodDeployment(id string) string {
 	var obj *Item
 	for i := 0; i < 10; i++ {
 		if _, err := p.get("/api/v1/namespaces/{namespace}/pods/"+id, &obj); err != nil {
@@ -251,28 +253,7 @@ func (p *Provider) getPodCluster(id string) string {
 	if obj == nil {
 		return ""
 	}
-	return obj.Metadata.Labels["ensemble"]
-}
-
-func (p *Provider) getPodIP(id string) string {
-	// wait for the resource to be running
-	var res struct {
-		Status struct {
-			Phase string
-			PodIP string
-		}
-	}
-	for {
-		if _, err := p.get("/api/v1/namespaces/{namespace}/pods/"+id, &res); err != nil {
-			panic(err)
-		}
-		if res.Status.Phase == "Running" {
-			break
-		}
-		p.logger.Trace("create resource pod status", "id", id, "status", res.Status.Phase)
-		time.Sleep(50 * time.Millisecond)
-	}
-	return res.Status.PodIP
+	return obj.Metadata.Labels["deployment"]
 }
 
 func (p *Provider) createVolume(instance *proto.Instance, m *proto.Instance_Mount) error {

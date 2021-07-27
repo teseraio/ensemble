@@ -4,7 +4,8 @@
 	"metadata": {
 		"name": "{{.ID}}",
 		"labels": {
-			"ensemble": "{{.Ensemble}}"
+			"ensemble": "{{.Ensemble}}",
+			"deployment": "{{.Deployment}}"
 		}
 	},
 	"spec": {

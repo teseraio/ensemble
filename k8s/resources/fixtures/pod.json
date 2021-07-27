@@ -5,7 +5,8 @@
         "metadata": {
             "name": "a",
             "labels": {
-                "ensemble": "b"
+                "ensemble": "b",
+                "deployment": "b2"
             }
         },
         "spec": {
@@ -29,7 +30,8 @@
         "metadata": {
             "name": "id",
             "labels": {
-                "ensemble": "b"
+                "ensemble": "b",
+                "deployment": "b2"
             }
         },
         "spec": {
@@ -72,7 +74,8 @@
         "metadata": {
             "name": "id",
             "labels": {
-                "ensemble": "b"
+                "ensemble": "b",
+                "deployment": "b2"
             }
         },
         "spec": {

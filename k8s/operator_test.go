@@ -11,6 +11,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/teseraio/ensemble/lib/template"
+	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/schema"
 )
@@ -39,8 +40,10 @@ func createOpCRDs(t *testing.T, p *Provider) func() {
 }
 
 func TestItemDecoding(t *testing.T) {
+	cplane := &operator.InmemControlPlane{}
+
 	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
-	p.Setup(nil)
+	p.Setup(cplane)
 
 	// create CRDs for clusters and resources
 	closeFn := createOpCRDs(t, p)

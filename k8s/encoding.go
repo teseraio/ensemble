@@ -48,16 +48,17 @@ func MarshalPod(i *proto.Instance) ([]byte, error) {
 	var volumes []interface{}
 
 	obj := map[string]interface{}{
-		"ID":       i.ID,
-		"Name":     i.Name,
-		"Image":    i.Image,
-		"Version":  version,
-		"Env":      builder.Env,
-		"Files":    builder.Files,
-		"Ensemble": i.ClusterName,
-		"Hostname": i.Name,
-		"Command":  builder.Cmd,
-		"Args":     builder.Args,
+		"ID":         i.ID,
+		"Name":       i.Name,
+		"Image":      i.Image,
+		"Version":    version,
+		"Env":        builder.Env,
+		"Files":      builder.Files,
+		"Ensemble":   i.ClusterName,
+		"Deployment": i.DeploymentID,
+		"Hostname":   i.Name,
+		"Command":    builder.Cmd,
+		"Args":       builder.Args,
 	}
 
 	// add the persistent volumes

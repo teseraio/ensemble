@@ -28,7 +28,6 @@ func TestProvider(t *testing.T, p operator.Provider) {
 	t.Run("TestPodFiles", func(t *testing.T) {
 		TestPodFiles(t, c, p)
 	})
-
 	// TODO
 	//TestPodBarArgs(t, p)
 	//TestPodJobFailed(t, p)
@@ -145,12 +144,13 @@ func TestPodLifecycle(t *testing.T, c operator.ControlPlane, p operator.Provider
 	id := uuid.UUID()
 
 	i := &proto.Instance{
-		ID:          id,
-		ClusterName: "c11",
-		Name:        "d22",
-		Image:       "nginx",
-		Spec:        &proto.NodeSpec{},
-		Status:      proto.Instance_PENDING,
+		ID:           id,
+		DeploymentID: "c11",
+		ClusterName:  "c11",
+		Name:         "d22",
+		Image:        "nginx",
+		Spec:         &proto.NodeSpec{},
+		Status:       proto.Instance_PENDING,
 	}
 	if err := c.UpsertInstance(i); err != nil {
 		t.Fatal(err)
@@ -188,10 +188,11 @@ Line3`,
 		},
 	}
 	i := &proto.Instance{
-		ID:          id,
-		ClusterName: "c11",
-		Name:        uuid.UUID(),
-		Image:       "nginx",
+		ID:           id,
+		DeploymentID: "c11",
+		ClusterName:  "c11",
+		Name:         uuid.UUID(),
+		Image:        "nginx",
 		Spec: &proto.NodeSpec{
 			Files: files,
 		},
@@ -215,11 +216,12 @@ func TestPodMount(t *testing.T, c operator.ControlPlane, p operator.Provider) {
 	id := uuid.UUID()
 
 	initial := &proto.Instance{
-		ID:          id,
-		ClusterName: "c11",
-		Name:        uuid.UUID(),
-		Image:       "nginx",
-		Spec:        &proto.NodeSpec{},
+		ID:           id,
+		DeploymentID: "c11",
+		ClusterName:  "c11",
+		Name:         uuid.UUID(),
+		Image:        "nginx",
+		Spec:         &proto.NodeSpec{},
 		Mounts: []*proto.Instance_Mount{
 			{
 				Name: "one",
@@ -270,12 +272,13 @@ func TestPodMount(t *testing.T, c operator.ControlPlane, p operator.Provider) {
 
 func TestDNS(t *testing.T, c operator.ControlPlane, p operator.Provider) {
 	target := &proto.Instance{
-		ID:          uuid.UUID(),
-		ClusterName: "c11",
-		Name:        uuid.UUID(),
-		Image:       "nginx",
-		Spec:        &proto.NodeSpec{},
-		Status:      proto.Instance_PENDING,
+		ID:           uuid.UUID(),
+		DeploymentID: "c11",
+		ClusterName:  "c11",
+		Name:         uuid.UUID(),
+		Image:        "nginx",
+		Spec:         &proto.NodeSpec{},
+		Status:       proto.Instance_PENDING,
 	}
 	if err := c.UpsertInstance(target); err != nil {
 		t.Fatal(err)
@@ -285,12 +288,13 @@ func TestDNS(t *testing.T, c operator.ControlPlane, p operator.Provider) {
 	target = waitForRunning(c, t)
 
 	source := &proto.Instance{
-		ID:          uuid.UUID(),
-		ClusterName: "c11",
-		Name:        uuid.UUID(),
-		Image:       "nginx",
-		Spec:        &proto.NodeSpec{},
-		Status:      proto.Instance_PENDING,
+		ID:           uuid.UUID(),
+		DeploymentID: "c11",
+		ClusterName:  "c11",
+		Name:         uuid.UUID(),
+		Image:        "nginx",
+		Spec:         &proto.NodeSpec{},
+		Status:       proto.Instance_PENDING,
 	}
 	if err := c.UpsertInstance(source); err != nil {
 		t.Fatal(err)
