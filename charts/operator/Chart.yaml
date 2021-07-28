@@ -1,5 +1,5 @@
 apiVersion: v2
-name: ensemble
+name: ensemble-operator
 description: |
   Modular Kubernetes operator to manage the lifecycle of databases
 type: application

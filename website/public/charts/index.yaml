@@ -1,18 +1,18 @@
 apiVersion: v1
 entries:
-  ensemble:
+  ensemble-operator:
   - apiVersion: v2
     appVersion: 0.1.2
-    created: "2021-07-28T12:43:45.712258354+02:00"
+    created: "2021-07-28T13:00:41.273825864+02:00"
     description: 'Modular Kubernetes operator to manage the lifecycle of databases '
-    digest: 5d62750c1d69f1ee5e15cd0a1b05397f8ed077fe983c515ecb05dec551e52673
+    digest: c21bab4872925bb7db5a0c3d62636a38aef01a9b90b535dd4652b83559d3e6c6
     home: https://ensembleoss.io
     maintainers:
     - name: Tesera
       url: https://tesera.io
-    name: ensemble
+    name: ensemble-operator
     type: application
     urls:
-    - ensemble-0.1.0.tgz
+    - ensemble-operator-0.1.0.tgz
     version: 0.1.0
-generated: "2021-07-28T12:43:45.711435667+02:00"
+generated: "2021-07-28T13:00:41.273049064+02:00"
