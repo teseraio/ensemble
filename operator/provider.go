@@ -20,6 +20,8 @@ type Provider interface {
 	// Start starts the provider
 	Start() error
 
+	Stop() error
+
 	// CreateResource creates the computational resource
 	// CreateResource(*proto.Instance) (*proto.Instance, error)
 

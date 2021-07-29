@@ -45,15 +45,7 @@ type Client struct {
 	resources     map[string]*resource
 	resourcesLock sync.Mutex
 
-	//workCh chan *proto.Instance
-
-	// TODO: Not here
-	//volumes map[string]string
-	//backendClient proto.BackendServiceClient
-
 	controlPlane operator.ControlPlane
-
-	//updateCh chan *proto.InstanceUpdate
 }
 
 // NewClient creates a new docker Client
@@ -89,6 +81,10 @@ func (c *Client) Start() error {
 	return nil
 }
 
+func (c *Client) Stop() error {
+	return nil
+}
+
 func (c *Client) Setup(cc operator.ControlPlane) error {
 	c.controlPlane = cc
 
@@ -99,11 +95,7 @@ func (c *Client) Setup(cc operator.ControlPlane) error {
 func (c *Client) Remove(id string) error {
 	r := c.resources[id]
 	r.failed = true
-	/*
-		if err := c.client.ContainerStop(context.Background(), id, nil); err != nil {
-			return err
-		}
-	*/
+
 	if err := c.client.ContainerRemove(context.Background(), r.handle, types.ContainerRemoveOptions{Force: true}); err != nil {
 		panic(err)
 	}
@@ -138,12 +130,6 @@ func (c *Client) dummyContainer() error {
 	return nil
 }
 
-/*
-func (c *Client) WatchUpdates() chan *proto.InstanceUpdate {
-	return make(chan *proto.InstanceUpdate)
-}
-*/
-
 func (c *Client) runProvider() {
 
 	fmt.Println("- run provider -")
@@ -163,32 +149,20 @@ func (c *Client) runProvider() {
 }
 
 func (c *Client) handleInstanceMsg(msg *operator.InstanceUpdate) {
-	fmt.Println("-- docker msg --")
-	fmt.Println(msg)
-
 	instance, err := c.controlPlane.GetInstance(msg.Id, msg.Cluster)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("-- docker instance --")
-	fmt.Println(instance.Status)
-
 	if instance.Status == proto.Instance_PENDING {
 		fmt.Println("_ CREATE INSTANCE _", instance.ID, instance.Name, instance.Status)
 		// we can work on this
 		if _, err := c.createImpl(context.Background(), instance); err != nil {
-
-			ii := instance.Copy()
-			ii.Status = proto.Instance_FAILED
-
-			if err := c.controlPlane.UpsertInstance(ii); err != nil {
-				panic(err)
-			}
+			panic(err)
 		}
 
 	} else if instance.Status == proto.Instance_TAINTED {
-		fmt.Printf("_ DELETE INSTANCE: %s %s _\n", instance.ID, instance.Name)
+		fmt.Printf("_ DELETE INSTANCE: %s %s (%s)\n", instance.ID, instance.Name, instance.Handler)
 
 		if err := c.client.ContainerKill(context.Background(), instance.Handler, "SIGINT"); err != nil {
 			panic(err)
@@ -231,7 +205,7 @@ func (c *Client) PullImage(ctx context.Context, image string) error {
 }
 
 func (c *Client) Clean() {
-	panic("CLEAN")
+	panic("TODO")
 
 	for _, res := range c.resources {
 		if err := c.client.ContainerStop(context.Background(), res.handle, nil); err != nil {
@@ -259,63 +233,8 @@ func createIfNotExists(path string) error {
 	return err
 }
 
-/*
-func (c *Client) run() {
-	worker := func(id string) {
-		for instance := range c.workCh {
-			if _, err := c.createImpl(context.Background(), instance); err != nil {
-				panic(err)
-			}
-		}
-	}
-	numWorkers := 2
-	for i := 0; i < numWorkers; i++ {
-		go worker(strconv.Itoa(i))
-	}
-}
-*/
-
-// Create creates a docker container
-func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, error) {
-	c.resourcesLock.Lock()
-	defer c.resourcesLock.Unlock()
-
-	// check if there is another container with the same name. Three possibilities
-	// 1. The Provider did not fully removed the container after being removed by the scheduler.
-	// 2. The Scheduler is trying to run another instance with the same name.
-	// 3. There is a container from a previous execution that has not being purged.
-	//
-	// Since the docker provider keeps a local copy of all the valid running instances, cases 1 and 2
-	// can be easily validated (we panic for now), otherwise its case 3 and we remove the name.
-
-	filters := filters.NewArgs()
-	filters.Add("name", node.Name)
-
-	containers, err := c.client.ContainerList(ctx, types.ContainerListOptions{All: true, Filters: filters})
-	if err != nil {
-		return "", err
-	}
-	if size := len(containers); size != 0 {
-		if size != 1 {
-			return "", fmt.Errorf("more than one container expected")
-		}
-
-		prevInstance := c.findInstanceLocked(func(i *proto.Instance) bool {
-			return i.Name == node.Name
-		})
-		if prevInstance != nil {
-			// case 1 and 2
-			fmt.Println("-- status --")
-			fmt.Println(prevInstance.Status)
-
-			panic(fmt.Errorf("instance with the same node name %s allocated twice: Now %s Before %s", node.Name, node.ID, prevInstance.ID))
-		} else {
-			// case 3
-			if err := c.client.ContainerRemove(context.Background(), containers[0].ID, types.ContainerRemoveOptions{Force: true}); err != nil {
-				return "", err
-			}
-		}
-	}
+func (c *Client) buildBody(node *proto.Instance) (string, error) {
+	ctx := context.Background()
 
 	// We will use the 'net1' network interface for dns resolving
 	builder := node.Spec
@@ -420,30 +339,81 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 	if err != nil {
 		return "", err
 	}
+	return body.ID, nil
+}
+
+// Create creates a docker container
+func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, error) {
+	c.resourcesLock.Lock()
+	defer c.resourcesLock.Unlock()
+
+	// check if there is another container with the same name. Three possibilities
+	// 1. The Provider did not fully removed the container after being removed by the scheduler.
+	// 2. The Scheduler is trying to run another instance with the same name.
+	// 3. There is a container from a previous execution that has not being purged.
+	//
+	// Since the docker provider keeps a local copy of all the valid running instances, cases 1 and 2
+	// can be easily validated (we panic for now), otherwise its case 3 and we remove the name.
+
+	filters := filters.NewArgs()
+	filters.Add("name", node.Name)
+
+	containers, err := c.client.ContainerList(ctx, types.ContainerListOptions{All: true, Filters: filters})
+	if err != nil {
+		return "", err
+	}
+	if size := len(containers); size != 0 {
+		if size != 1 {
+			return "", fmt.Errorf("more than one container expected")
+		}
+
+		prevInstance := c.findInstanceLocked(func(i *proto.Instance) bool {
+			return i.Name == node.Name
+		})
+		if prevInstance != nil {
+			// case 1 and 2
+			panic(fmt.Errorf("instance with the same node name %s allocated twice: Now %s Before %s", node.Name, node.ID, prevInstance.ID))
+		} else {
+			// case 3
+			if err := c.client.ContainerRemove(context.Background(), containers[0].ID, types.ContainerRemoveOptions{Force: true}); err != nil {
+				return "", err
+			}
+		}
+	}
+
+	handlerID, err := c.buildBody(node)
+	if err != nil {
+		return "", err
+	}
 
 	c.resources[node.ID] = &resource{
 		nodeID:    node.ID,
-		handle:    body.ID,
+		handle:    handlerID,
 		clusterID: node.ClusterName,
 		instance:  node,
 	}
-	if err := c.client.ContainerStart(ctx, body.ID, types.ContainerStartOptions{}); err != nil {
-		return "", err
+	if err := c.client.ContainerStart(ctx, handlerID, types.ContainerStartOptions{}); err != nil {
+		node.Status = proto.Instance_STOPPED
+		node.ExitResult = &proto.Instance_ExitResult{
+			Error: err.Error(),
+		}
+		if err := c.controlPlane.UpsertInstance(node); err != nil {
+			panic(err)
+		}
+		return "", nil
 	}
 
 	// watch for updates in the node
 	go func() {
-		_, err := c.client.ContainerWait(context.Background(), body.ID)
+		statusCode, err := c.client.ContainerWait(context.Background(), handlerID)
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println("- container stopped -")
-
 		rr := c.resources[node.ID]
 
 		if !rr.failed {
 			// failed already removes the container on his end
-			if err := c.client.ContainerRemove(context.Background(), body.ID, types.ContainerRemoveOptions{}); err != nil {
+			if err := c.client.ContainerRemove(context.Background(), handlerID, types.ContainerRemoveOptions{}); err != nil {
 				panic(err)
 			}
 		}
@@ -455,12 +425,12 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 		if err != nil {
 			panic(err)
 		}
+
 		// we need all the data stored here so we need to get the instance from db
 		ii = ii.Copy()
-		if rr.failed {
-			ii.Status = proto.Instance_FAILED
-		} else {
-			ii.Status = proto.Instance_STOPPED
+		ii.Status = proto.Instance_STOPPED
+		ii.ExitResult = &proto.Instance_ExitResult{
+			Code: statusCode,
 		}
 
 		if err := c.controlPlane.UpsertInstance(ii); err != nil {
@@ -468,22 +438,18 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 		}
 	}()
 
-	ip := c.GetIP(body.ID)
+	ip := c.GetIP(handlerID)
 
 	nn := node.Copy()
 	nn.Ip = ip
-	nn.Handler = body.ID
+	nn.Handler = handlerID
 	nn.Status = proto.Instance_RUNNING
-	// nn.Healthy = true
-
-	fmt.Printf("IP: %s %s\n", nn.Name, ip)
-
 	if err := c.controlPlane.UpsertInstance(nn); err != nil {
 		panic(err)
 	}
 
 	c.resources[node.ID].instance.Ip = ip
-	return body.ID, nil
+	return handlerID, nil
 }
 
 func (c *Client) Resources() operator.ProviderResources {
@@ -504,26 +470,6 @@ func (c *Client) Resources() operator.ProviderResources {
 		},
 	}
 }
-
-/*
-func (c *Client) CreateResource(node *proto.Instance) (*proto.Instance, error) {
-	// fmt.Printf("Create resource: %s %s\n", node.ID, node.Name)
-	// validation
-	for _, r := range c.resources {
-		if r.instance.ID == node.ID {
-			return nil, operator.ErrInstanceAlreadyRunning
-		}
-		if r.active {
-			if r.instance.FullName() == node.FullName() {
-				return nil, operator.ErrProviderNameAlreadyUsed
-			}
-		}
-	}
-	// async serialize the execution
-	c.workCh <- node
-	return nil, nil
-}
-*/
 
 func (c *Client) Exec(id string, path string, args ...string) (string, error) {
 	execCmd := []string{path}
@@ -597,15 +543,4 @@ func (c *Client) findInstanceLocked(handler func(i *proto.Instance) bool) *proto
 		}
 	}
 	return nil
-}
-
-func (c *Client) DeleteResource(node *proto.Instance) (*proto.Instance, error) {
-	// fmt.Printf("Delete resource: %s %s\n", node.Name, node.Handler)
-
-	go func() {
-		if err := c.Remove(node.Handler); err != nil {
-			fmt.Printf("[ERR]: Failed to delete resource: %v\n", err)
-		}
-	}()
-	return nil, nil
 }

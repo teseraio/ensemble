@@ -1,0 +1,258 @@
+{
+  "kind": "Pod",
+  "apiVersion": "v1",
+  "metadata": {
+    "name": "21a25b83-a232-4741-9585-1f733e712b22",
+    "namespace": "default",
+    "uid": "f71b14be-aea4-449b-af40-5e431115ce37",
+    "resourceVersion": "2311",
+    "creationTimestamp": "2021-07-28T13:57:50Z",
+    "labels": {
+      "deployment": "xx11",
+      "ensemble": "xx11"
+    },
+    "managedFields": [
+      {
+        "manager": "Go-http-client",
+        "operation": "Update",
+        "apiVersion": "v1",
+        "time": "2021-07-28T13:57:50Z",
+        "fieldsType": "FieldsV1",
+        "fieldsV1": {
+          "f:metadata": {
+            "f:labels": {
+              ".": {},
+              "f:deployment": {},
+              "f:ensemble": {}
+            }
+          },
+          "f:spec": {
+            "f:containers": {
+              "k:{\"name\":\"main-container\"}": {
+                ".": {},
+                "f:command": {},
+                "f:image": {},
+                "f:imagePullPolicy": {},
+                "f:name": {},
+                "f:resources": {},
+                "f:terminationMessagePath": {},
+                "f:terminationMessagePolicy": {}
+              }
+            },
+            "f:dnsPolicy": {},
+            "f:enableServiceLinks": {},
+            "f:hostname": {},
+            "f:restartPolicy": {},
+            "f:schedulerName": {},
+            "f:securityContext": {},
+            "f:subdomain": {},
+            "f:terminationGracePeriodSeconds": {}
+          }
+        }
+      },
+      {
+        "manager": "k3s",
+        "operation": "Update",
+        "apiVersion": "v1",
+        "time": "2021-07-28T13:57:52Z",
+        "fieldsType": "FieldsV1",
+        "fieldsV1": {
+          "f:status": {
+            "f:conditions": {
+              "k:{\"type\":\"ContainersReady\"}": {
+                ".": {},
+                "f:lastProbeTime": {},
+                "f:lastTransitionTime": {},
+                "f:message": {},
+                "f:reason": {},
+                "f:status": {},
+                "f:type": {}
+              },
+              "k:{\"type\":\"Initialized\"}": {
+                ".": {},
+                "f:lastProbeTime": {},
+                "f:lastTransitionTime": {},
+                "f:status": {},
+                "f:type": {}
+              },
+              "k:{\"type\":\"Ready\"}": {
+                ".": {},
+                "f:lastProbeTime": {},
+                "f:lastTransitionTime": {},
+                "f:message": {},
+                "f:reason": {},
+                "f:status": {},
+                "f:type": {}
+              }
+            },
+            "f:containerStatuses": {},
+            "f:hostIP": {},
+            "f:phase": {},
+            "f:podIP": {},
+            "f:podIPs": {
+              ".": {},
+              "k:{\"ip\":\"10.42.0.27\"}": {
+                ".": {},
+                "f:ip": {}
+              }
+            },
+            "f:startTime": {}
+          }
+        }
+      }
+    ]
+  },
+  "spec": {
+    "volumes": [
+      {
+        "name": "kube-api-access-l6dt8",
+        "projected": {
+          "sources": [
+            {
+              "serviceAccountToken": {
+                "expirationSeconds": 3607,
+                "path": "token"
+              }
+            },
+            {
+              "configMap": {
+                "name": "kube-root-ca.crt",
+                "items": [
+                  {
+                    "key": "ca.crt",
+                    "path": "ca.crt"
+                  }
+                ]
+              }
+            },
+            {
+              "downwardAPI": {
+                "items": [
+                  {
+                    "path": "namespace",
+                    "fieldRef": {
+                      "apiVersion": "v1",
+                      "fieldPath": "metadata.namespace"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "defaultMode": 420
+        }
+      }
+    ],
+    "containers": [
+      {
+        "name": "main-container",
+        "image": "busybox:latest",
+        "command": [
+          "xxx"
+        ],
+        "resources": {},
+        "volumeMounts": [
+          {
+            "name": "kube-api-access-l6dt8",
+            "readOnly": true,
+            "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount"
+          }
+        ],
+        "terminationMessagePath": "/dev/termination-log",
+        "terminationMessagePolicy": "File",
+        "imagePullPolicy": "Always"
+      }
+    ],
+    "restartPolicy": "Never",
+    "terminationGracePeriodSeconds": 30,
+    "dnsPolicy": "ClusterFirst",
+    "serviceAccountName": "default",
+    "serviceAccount": "default",
+    "nodeName": "k3d-test1-server-0",
+    "securityContext": {},
+    "hostname": "yy22",
+    "subdomain": "xx11",
+    "schedulerName": "default-scheduler",
+    "tolerations": [
+      {
+        "key": "node.kubernetes.io/not-ready",
+        "operator": "Exists",
+        "effect": "NoExecute",
+        "tolerationSeconds": 300
+      },
+      {
+        "key": "node.kubernetes.io/unreachable",
+        "operator": "Exists",
+        "effect": "NoExecute",
+        "tolerationSeconds": 300
+      }
+    ],
+    "priority": 0,
+    "enableServiceLinks": true,
+    "preemptionPolicy": "PreemptLowerPriority"
+  },
+  "status": {
+    "phase": "Failed",
+    "conditions": [
+      {
+        "type": "Initialized",
+        "status": "True",
+        "lastProbeTime": null,
+        "lastTransitionTime": "2021-07-28T13:57:50Z"
+      },
+      {
+        "type": "Ready",
+        "status": "False",
+        "lastProbeTime": null,
+        "lastTransitionTime": "2021-07-28T13:57:50Z",
+        "reason": "ContainersNotReady",
+        "message": "containers with unready status: [main-container]"
+      },
+      {
+        "type": "ContainersReady",
+        "status": "False",
+        "lastProbeTime": null,
+        "lastTransitionTime": "2021-07-28T13:57:50Z",
+        "reason": "ContainersNotReady",
+        "message": "containers with unready status: [main-container]"
+      },
+      {
+        "type": "PodScheduled",
+        "status": "True",
+        "lastProbeTime": null,
+        "lastTransitionTime": "2021-07-28T13:57:50Z"
+      }
+    ],
+    "hostIP": "172.19.0.2",
+    "podIP": "10.42.0.27",
+    "podIPs": [
+      {
+        "ip": "10.42.0.27"
+      }
+    ],
+    "startTime": "2021-07-28T13:57:50Z",
+    "containerStatuses": [
+      {
+        "name": "main-container",
+        "state": {
+          "terminated": {
+            "exitCode": 128,
+            "reason": "StartError",
+            "message": "failed to create containerd task",
+            "startedAt": "1970-01-01T00:00:00Z",
+            "finishedAt": "2021-07-28T13:57:52Z",
+            "containerID": "containerd://db0b3a409d3a17e59b898d2f36972dece93334a380aa4c05adbac501b7d8d782"
+          }
+        },
+        "lastState": {},
+        "ready": false,
+        "restartCount": 0,
+        "image": "docker.io/library/busybox:latest",
+        "imageID": "docker.io/library/busybox@sha256:0f354ec1728d9ff32edcd7d1b8bbdfc798277ad36120dc3dc683be44524c8b60",
+        "containerID": "containerd://db0b3a409d3a17e59b898d2f36972dece93334a380aa4c05adbac501b7d8d782",
+        "started": false
+      }
+    ],
+    "qosClass": "BestEffort"
+  }
+}

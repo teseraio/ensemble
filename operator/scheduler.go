@@ -31,9 +31,6 @@ func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 		return nil, err
 	}
 
-	//fmt.Println("__")
-	//fmt.Println(dep)
-
 	handler, err := s.state.GetHandler(dep.Backend)
 	if err != nil {
 		return nil, err
@@ -84,6 +81,7 @@ func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 	for _, i := range r.res.stop {
 		ii := i.instance.Copy()
 		ii.Status = proto.Instance_TAINTED
+		ii.DesiredStatus = proto.Instance_STOP
 		ii.Canary = i.update
 
 		plan.NodeUpdate = append(plan.NodeUpdate, ii)

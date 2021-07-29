@@ -16,6 +16,8 @@ func TestProvider(t *testing.T, p operator.Provider) {
 	c := &operator.InmemControlPlane{}
 	p.Setup(c)
 
+	defer p.Stop()
+
 	t.Run("TestPodLifecycle", func(t *testing.T) {
 		TestPodLifecycle(t, c, p)
 	})
@@ -28,9 +30,12 @@ func TestProvider(t *testing.T, p operator.Provider) {
 	t.Run("TestPodFiles", func(t *testing.T) {
 		TestPodFiles(t, c, p)
 	})
-	// TODO
-	//TestPodBarArgs(t, p)
-	//TestPodJobFailed(t, p)
+	t.Run("TestPodJobFailed", func(t *testing.T) {
+		TestPodJobFailed(t, c, p)
+	})
+	t.Run("TestPodBarArgs", func(t *testing.T) {
+		TestPodBarArgs(t, c, p)
+	})
 }
 
 func readEvent(p operator.ControlPlane, t *testing.T) *proto.Instance {
@@ -43,7 +48,7 @@ func readEvent(p operator.ControlPlane, t *testing.T) *proto.Instance {
 			t.Fatal(err)
 		}
 		return instance
-	case <-time.After(10 * time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatal("timeout")
 	}
 	return nil
@@ -84,61 +89,47 @@ func waitForEvent(c operator.ControlPlane, t *testing.T, handler func(i *proto.I
 	}
 }
 
-/*
-func TestPodBarArgs(t *testing.T, p operator.Provider) {
-	// TODO
+func TestPodBarArgs(t *testing.T, c operator.ControlPlane, p operator.Provider) {
 	i := &proto.Instance{
-		ID:          uuid.UUID(),
-		ClusterName: "xx11",
-		Name:        "yy22",
-		Image:       "busybox",
+		ID:           uuid.UUID(),
+		DeploymentID: "xx11",
+		ClusterName:  "xx11",
+		Name:         "yy22",
+		Image:        "busybox",
 		Spec: &proto.NodeSpec{
 			Cmd: "xxx",
 		},
+		Status: proto.Instance_PENDING,
 	}
-	if _, err := p.CreateResource(i); err != nil {
+	if err := c.UpsertInstance(i); err != nil {
 		t.Fatal(err)
 	}
-
-	// the pod is scheduled
-	evnt := readEvent(p, t)
-	if _, ok := evnt.Event.(*proto.InstanceUpdate_Scheduled_); !ok {
-		t.Fatal("expected scheduled")
-	}
-
-	// the pod fails
-	evnt = readEvent(p, t)
-	if _, ok := evnt.Event.(*proto.InstanceUpdate_Failed_); !ok {
-		t.Fatal("expected failed")
-	}
+	waitForStopped(c, t)
 }
 
-func TestPodJobFailed(t *testing.T, p operator.Provider) {
-	// TODO
+func TestPodJobFailed(t *testing.T, c operator.ControlPlane, p operator.Provider) {
 	i := &proto.Instance{
-		ID:          uuid.UUID(),
-		ClusterName: "xx11",
-		Name:        "yy22",
-		Image:       "busybox",
+		ID:           uuid.UUID(),
+		DeploymentID: "xx11",
+		ClusterName:  "xx11",
+		Name:         "yy22",
+		Image:        "busybox",
 		Spec: &proto.NodeSpec{
 			// it stops gracefully
 			Cmd:  "sleep",
 			Args: []string{"2"},
 		},
+		Status: proto.Instance_PENDING,
 	}
-	if _, err := p.CreateResource(i); err != nil {
+	if err := c.UpsertInstance(i); err != nil {
 		t.Fatal(err)
 	}
 
-	// the pod is scheduled
-	evnt := readEvent(p, t)
-	if _, ok := evnt.Event.(*proto.InstanceUpdate_Scheduled_); !ok {
-		t.Fatal("expected scheduled")
-	}
+	waitForRunning(c, t)
 
-	time.Sleep(10 * time.Second)
+	ii := waitForStopped(c, t)
+	assert.Equal(t, ii.ExitResult.Code, int64(0))
 }
-*/
 
 func TestPodLifecycle(t *testing.T, c operator.ControlPlane, p operator.Provider) {
 	id := uuid.UUID()

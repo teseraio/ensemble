@@ -17,7 +17,8 @@ import (
 )
 
 type itemObj interface {
-	GetMetadata() *Metadata
+	ResourceVersion() string
+	Name() string
 }
 
 type listResponse struct {
@@ -136,6 +137,15 @@ func (w *Watcher) decodeObj(item interface{}) (itemObj, error) {
 	return obj.(itemObj), nil
 }
 
+func (w *Watcher) IsClosed() bool {
+	select {
+	case <-w.stopCh:
+		return true
+	default:
+		return false
+	}
+}
+
 func (w *Watcher) watchImpl(resourceVersion string, handler func(typ string, item itemObj) error) error {
 	path := w.path + "?watch=true"
 	if resourceVersion != "" {
@@ -159,6 +169,9 @@ func (w *Watcher) watchImpl(resourceVersion string, handler func(typ string, ite
 
 		if err := isError(res); err != nil {
 			return err
+		}
+		if w.IsClosed() {
+			return nil
 		}
 
 		var evnt WatchEvent
@@ -200,10 +213,11 @@ func (w *Watcher) WithList(list bool) *Watcher {
 }
 
 func (w *Watcher) Run(stopCh chan struct{}) {
-	go w.runWithBackoff(stopCh)
+	w.stopCh = stopCh
+	go w.runWithBackoff()
 }
 
-func (w *Watcher) runWithBackoff(stopCh chan struct{}) {
+func (w *Watcher) runWithBackoff() {
 	for {
 		err := w.runImpl()
 		if err != nil {
@@ -213,7 +227,7 @@ func (w *Watcher) runWithBackoff(stopCh chan struct{}) {
 		// TODO: Use exponential backoff
 		select {
 		case <-time.After(2 * time.Second):
-		case <-stopCh:
+		case <-w.stopCh:
 			return
 		}
 	}
@@ -278,7 +292,7 @@ func (w *Watcher) runImpl() error {
 	// watch
 	err = w.watchImpl(resourceVersion, func(typ string, item itemObj) error {
 		w.store.add(typ, item)
-		resourceVersion = item.GetMetadata().ResourceVersion
+		resourceVersion = item.ResourceVersion()
 		return nil
 	})
 	return err
@@ -318,7 +332,7 @@ func newStore() *store {
 }
 
 func (s *store) add(typ string, i itemObj) {
-	id := i.GetMetadata().Name
+	id := i.Name()
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -351,7 +365,7 @@ POP:
 	if len(s.heapImpl) != 0 {
 		// pop the first value
 		tt := heap.Pop(&s.heapImpl).(*WatchEntry)
-		delete(s.items, tt.item.GetMetadata().Name)
+		delete(s.items, tt.item.Name())
 		s.lock.Unlock()
 		return tt
 	}
@@ -370,7 +384,7 @@ type storeHeapImpl []*WatchEntry
 func (t storeHeapImpl) Len() int { return len(t) }
 
 func (t storeHeapImpl) Less(i, j int) bool {
-	return t[i].item.GetMetadata().ResourceVersion < t[j].item.GetMetadata().ResourceVersion
+	return t[i].item.ResourceVersion() < t[j].item.ResourceVersion()
 }
 
 func (t storeHeapImpl) Swap(i, j int) {

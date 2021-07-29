@@ -233,16 +233,12 @@ message Instance {
     Status status = 8;
 
     enum Status {
-        OUT     = 0; // an old instance of the ensemble
+        UNKNOWN = 0; // an old instance of the ensemble
         PENDING = 1; // pending on the Provider to be created
-
-        SCHEDULED = 5; // the instance is being created
-        RUNNING = 2;   // the instance is running
-
-        TAINTED = 8; // the instance is tainted and ready to be stopped
-        FAILED  = 3; // the instance has stopped with a failure
+        RUNNING = 2; // the instance is running
+        TAINTED = 3; // the instance is tainted and ready to be stopped
         STOPPED = 4; // the instance is stopped
-        UNKNOWN = 10;
+        OUT = 5;
     }
 
     bool canary = 9;
@@ -269,7 +265,11 @@ message Instance {
     string dnsSuffix = 19;
 
     string deploymentID = 20;
-    
+
+    ExitResult exitResult = 21;
+
+    DesiredStatus desiredStatus = 23;
+
     repeated Mount mounts = 30;
 
     message Reschedule {
@@ -280,6 +280,16 @@ message Instance {
         string id = 1;
         string name = 2;
         string path = 3;
+    }
+
+    message ExitResult {
+        int64 code = 1;
+        string error = 3;
+    }
+
+    enum DesiredStatus {
+        RUN = 0;
+        STOP = 1;
     }
 }
 

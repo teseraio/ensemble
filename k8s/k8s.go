@@ -6,11 +6,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/teseraio/ensemble/lib/mount"
+	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator"
 	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/schema"
@@ -25,33 +24,93 @@ type Provider struct {
 	logger hclog.Logger
 	stopCh chan struct{}
 	cplane operator.ControlPlane
-	queue  *eventQueue
-	// watchCh chan *proto.InstanceUpdate
 }
 
 // Stop stops the kubernetes provider
-func (p *Provider) Stop() {
+func (p *Provider) Stop() error {
 	close(p.stopCh)
+	return nil
 }
 
-var eventsURL = "/apis/events.k8s.io/v1/events"
+var podsURL = "/api/v1/namespaces/default/pods"
 
-func getIDFromRef(ref string) string {
-	spl := strings.Split(ref, ".")
-	return spl[0]
+const (
+	PodPhasePending   = "Pending"
+	PodPhaseRunning   = "Running"
+	PodPhaseFailed    = "Failed"
+	PodPhaseSucceeded = "Succeeded"
+)
+
+type PodItem struct {
+	Metadata *Metadata
+
+	Status struct {
+		Phase string
+		PodIP string
+
+		Conditions []struct {
+			Type   string
+			Status string
+		}
+		ContainerStatuses []struct {
+			State struct {
+				Terminated struct {
+					ExitCode int
+					Reason   string
+					Message  string
+				}
+				Waiting struct {
+					Reason string
+				}
+				Running struct {
+					StartedAt string
+				}
+			}
+		}
+	}
+}
+
+func (p *PodItem) ExitResult() (*proto.Instance_ExitResult, error) {
+	if len(p.Status.ContainerStatuses) == 0 {
+		return nil, fmt.Errorf("no container status found")
+	}
+	// focus on the main-container
+	status := p.Status.ContainerStatuses[0].State.Terminated
+
+	exitResult := &proto.Instance_ExitResult{
+		Code: int64(status.ExitCode),
+	}
+	if status.Message != "" {
+		exitResult.Error = fmt.Sprintf("%s: %s", status.Reason, status.Message)
+	}
+	return exitResult, nil
+}
+
+func (p *PodItem) ResourceVersion() string {
+	return p.Metadata.ResourceVersion
+}
+
+func (i *PodItem) Name() string {
+	return uuid.UUID()
 }
 
 func (p *Provider) Setup(cplane operator.ControlPlane) error {
 	p.cplane = cplane
 
-	w, err := NewWatcher(p.logger, p.client, eventsURL, &Event{})
+	w, err := NewWatcher(p.logger, p.client, podsURL, &PodItem{})
 	if err != nil {
 		return err
 	}
 	w.Run(p.stopCh)
 	w.ForEach(func(task *WatchEntry, i interface{}) {
-		if err := p.handleEvent(i.(*Event)); err != nil {
-			p.logger.Error("failed to handle event", "err", err)
+		item := i.(*PodItem)
+
+		deploymentID, ok := item.Metadata.Labels["deployment"]
+		if !ok {
+			return
+		}
+		if err := p.handlePodUpdate(deploymentID, item); err != nil {
+			p.logger.Error("failed to handle pod update", "err", err)
 		}
 	})
 
@@ -68,50 +127,53 @@ func (p *Provider) Setup(cplane operator.ControlPlane) error {
 				continue
 			}
 
-			if instance.Status == proto.Instance_PENDING {
-				p.queue.add(instance)
-			} else if instance.Status == proto.Instance_TAINTED {
-				p.queue.add(instance)
-			}
+			go func() {
+				if err := p.handleQueueEvent(instance); err != nil {
+					p.logger.Error("failed to handle instance event", "err", err)
+				}
+			}()
 		}
 	}()
 
-	go p.queueRun()
 	return nil
 }
 
-func (p *Provider) handleEvent(event *Event) error {
-	id := getIDFromRef(event.GetMetadata().Name)
-	deploymentID := p.getPodDeployment(id)
-
-	p.logger.Debug("event", "deployment", deploymentID, "id", id, "reason", event.Reason)
-
-	if deploymentID == "" {
-		return fmt.Errorf("deploymentID not found")
-	}
-
-	i, err := p.cplane.GetInstance(id, deploymentID)
+func (p *Provider) handlePodUpdate(deploymentID string, pod *PodItem) error {
+	instance, err := p.cplane.GetInstance(pod.Metadata.Name, deploymentID)
 	if err != nil {
 		return err
 	}
-	i = i.Copy()
-
-	if event.Reason == "Started" {
-		// spetial, set running once we have the ip
-		i.Set("started", "true")
-		if err := p.cplane.UpsertInstance(i); err != nil {
-			return err
-		}
+	if instance == nil {
+		return fmt.Errorf("instance not found")
 	}
 
-	if event.Reason == "Killing" {
-		// How to differentiate from a failed instance
-		i.Status = proto.Instance_STOPPED
-		if err := p.cplane.UpsertInstance(i); err != nil {
-			return err
+	p.logger.Debug("pod update", "instance", pod.Metadata.Name, "phase", pod.Status.Phase)
+
+	if pod.Status.Phase == PodPhaseRunning {
+		if instance.Status == proto.Instance_RUNNING {
+			return nil
 		}
+
+		instance.Ip = pod.Status.PodIP
+		instance.Status = proto.Instance_RUNNING
 	}
 
+	if pod.Status.Phase == PodPhaseSucceeded || pod.Status.Phase == PodPhaseFailed {
+		if instance.Status == proto.Instance_STOPPED {
+			return nil
+		}
+
+		instance.Status = proto.Instance_STOPPED
+		exitRes, err := pod.ExitResult()
+		if err != nil {
+			return fmt.Errorf("failed to get exit result")
+		}
+		instance.ExitResult = exitRes
+	}
+
+	if err := p.cplane.UpsertInstance(instance); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -142,21 +204,7 @@ func (p *Provider) Resources() operator.ProviderResources {
 	}
 }
 
-/*
-func (p *Provider) WatchUpdates() chan *proto.InstanceUpdate {
-	return p.watchCh
-}
-*/
-
 var emptyDel = []byte("{}")
-
-// DeleteResource implements the Provider interface
-func (p *Provider) DeleteResource(node *proto.Instance) (*proto.Instance, error) {
-	if err := p.delete("/api/v1/namespaces/{namespace}/pods/"+node.ID, emptyDel); err != nil {
-		return nil, err
-	}
-	return node, nil
-}
 
 // Exec implements the Provider interface
 func (p *Provider) Exec(handler string, path string, cmdArgs ...string) (string, error) {
@@ -239,23 +287,6 @@ func (p *Provider) createHeadlessService(cluster string) error {
 	return nil
 }
 
-func (p *Provider) getPodDeployment(id string) string {
-	var obj *Item
-	for i := 0; i < 10; i++ {
-		if _, err := p.get("/api/v1/namespaces/{namespace}/pods/"+id, &obj); err != nil {
-			if err != errNotFound {
-				panic(err)
-			}
-		} else {
-			break
-		}
-	}
-	if obj == nil {
-		return ""
-	}
-	return obj.Metadata.Labels["deployment"]
-}
-
 func (p *Provider) createVolume(instance *proto.Instance, m *proto.Instance_Mount) error {
 	claimName := instance.Name + "-" + m.Name
 
@@ -279,71 +310,27 @@ func (p *Provider) Name() string {
 	return "Kubernetes"
 }
 
-func (p *Provider) queueRun() {
-	for {
-		eval := p.queue.pop(p.stopCh)
-		if eval == nil {
-			return
-		}
-
-		instance := eval.(*proto.Instance)
-		if err := p.handleQueueEvent(instance); err != nil {
-			p.logger.Error("failed to handle event", "err", err)
-		}
-	}
-}
-
 func (p *Provider) handleQueueEvent(instance *proto.Instance) error {
 	if instance.Status == proto.Instance_PENDING {
-		if instance.Get("created") == "" {
-			if err := p.createImpl(instance); err != nil {
-				return err
-			}
-			instance.Set("created", "true")
-			if err := p.cplane.UpsertInstance(instance); err != nil {
-				return err
-			}
-		}
-		if instance.Get("started") == "true" {
-			// its already started, wait for the ip
-			ip := p.getIpImpl(instance.ID)
-			if ip == "" {
-				// enqueue again
-				time.Sleep(1 * time.Second)
-				p.queue.add(instance)
-			} else {
-				instance.Status = proto.Instance_RUNNING
-				instance.Ip = ip
-				if err := p.cplane.UpsertInstance(instance); err != nil {
-					return err
-				}
-			}
+		if err := p.createPod(instance); err != nil {
+			return err
 		}
 	} else if instance.Status == proto.Instance_TAINTED {
-		if _, err := p.DeleteResource(instance); err != nil {
+		if _, err := p.deletePod(instance); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (p *Provider) getIpImpl(id string) string {
-	var res struct {
-		Status struct {
-			Phase string
-			PodIP string
-		}
+func (p *Provider) deletePod(node *proto.Instance) (*proto.Instance, error) {
+	if err := p.delete("/api/v1/namespaces/{namespace}/pods/"+node.ID, emptyDel); err != nil {
+		return nil, err
 	}
-	if _, err := p.get("/api/v1/namespaces/{namespace}/pods/"+id, &res); err != nil {
-		panic(err)
-	}
-	if res.Status.Phase == "Running" {
-		return res.Status.PodIP
-	}
-	return ""
+	return node, nil
 }
 
-func (p *Provider) createImpl(node *proto.Instance) error {
+func (p *Provider) createPod(node *proto.Instance) error {
 	node = node.Copy()
 
 	// create headless service for dns resolving
@@ -394,8 +381,6 @@ func K8sFactory(logger hclog.Logger, c map[string]interface{}) (*Provider, error
 		client: NewKubeClient(config),
 		logger: logger.Named("k8s"),
 		stopCh: make(chan struct{}),
-		queue:  newEventQueue(),
-		//watchCh: make(chan *proto.InstanceUpdate, 5),
 	}
 	return p, nil
 }
@@ -514,59 +499,5 @@ func isError(resp []byte) error {
 			return errFutureVersion
 		}
 		return fmt.Errorf("undefined Error: '%s'", string(resp))
-	}
-}
-
-type eventQueue struct {
-	lock     sync.Mutex
-	events   []interface{}
-	updateCh chan struct{}
-}
-
-func newEventQueue() *eventQueue {
-	return &eventQueue{
-		events:   []interface{}{},
-		updateCh: make(chan struct{}),
-	}
-}
-
-func (e *eventQueue) add(task interface{}) {
-	e.lock.Lock()
-	defer e.lock.Unlock()
-
-	e.events = append(e.events, task)
-
-	select {
-	case e.updateCh <- struct{}{}:
-	default:
-	}
-}
-
-func (e *eventQueue) popImpl() interface{} {
-	e.lock.Lock()
-	if len(e.events) != 0 {
-		// pop the first value and remove it from the heap
-		var pop interface{}
-		pop, e.events = e.events[0], e.events[1:]
-		e.lock.Unlock()
-
-		return pop
-	}
-	e.lock.Unlock()
-	return nil
-}
-
-func (e *eventQueue) pop(stopCh chan struct{}) interface{} {
-POP:
-	tt := e.popImpl()
-	if tt != nil {
-		return tt
-	}
-
-	select {
-	case <-e.updateCh:
-		goto POP
-	case <-stopCh:
-		return nil
 	}
 }

@@ -1,10 +1,13 @@
 package k8s
 
 import (
-	"fmt"
+	"encoding/json"
+	"io/ioutil"
 	"testing"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/stretchr/testify/assert"
+	"github.com/teseraio/ensemble/operator/proto"
 	"github.com/teseraio/ensemble/testutil"
 )
 
@@ -16,187 +19,7 @@ func TestK8sProviderSpec(t *testing.T) {
 	testutil.TestProvider(t, p)
 }
 
-/*
-func TestUpsertConfigMap(t *testing.T) {
-	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
-
-	id := uuid.UUID()
-
-	// check that the config map was created
-	checkData := func(data map[string]string) {
-		var res struct {
-			Data map[string]string
-		}
-		if _, err := p.get("/api/v1/namespaces/{namespace}/configmaps/"+id, &res); err != nil {
-			t.Fatal(err)
-		}
-		if !reflect.DeepEqual(res.Data, data) {
-			t.Fatal("bad")
-		}
-	}
-
-	data := map[string]string{
-		"A": "B",
-		"C": "D",
-	}
-	if err := p.upsertConfigMap(id, data); err != nil {
-		t.Fatal(err)
-	}
-
-	checkData(data)
-
-	// change the values
-	data = map[string]string{
-		"E": "F",
-		"G": "H",
-	}
-	if err := p.upsertConfigMap(id, data); err != nil {
-		t.Fatal(err)
-	}
-
-	checkData(data)
-}
-
-func readEvent(p *Provider, t *testing.T) *proto.InstanceUpdate {
-	select {
-	case evnt := <-p.watchCh:
-		return evnt
-	case <-time.After(10 * time.Second):
-	}
-	t.Fatal("timeout")
-	return nil
-}
-
-func TestPodLifecycle(t *testing.T) {
-	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
-	p.Setup()
-
-	id := uuid.UUID()
-
-	i := &proto.Instance{
-		ID:      id,
-		Cluster: "c11",
-		Name:    "d22",
-		Spec: &proto.NodeSpec{
-			Image: "busybox",
-			Cmd:   []string{"sleep", "30000"},
-		},
-	}
-
-	if _, err := p.CreateResource(i); err != nil {
-		t.Fatal(err)
-	}
-
-	// wait for the container to be running
-	evnt := readEvent(p, t)
-	if _, ok := evnt.Event.(*proto.InstanceUpdate_Scheduled_); !ok {
-		t.Fatal("expected scheduled")
-	}
-	evnt = readEvent(p, t)
-	if _, ok := evnt.Event.(*proto.InstanceUpdate_Running_); !ok {
-		t.Fatal("expected running")
-	}
-
-	if _, err := p.DeleteResource(i); err != nil {
-		t.Fatal(err)
-	}
-
-	// wait for termination event
-	evnt = readEvent(p, t)
-	if _, ok := evnt.Event.(*proto.InstanceUpdate_Killing_); !ok {
-		t.Fatal("expected stopped")
-	}
-}
-
-func TestPodDns(t *testing.T) {
-	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
-	p.Setup()
-
-	i := &proto.Instance{
-		ID:      uuid.UUID(),
-		Cluster: "c1",
-		Name:    "d2",
-		Spec: &proto.NodeSpec{
-			Image: "nginx",
-		},
-	}
-
-	if _, err := p.CreateResource(i); err != nil {
-		t.Fatal(err)
-	}
-
-	// wait for the container to be ready
-	for {
-		evnt := <-p.watchCh
-		if _, ok := evnt.Event.(*proto.InstanceUpdate_Running_); ok {
-			break
-		}
-	}
-
-	// create a curl container
-	ii := &proto.Instance{
-		ID:      uuid.UUID(),
-		Cluster: "c2",
-		Name:    "n2",
-		Spec: &proto.NodeSpec{
-			Image:   "curlimages/curl",
-			Version: "7.75.0",
-			Cmd:     []string{"sleep", "30000"},
-		},
-	}
-
-	if _, err := p.CreateResource(ii); err != nil {
-		t.Fatal(err)
-	}
-
-	// wait for the container to be ready
-	for {
-		evnt := <-p.watchCh
-		if _, ok := evnt.Event.(*proto.InstanceUpdate_Running_); ok {
-			break
-		}
-	}
-
-	// TODO: exec curl container
-	p.Exec(ii.ID, "curl", "d2.c1")
-}
-
-func TestPodBadArgs(t *testing.T) {
-	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
-	p.Setup()
-
-	i := &proto.Instance{
-		ID:      uuid.UUID(),
-		Cluster: "xx11",
-		Name:    "yy22",
-		Spec: &proto.NodeSpec{
-			Image: "busybox",
-			Cmd:   []string{"xxx"},
-		},
-	}
-	if _, err := p.CreateResource(i); err != nil {
-		t.Fatal(err)
-	}
-
-	// the pod is scheduled
-	evnt := readEvent(p, t)
-	if _, ok := evnt.Event.(*proto.InstanceUpdate_Scheduled_); !ok {
-		t.Fatal("expected scheduled")
-	}
-
-	// the pod fails
-	evnt = readEvent(p, t)
-	if _, ok := evnt.Event.(*proto.InstanceUpdate_Failed_); !ok {
-		t.Fatal("expected failed")
-	}
-}
-*/
-
 func TestK8sClient_Error(t *testing.T) {
-	// TODO
-	// {"kind":"Status","apiVersion":"v1","metadata":{},"status":"Failure","message":"The resourceVersion for the provided list is too old.","reason":"Expired","code":410}
-	// {"type":"ERROR","object":{"kind":"Status","apiVersion":"v1","metadata":{},"status":"Failure","message":"too old resource version: 10000 (343914)","reason":"Expired","code":410}}
-
 	cases := []struct {
 		obj string
 		err error
@@ -212,6 +35,51 @@ func TestK8sClient_Error(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		fmt.Println(isError([]byte(c.obj)), c.err)
+		assert.ErrorIs(t, isError([]byte(c.obj)), c.err)
 	}
+}
+
+func TestDecode_GetPod(t *testing.T) {
+	readFixture := func(name string) *PodItem {
+		data, err := ioutil.ReadFile("./resources/fixtures/" + name + ".json")
+		assert.NoError(t, err)
+
+		item := &PodItem{}
+		assert.NoError(t, json.Unmarshal(data, &item))
+
+		return item
+	}
+
+	t.Run("Pending", func(t *testing.T) {
+		item := readFixture("api_pod_get_pending")
+		assert.Equal(t, item.Status.Phase, PodPhasePending)
+		assert.NotEmpty(t, item.Status.ContainerStatuses[0].State.Waiting.Reason)
+	})
+
+	t.Run("Running", func(t *testing.T) {
+		item := readFixture("api_pod_get_running")
+		assert.Equal(t, item.Status.Phase, PodPhaseRunning)
+		assert.NotEmpty(t, item.Status.ContainerStatuses[0].State.Running.StartedAt)
+	})
+
+	t.Run("Terminated_BadArgs", func(t *testing.T) {
+		item := readFixture("api_pod_get_terminated_badargs")
+		assert.Equal(t, item.Status.Phase, PodPhaseFailed)
+
+		exitCode, err := item.ExitResult()
+		assert.NoError(t, err)
+		assert.Equal(t, exitCode, &proto.Instance_ExitResult{
+			Code:  128,
+			Error: "StartError: failed to create containerd task",
+		})
+	})
+
+	t.Run("Terminated_Completed", func(t *testing.T) {
+		item := readFixture("api_pod_get_terminated_completed")
+		assert.Equal(t, item.Status.Phase, PodPhaseSucceeded)
+
+		exitCode, err := item.ExitResult()
+		assert.NoError(t, err)
+		assert.Equal(t, exitCode, &proto.Instance_ExitResult{Code: 0})
+	})
 }
