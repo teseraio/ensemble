@@ -5,7 +5,6 @@ import (
 	"container/heap"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"reflect"
 	"strconv"
@@ -172,7 +171,6 @@ func (w *Watcher) watchImpl(resourceVersion string, handler func(typ string, ite
 			return err
 		}
 		if w.IsClosed() {
-			fmt.Println("- out 1 -")
 			return nil
 		}
 
