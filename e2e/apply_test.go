@@ -16,9 +16,6 @@ import (
 )
 
 func TestE2E_Apply(t *testing.T) {
-	_, err := kubectl("apply -f ../examples/dask-simple.yaml")
-	assert.NoError(t, err)
-
 	clt := newClient(t)
 
 	getDeployment := func() *proto.Deployment {
@@ -33,15 +30,23 @@ func TestE2E_Apply(t *testing.T) {
 		return nil
 	}
 
-	for i := 0; i < 60; i++ {
+	// apply
+	_, err := kubectl("apply -f ../examples/dask-simple.yaml")
+	assert.NoError(t, err)
+
+	wait(t, func() bool {
 		dep := getDeployment()
-		fmt.Println(dep)
-		if dep.Status == proto.DeploymentDone {
-			return
-		}
-		time.Sleep(5 * time.Second)
-	}
-	t.Fatal("timeout")
+		return dep.Status == proto.DeploymentDone
+	})
+
+	// delete
+	_, err = kubectl("delete -f ../examples/dask-simple.yaml")
+	assert.NoError(t, err)
+
+	wait(t, func() bool {
+		dep := getDeployment()
+		return dep.Status == proto.DeploymentCompleted
+	})
 }
 
 func newClient(t *testing.T) proto.EnsembleServiceClient {
@@ -63,4 +68,23 @@ func kubectl(args string) (string, error) {
 		return "", fmt.Errorf("failed to exec '%s': %s", err.Error(), errBuf.String())
 	}
 	return outBuf.String(), nil
+}
+
+func wait(t *testing.T, handler func() bool) {
+	doneCh := make(chan struct{})
+	go func() {
+		<-time.After(5 * time.Minute)
+		close(doneCh)
+	}()
+
+	for {
+		if handler() {
+			return
+		}
+		select {
+		case <-time.After(2 * time.Second):
+		case <-doneCh:
+			t.Fatal("timeout")
+		}
+	}
 }

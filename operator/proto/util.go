@@ -32,9 +32,10 @@ const (
 )
 
 const (
-	DeploymentDone    = "done"
-	DeploymentRunning = "running"
-	DeploymentFailed  = "failed"
+	DeploymentDone      = "done"
+	DeploymentRunning   = "running"
+	DeploymentCompleted = "completed"
+	DeploymentFailed    = "failed"
 )
 
 const (

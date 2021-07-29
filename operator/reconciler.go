@@ -196,6 +196,7 @@ type reconcileResult struct {
 	ready        []*proto.Instance
 	out          []*proto.Instance
 	done         bool
+	completed    bool
 }
 
 func (r *reconcileResult) print() {
@@ -285,6 +286,13 @@ func (r *reconciler) Compute() {
 	}
 	r.res = &reconcileResult{}
 
+	/*
+		fmt.Println("-- dependecies --")
+		for _, u := range r.dep.Instances {
+			fmt.Printf("%s %s %s %v %v\n", u.ID, u.Status, u.DesiredStatus, u.Canary, u.Healthy)
+		}
+	*/
+
 	if r.delete {
 		// remove all the running instances
 		pending := false
@@ -300,13 +308,9 @@ func (r *reconciler) Compute() {
 		if len(r.res.stop) == 0 && !pending {
 			// delete completed
 			r.res.done = true
+			r.res.completed = true
 		}
 		return
-	}
-
-	fmt.Println("-- dependecies --")
-	for _, u := range r.dep.Instances {
-		fmt.Printf("%s %s %s %v %v\n", u.ID, u.Status, u.DesiredStatus, u.Canary, u.Healthy)
 	}
 
 	done := true
