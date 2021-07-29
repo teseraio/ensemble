@@ -347,6 +347,17 @@ func (s *Server) SubmitPlan(eval *proto.Evaluation, p *proto.Plan) error {
 		}
 	}
 
+	/*
+		dep, err := s.LoadDeployment(p.Deployment.Id)
+		if err != nil {
+			return err
+		}
+		fmt.Println("- submit plan -")
+		for _, u := range dep.Instances {
+			fmt.Printf("%s %s %s %v %v\n", u.ID, u.Status, u.DesiredStatus, u.Canary, u.Healthy)
+		}
+	*/
+
 	if p.Deployment != nil {
 		dep := p.Deployment.Copy()
 		dep.Status = p.Status
