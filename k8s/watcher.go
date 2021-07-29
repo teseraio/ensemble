@@ -5,6 +5,7 @@ import (
 	"container/heap"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"reflect"
 	"strconv"
@@ -137,6 +138,15 @@ func (w *Watcher) decodeObj(item interface{}) (itemObj, error) {
 	return obj.(itemObj), nil
 }
 
+func (w *Watcher) IsClosed() bool {
+	select {
+	case <-w.stopCh:
+		return true
+	default:
+		return false
+	}
+}
+
 func (w *Watcher) watchImpl(resourceVersion string, handler func(typ string, item itemObj) error) error {
 	path := w.path + "?watch=true"
 	if resourceVersion != "" {
@@ -160,6 +170,10 @@ func (w *Watcher) watchImpl(resourceVersion string, handler func(typ string, ite
 
 		if err := isError(res); err != nil {
 			return err
+		}
+		if w.IsClosed() {
+			fmt.Println("- out 1 -")
+			return nil
 		}
 
 		var evnt WatchEvent
@@ -215,6 +229,7 @@ func (w *Watcher) runWithBackoff(stopCh chan struct{}) {
 		select {
 		case <-time.After(2 * time.Second):
 		case <-stopCh:
+			fmt.Println("- out 2-")
 			return
 		}
 	}

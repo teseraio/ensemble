@@ -17,6 +17,8 @@ func TestProvider(t *testing.T, p operator.Provider) {
 	c := &operator.InmemControlPlane{}
 	p.Setup(c)
 
+	defer p.Stop()
+
 	t.Run("TestPodLifecycle", func(t *testing.T) {
 		TestPodLifecycle(t, c, p)
 	})

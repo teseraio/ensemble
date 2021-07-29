@@ -44,6 +44,7 @@ func TestItemDecoding(t *testing.T) {
 
 	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
 	p.Setup(cplane)
+	defer p.Stop()
 
 	// create CRDs for clusters and resources
 	closeFn := createOpCRDs(t, p)

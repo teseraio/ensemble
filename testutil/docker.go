@@ -81,6 +81,10 @@ func (c *Client) Start() error {
 	return nil
 }
 
+func (c *Client) Stop() error {
+	return nil
+}
+
 func (c *Client) Setup(cc operator.ControlPlane) error {
 	c.controlPlane = cc
 

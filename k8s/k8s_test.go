@@ -40,7 +40,6 @@ func TestK8sClient_Error(t *testing.T) {
 }
 
 func TestDecode_GetPod(t *testing.T) {
-
 	readFixture := func(name string) *PodItem {
 		data, err := ioutil.ReadFile("./resources/fixtures/" + name + ".json")
 		assert.NoError(t, err)

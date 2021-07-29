@@ -152,7 +152,6 @@ type Item struct {
 	Kind     string
 	Spec     map[string]interface{}
 	Data     map[string]interface{}
-	Status   map[string]interface{}
 }
 
 func (i *Item) ResourceVersion() string {

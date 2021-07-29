@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/teseraio/ensemble/lib/mount"
@@ -25,12 +24,12 @@ type Provider struct {
 	logger hclog.Logger
 	stopCh chan struct{}
 	cplane operator.ControlPlane
-	queue  *eventQueue
 }
 
 // Stop stops the kubernetes provider
-func (p *Provider) Stop() {
+func (p *Provider) Stop() error {
 	close(p.stopCh)
+	return nil
 }
 
 var podsURL = "/api/v1/namespaces/default/pods"
@@ -143,6 +142,9 @@ func (p *Provider) handlePodUpdate(deploymentID string, pod *PodItem) error {
 	instance, err := p.cplane.GetInstance(pod.Metadata.Name, deploymentID)
 	if err != nil {
 		return err
+	}
+	if instance == nil {
+		return fmt.Errorf("instance not found")
 	}
 
 	p.logger.Debug("pod update", "instance", pod.Metadata.Name, "phase", pod.Status.Phase)
@@ -379,7 +381,6 @@ func K8sFactory(logger hclog.Logger, c map[string]interface{}) (*Provider, error
 		client: NewKubeClient(config),
 		logger: logger.Named("k8s"),
 		stopCh: make(chan struct{}),
-		queue:  newEventQueue(),
 	}
 	return p, nil
 }
@@ -498,59 +499,5 @@ func isError(resp []byte) error {
 			return errFutureVersion
 		}
 		return fmt.Errorf("undefined Error: '%s'", string(resp))
-	}
-}
-
-type eventQueue struct {
-	lock     sync.Mutex
-	events   []interface{}
-	updateCh chan struct{}
-}
-
-func newEventQueue() *eventQueue {
-	return &eventQueue{
-		events:   []interface{}{},
-		updateCh: make(chan struct{}),
-	}
-}
-
-func (e *eventQueue) add(task interface{}) {
-	e.lock.Lock()
-	defer e.lock.Unlock()
-
-	e.events = append(e.events, task)
-
-	select {
-	case e.updateCh <- struct{}{}:
-	default:
-	}
-}
-
-func (e *eventQueue) popImpl() interface{} {
-	e.lock.Lock()
-	if len(e.events) != 0 {
-		// pop the first value and remove it from the heap
-		var pop interface{}
-		pop, e.events = e.events[0], e.events[1:]
-		e.lock.Unlock()
-
-		return pop
-	}
-	e.lock.Unlock()
-	return nil
-}
-
-func (e *eventQueue) pop(stopCh chan struct{}) interface{} {
-POP:
-	tt := e.popImpl()
-	if tt != nil {
-		return tt
-	}
-
-	select {
-	case <-e.updateCh:
-		goto POP
-	case <-stopCh:
-		return nil
 	}
 }
