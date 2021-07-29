@@ -15,6 +15,10 @@ jobs:
         with:
           cluster-name: "test-cluster-1"
           args: --agents 1
+      - name: Import e2e images
+        run: |
+          k3d image import docker.io/library/nginx:latest -c test-cluster-1 --verbose
+          k3d image import docker.io/library/busybox:latest -c test-cluster-1 --verbose
       - run: go mod vendor
       - name: Go test
         run: go test -v ./operator/... -test.short
