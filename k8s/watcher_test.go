@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/assert"
 	"github.com/teseraio/ensemble/lib/uuid"
+	"github.com/teseraio/ensemble/operator/proto"
 )
 
 type crdSetup struct {
@@ -222,6 +223,61 @@ func TestWatcher_Lifecycle(t *testing.T) {
 		obj := popItem()
 		item := obj.item.(*Item)
 		assert.Equal(t, item.Metadata.Name, fmt.Sprintf("item-%d", i))
+	}
+}
+
+func TestWatcher_PodUpdate(t *testing.T) {
+	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
+
+	watcher, err := NewWatcher(hclog.NewNullLogger(), p.client, podsURL, &PodItem{})
+	assert.NoError(t, err)
+
+	watcher.Run(nil)
+
+	// create pod
+	instance := &proto.Instance{
+		ID:           uuid.UUID(),
+		DeploymentID: "c11",
+		ClusterName:  "c11",
+		Name:         "d22",
+		Image:        "nginx",
+		Spec:         &proto.NodeSpec{},
+		Status:       proto.Instance_PENDING,
+	}
+	assert.NoError(t, p.createPod(instance))
+
+	// check manually if its running
+	for i := 0; ; i++ {
+		var item PodItem
+		_, err := p.get(podsURL+"/"+instance.ID, &item)
+		assert.NoError(t, err)
+
+		if item.Status.Phase == "Running" {
+			break
+		}
+		if i < 10 {
+			time.Sleep(1 * time.Second)
+		} else {
+			t.Fatal("timeout")
+		}
+	}
+
+	popItem := func() *WatchEntry {
+		ctx, cancelFn := context.WithCancel(context.Background())
+		go func() {
+			<-time.After(2 * time.Second)
+			cancelFn()
+		}()
+		obj := watcher.store.pop(ctx)
+		if obj == nil {
+			t.Fatal("timeout")
+		}
+		return obj
+	}
+
+	// there should be more than one entry
+	for i := 0; i < 2; i++ {
+		popItem()
 	}
 }
 

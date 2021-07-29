@@ -128,6 +128,18 @@ func (n *Instance) Copy() *Instance {
 	return proto.Clone(n).(*Instance)
 }
 
+func (n *Instance) IsHealthy() bool {
+	return n.Status == Instance_RUNNING && n.Healthy
+}
+
+func (e *Instance_ExitResult) Failed() bool {
+	return e.Code != 0
+}
+
+func (e *Instance_ExitResult) Complete() bool {
+	return e.Code == 0
+}
+
 func (b *NodeSpec) AddFile(path string, content string) {
 	if b.Files == nil {
 		b.Files = []*NodeSpec_File{}

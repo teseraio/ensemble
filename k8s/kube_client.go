@@ -42,6 +42,7 @@ func NewKubeClient(config *Config) *KubeClient {
 type WatchEvent struct {
 	Type   string
 	Object interface{}
+	Raw    []byte
 }
 
 func (c *KubeClient) GetFull(url string, out interface{}) ([]byte, error) {
@@ -151,10 +152,15 @@ type Item struct {
 	Kind     string
 	Spec     map[string]interface{}
 	Data     map[string]interface{}
+	Status   map[string]interface{}
 }
 
-func (i *Item) GetMetadata() *Metadata {
-	return i.Metadata
+func (i *Item) ResourceVersion() string {
+	return i.Metadata.ResourceVersion
+}
+
+func (i *Item) Name() string {
+	return i.Metadata.Name
 }
 
 type EventRegarding struct {

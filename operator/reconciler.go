@@ -12,12 +12,16 @@ type updateFn func(new, old *proto.ClusterSpec_Group) bool
 
 func diffUpdateFn(grp *proto.ClusterSpec_Group, other *proto.ClusterSpec_Group) bool {
 	if !reflect.DeepEqual(grp.Params, other.Params) {
+		fmt.Println("-- a --")
+		fmt.Println(grp.Params, other.Params)
 		return true
 	}
 	if !reflect.DeepEqual(grp.Resources, other.Resources) {
+		fmt.Println("-- b --")
 		return true
 	}
 	if !reflect.DeepEqual(grp.Storage, other.Storage) {
+		fmt.Println("-- c --")
 		return true
 	}
 	return false
@@ -100,7 +104,7 @@ func (a *allocSet) reschedule() (down allocSet, lost allocSet, untainted allocSe
 
 	for _, i := range *a {
 		// TODO: Migrated
-		if i.Status == proto.Instance_FAILED {
+		if i.Status == proto.Instance_STOPPED && i.DesiredStatus == proto.Instance_RUN {
 			if i.Reschedule == nil {
 				i.Reschedule = &proto.Instance_Reschedule{}
 			}
@@ -135,7 +139,7 @@ func (a *allocSet) canaries() (canaries allocSet, add allocSet, healthy allocSet
 				canaries = append(canaries, i)
 				continue
 			}
-			if i.Healthy {
+			if i.IsHealthy() {
 				// promote canary
 				i.Canary = false
 				healthy = append(healthy, i)
@@ -300,6 +304,11 @@ func (r *reconciler) Compute() {
 		return
 	}
 
+	fmt.Println("-- dependecies --")
+	for _, u := range r.dep.Instances {
+		fmt.Printf("%s %s %s %v %v\n", u.ID, u.Status, u.DesiredStatus, u.Canary, u.Healthy)
+	}
+
 	done := true
 	for _, grp := range r.spec.Groups {
 		done = r.computeGroup(grp)
@@ -417,7 +426,7 @@ func (r *reconciler) computeGroup(grp *proto.ClusterSpec_Group) bool {
 	// check if all the instances are healthy
 	allHealthy := true
 	for _, i := range untainted {
-		if !i.Healthy {
+		if i.Status == proto.Instance_PENDING || !i.Healthy {
 			allHealthy = false
 			break
 		}

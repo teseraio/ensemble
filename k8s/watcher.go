@@ -17,7 +17,8 @@ import (
 )
 
 type itemObj interface {
-	GetMetadata() *Metadata
+	ResourceVersion() string
+	Name() string
 }
 
 type listResponse struct {
@@ -278,7 +279,7 @@ func (w *Watcher) runImpl() error {
 	// watch
 	err = w.watchImpl(resourceVersion, func(typ string, item itemObj) error {
 		w.store.add(typ, item)
-		resourceVersion = item.GetMetadata().ResourceVersion
+		resourceVersion = item.ResourceVersion()
 		return nil
 	})
 	return err
@@ -318,7 +319,7 @@ func newStore() *store {
 }
 
 func (s *store) add(typ string, i itemObj) {
-	id := i.GetMetadata().Name
+	id := i.Name()
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -351,7 +352,7 @@ POP:
 	if len(s.heapImpl) != 0 {
 		// pop the first value
 		tt := heap.Pop(&s.heapImpl).(*WatchEntry)
-		delete(s.items, tt.item.GetMetadata().Name)
+		delete(s.items, tt.item.Name())
 		s.lock.Unlock()
 		return tt
 	}
@@ -370,7 +371,7 @@ type storeHeapImpl []*WatchEntry
 func (t storeHeapImpl) Len() int { return len(t) }
 
 func (t storeHeapImpl) Less(i, j int) bool {
-	return t[i].item.GetMetadata().ResourceVersion < t[j].item.GetMetadata().ResourceVersion
+	return t[i].item.ResourceVersion() < t[j].item.ResourceVersion()
 }
 
 func (t storeHeapImpl) Swap(i, j int) {

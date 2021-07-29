@@ -119,42 +119,45 @@ func (s *Server) instanceWatcher() {
 	stream := s.SubscribeInstanceUpdates()
 	for {
 		msg := <-stream
-		//fmt.Println("__ INSTANCE WATCHER __")
-		//fmt.Println(msg)
-
-		instance, err := s.GetInstance(msg.Id, msg.Cluster)
-		if err != nil {
-			panic(err)
-		}
-		if instance.Status == proto.Instance_RUNNING || instance.Status == proto.Instance_FAILED || instance.Status == proto.Instance_STOPPED {
-			// add eval
-
-			if instance.Status == proto.Instance_FAILED {
-				// update the deployment to running in case it is not already
-				dep, err := s.LoadDeployment(instance.DeploymentID)
-				if err != nil {
-					panic(err)
-				}
-				if dep.Status != proto.DeploymentRunning {
-					dep = dep.Copy()
-					dep.Status = proto.DeploymentRunning
-					if err := s.State.UpdateDeployment(dep); err != nil {
-						panic(err)
-					}
-				}
-			}
-
-			//fmt.Println("_ ADD EVAL _")
-			eval := &proto.Evaluation{
-				Id:           uuid.UUID(),
-				Status:       proto.Evaluation_PENDING,
-				TriggeredBy:  proto.Evaluation_NODECHANGE,
-				DeploymentID: msg.Cluster, // this is the deployment
-				Type:         proto.EvaluationTypeCluster,
-			}
-			s.evalQueue.add(eval)
+		if err := s.handleInstanceUpdate(msg); err != nil {
+			s.logger.Error("failed to handle instance update", "err", err)
 		}
 	}
+}
+
+func (s *Server) handleInstanceUpdate(msg *InstanceUpdate) error {
+	instance, err := s.GetInstance(msg.Id, msg.Cluster)
+	if err != nil {
+		return err
+	}
+	if instance.Status == proto.Instance_RUNNING || instance.Status == proto.Instance_STOPPED {
+		// add eval
+
+		if instance.Status == proto.Instance_STOPPED && instance.DesiredStatus == proto.Instance_RUN {
+			// update the deployment to running in case it is not already
+			dep, err := s.LoadDeployment(instance.DeploymentID)
+			if err != nil {
+				return err
+			}
+			if dep.Status != proto.DeploymentRunning {
+				dep = dep.Copy()
+				dep.Status = proto.DeploymentRunning
+				if err := s.State.UpdateDeployment(dep); err != nil {
+					return err
+				}
+			}
+		}
+
+		eval := &proto.Evaluation{
+			Id:           uuid.UUID(),
+			Status:       proto.Evaluation_PENDING,
+			TriggeredBy:  proto.Evaluation_NODECHANGE,
+			DeploymentID: msg.Cluster, // this is the deployment id
+			Type:         proto.EvaluationTypeCluster,
+		}
+		s.evalQueue.add(eval)
+	}
+	return nil
 }
 
 func (s *Server) setupGRPCServer(addr string) error {
@@ -165,7 +168,7 @@ func (s *Server) setupGRPCServer(addr string) error {
 
 	go func() {
 		if err := s.grpcServer.Serve(lis); err != nil {
-			panic(err)
+			s.logger.Error("failed to serve grpc server", "err", err)
 		}
 	}()
 
@@ -197,13 +200,15 @@ func (s *Server) taskQueue5() {
 		// pre-load the component
 		comp, err := s.State.GetComponentByID2(task.DeploymentID, task.ComponentID, task.Sequence)
 		if err != nil {
-			panic(err)
+			s.logger.Error("failed to get component", "deployment", task.DeploymentID, "component", task.ComponentID, "sequence", task.Sequence)
+			continue
 		}
 		typ := comp.Type()
 
 		dep, err := s.State.LoadDeployment(task.DeploymentID)
 		if err != nil {
-			panic(err)
+			s.logger.Error(err.Error())
+			continue
 		}
 
 		switch typ {
@@ -213,7 +218,8 @@ func (s *Server) taskQueue5() {
 			err = s.handleResource(task, dep, task.DeploymentID, comp)
 		}
 		if err != nil {
-			panic(err)
+			s.logger.Error("failed to handle scheduler", "err", err)
+			continue
 		}
 	}
 }
@@ -324,7 +330,7 @@ func (s *Server) taskQueue4() {
 			s.logger.Error("failed to process", "err", err)
 		} else {
 			if err := s.SubmitPlan(eval, plan); err != nil {
-				panic(err)
+				s.logger.Error("cannot submit plan", "err", err)
 			}
 		}
 

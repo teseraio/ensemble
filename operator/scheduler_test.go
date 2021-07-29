@@ -22,7 +22,7 @@ func TestScheduler_EvalInstanceFailed(t *testing.T) {
 		dep.Instances = append(dep.Instances, ii)
 	}
 	// one instance has failed
-	dep.Instances[0].Status = proto.Instance_FAILED
+	dep.Instances[0].Status = proto.Instance_STOPPED
 	dep.CompId = "a"
 
 	harness := NewHarness(t)

@@ -170,7 +170,7 @@ func TestReconciler_ScaleUp_Blocked(t *testing.T) {
 		if i%2 == 0 {
 			ii.Status = proto.Instance_PENDING
 		} else {
-			ii.Status = proto.Instance_SCHEDULED
+			ii.Status = proto.Instance_RUNNING
 		}
 		ii.ID = uuid.UUID()
 		ii.Group = spec.Groups[0]
@@ -244,6 +244,7 @@ func TestReconciler_ScaleDown(t *testing.T) {
 	// second eval
 	// update half the instances to pending stopped
 	for i := 0; i < 5; i++ {
+		dep.Instances[i].DesiredStatus = proto.Instance_STOP
 		dep.Instances[i].Status = proto.Instance_TAINTED
 	}
 	rec.Compute()
@@ -284,6 +285,7 @@ func TestReconciler_ScaleDown_Complete(t *testing.T) {
 
 	// stop 5 instances
 	for i := 0; i < 5; i++ {
+		dep.Instances[i].DesiredStatus = proto.Instance_STOP
 		dep.Instances[i].Status = proto.Instance_STOPPED
 	}
 
@@ -483,6 +485,7 @@ func TestReconciler_RollingUpgrade_SecondEval(t *testing.T) {
 		ii := &proto.Instance{}
 		ii.ID = uuid.UUID()
 		ii.Name = uuid.UUID()
+		ii.DesiredStatus = proto.Instance_STOP
 		ii.Status = proto.Instance_STOPPED
 		ii.Canary = true
 		ii.Group = spec0.Groups[0]
@@ -678,7 +681,7 @@ func TestReconciler_InstanceFailed_Restart(t *testing.T) {
 	}
 
 	// one instance has failed
-	dep.Instances[0].Status = proto.Instance_FAILED
+	dep.Instances[0].Status = proto.Instance_STOPPED
 
 	rec := &reconciler{
 		dep:  dep.Deployment,
@@ -707,7 +710,7 @@ func TestReconciler_InstanceFailed_MaxAttempts(t *testing.T) {
 	}
 
 	// one instance has failed
-	dep.Instances[0].Status = proto.Instance_FAILED
+	dep.Instances[0].Status = proto.Instance_STOPPED
 	dep.Instances[0].Reschedule = &proto.Instance_Reschedule{
 		Attempts: 3,
 	}
@@ -741,9 +744,9 @@ func TestReconciler_InstanceFailed_ScaleDown(t *testing.T) {
 	}
 
 	// three instance failed, one is rescheduled, two are removed
-	dep.Instances[2].Status = proto.Instance_FAILED
-	dep.Instances[3].Status = proto.Instance_FAILED
-	dep.Instances[4].Status = proto.Instance_FAILED
+	dep.Instances[2].Status = proto.Instance_STOPPED
+	dep.Instances[3].Status = proto.Instance_STOPPED
+	dep.Instances[4].Status = proto.Instance_STOPPED
 
 	rec := &reconciler{
 		dep:  dep.Deployment,
@@ -758,4 +761,74 @@ func TestReconciler_InstanceFailed_ScaleDown(t *testing.T) {
 
 	assert.Equal(t, rec.res.stop[0].instance.ID, dep.Instances[2].ID)
 	assert.Equal(t, rec.res.stop[1].instance.ID, dep.Instances[3].ID)
+}
+
+func TestReconciler_PendingInstances_DeploymentPending(t *testing.T) {
+	// some backends might set Healthy=true even before the instance is running to fast-track
+	// the success of the deployment, the reconciler cannot finish the deployment until the
+	// instances are in running state
+
+	spec := mockClusterSpec()
+	spec.Groups[0].Count = 3
+
+	dep := newMockDeployment()
+
+	for i := 0; i < 3; i++ {
+		ii := &proto.Instance{}
+		ii.Status = proto.Instance_PENDING
+		ii.ID = uuid.UUID()
+		ii.Group = spec.Groups[0]
+		ii.Healthy = true
+		dep.Instances = append(dep.Instances, ii)
+	}
+
+	rec := &reconciler{
+		dep:  dep.Deployment,
+		spec: spec,
+	}
+	rec.Compute()
+
+	testExpectReconcile(t, rec, expectedReconciler{
+		done: false,
+	})
+}
+
+func TestReconciler_PromoteCanaries_OnlyWhenRunning(t *testing.T) {
+	// a canary must be running and healthy to be promoted
+	spec0 := mockClusterSpec()
+	spec0.Groups[0].Count = 5
+
+	spec1 := spec0.Copy()
+	spec1.Sequence++
+	spec1.Groups[0].Resources = schema.MapToSpec(map[string]interface{}{"A": "B"})
+
+	dep := newMockDeployment()
+
+	// 4 old instances and 1 that is a canary but not ready yet
+	for i := 0; i < 5; i++ {
+		ii := &proto.Instance{}
+		ii.ID = uuid.UUID()
+		ii.Healthy = true
+
+		if i < 4 {
+			ii.Group = spec0.Groups[0]
+			ii.Status = proto.Instance_RUNNING
+		} else {
+			ii.Group = spec1.Groups[0]
+			ii.Canary = true
+			ii.Status = proto.Instance_PENDING
+		}
+		dep.Instances = append(dep.Instances, ii)
+	}
+
+	rec := &reconciler{
+		dep:  dep.Deployment,
+		spec: spec1,
+	}
+	rec.Compute()
+
+	testExpectReconcile(t, rec, expectedReconciler{
+		update: 0,
+		ready:  0,
+	})
 }
