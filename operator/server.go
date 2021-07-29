@@ -428,7 +428,7 @@ func (s *Server) validateComponent(component *proto.Component) (*proto.Component
 }
 
 func (s *Server) UpsertInstance(n *proto.Instance) error {
-	fmt.Printf("Upsert instance %s %s\n", n.ID, n.Status)
+	s.logger.Debug("Upsert instance", "id", n.ID, "status", n.Status)
 
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -455,8 +455,6 @@ func (s *Server) GetInstance(id, cluster string) (*proto.Instance, error) {
 }
 
 func (s *Server) SubscribeInstanceUpdates() <-chan *InstanceUpdate {
-	fmt.Println("=====>")
-
 	s.lock.Lock()
 	defer s.lock.Unlock()
 

@@ -60,9 +60,10 @@ func formatDeployments(deps []*proto.Deployment) string {
 	}
 
 	rows := make([]string, len(deps)+1)
-	rows[0] = "Name|Backend|Version|Status"
+	rows[0] = "ID|Name|Backend|Version|Status"
 	for i, d := range deps {
-		rows[i+1] = fmt.Sprintf("%s|%s|%d|%s",
+		rows[i+1] = fmt.Sprintf("%s|%s|%s|%d|%s",
+			d.Id,
 			d.Name,
 			d.Backend,
 			d.Sequence,

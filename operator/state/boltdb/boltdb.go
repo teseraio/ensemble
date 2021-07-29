@@ -993,10 +993,8 @@ func (b *BoltDB) UpsertNode(n *proto.Instance) error {
 
 	fmt.Println(n.ClusterName)
 
-	depID, err := b.nameToDeploymentID(tx, n.ClusterName)
-	if err != nil {
-		return err
-	}
+	depID := n.DeploymentID
+
 	// find the sub-bucket for the cluster
 	depBkt := depsBkt.Bucket([]byte(depID))
 	if depBkt == nil {

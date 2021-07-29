@@ -1,6 +1,8 @@
 package operator
 
 import (
+	"fmt"
+
 	gproto "github.com/golang/protobuf/proto"
 	"github.com/teseraio/ensemble/lib/uuid"
 	"github.com/teseraio/ensemble/operator/proto"
@@ -74,6 +76,9 @@ func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 		ii := i.Copy()
 		ii.Canary = false
 
+		fmt.Println("-- ready --")
+		fmt.Println(ii.Status)
+
 		plan.NodeUpdate = append(plan.NodeUpdate, ii)
 	}
 
@@ -119,7 +124,10 @@ func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 		plan.NodeUpdate = append(plan.NodeUpdate, placeInstances...)
 	}
 
-	if r.res.done {
+	if r.res.completed {
+		plan.Done = true
+		plan.Status = proto.DeploymentCompleted
+	} else if r.res.done {
 		if dep.Status != proto.DeploymentDone {
 			plan.Done = true
 			plan.Status = proto.DeploymentDone

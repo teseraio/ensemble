@@ -388,6 +388,7 @@ func TestReconciler_Purge(t *testing.T) {
 
 	// Second eval. Do not remove tainted instances
 	for i := 0; i < 5; i++ {
+		dep.Instances[i].DesiredStatus = proto.Instance_STOP
 		dep.Instances[i].Status = proto.Instance_TAINTED
 	}
 
