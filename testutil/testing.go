@@ -1,7 +1,6 @@
 package testutil
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -128,7 +127,6 @@ func TestPodJobFailed(t *testing.T, c operator.ControlPlane, p operator.Provider
 
 	waitForRunning(c, t)
 
-	fmt.Println("-- running --")
 	ii := waitForStopped(c, t)
 	assert.Equal(t, ii.ExitResult.Code, int64(0))
 }

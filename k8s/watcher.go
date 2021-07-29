@@ -215,10 +215,11 @@ func (w *Watcher) WithList(list bool) *Watcher {
 }
 
 func (w *Watcher) Run(stopCh chan struct{}) {
-	go w.runWithBackoff(stopCh)
+	w.stopCh = stopCh
+	go w.runWithBackoff()
 }
 
-func (w *Watcher) runWithBackoff(stopCh chan struct{}) {
+func (w *Watcher) runWithBackoff() {
 	for {
 		err := w.runImpl()
 		if err != nil {
@@ -228,8 +229,7 @@ func (w *Watcher) runWithBackoff(stopCh chan struct{}) {
 		// TODO: Use exponential backoff
 		select {
 		case <-time.After(2 * time.Second):
-		case <-stopCh:
-			fmt.Println("- out 2-")
+		case <-w.stopCh:
 			return
 		}
 	}

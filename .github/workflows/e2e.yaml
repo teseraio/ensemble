@@ -21,6 +21,10 @@ jobs:
           kubectl config use-context k3d-e2e-cluster
           make build-dev-docker
           k3d image import ensemble:dev -c e2e-cluster --verbose
+      - name: Import e2e images
+        run: |
+          k3d image import nginx:latest -c e2e-cluster --verbose
+          k3d image import busybox:latest -c e2e-cluster --verbose
       - name: Deploy ensemble
         run: |
           go run main.go k8s artifacts --dev | kubectl apply -f -

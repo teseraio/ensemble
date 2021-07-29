@@ -193,7 +193,9 @@ func TestWatcher_Lifecycle(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	watcher.WithList(true)
-	watcher.Run(nil)
+
+	stopCh := make(chan struct{})
+	watcher.Run(stopCh)
 
 	popItem := func() *WatchEntry {
 		ctx, cancelFn := context.WithCancel(context.Background())
