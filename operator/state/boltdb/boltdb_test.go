@@ -478,3 +478,27 @@ func TestDependsOn_ComponentDoesNotExists(t *testing.T) {
 	})
 	assert.Error(t, err)
 }
+
+func TestDeployment_UpsertInstance(t *testing.T) {
+	db := testBoltdb(t)
+
+	dep := &proto.Deployment{
+		Id: "dep1",
+	}
+	assert.NoError(t, db.UpdateDeployment(dep))
+
+	i0 := &proto.Instance{
+		ID:           "i0",
+		DeploymentID: "dep1",
+	}
+	assert.NoError(t, db.UpsertNode(i0))
+
+	i0Res, err := db.LoadNode("i0")
+	assert.NoError(t, err)
+	assert.Equal(t, i0Res.ID, i0.ID)
+
+	depRes, err := db.LoadDeployment("dep1")
+	assert.NoError(t, err)
+	assert.Len(t, depRes.Instances, 1)
+	assert.Equal(t, depRes.Instances[0].ID, "i0")
+}

@@ -126,7 +126,7 @@ func (s *Server) instanceWatcher() {
 }
 
 func (s *Server) handleInstanceUpdate(msg *InstanceUpdate) error {
-	instance, err := s.GetInstance(msg.Id, msg.Cluster)
+	instance, err := s.GetInstance(msg.InstanceID)
 	if err != nil {
 		return err
 	}
@@ -152,7 +152,7 @@ func (s *Server) handleInstanceUpdate(msg *InstanceUpdate) error {
 			Id:           uuid.UUID(),
 			Status:       proto.Evaluation_PENDING,
 			TriggeredBy:  proto.Evaluation_NODECHANGE,
-			DeploymentID: msg.Cluster, // this is the deployment id
+			DeploymentID: instance.DeploymentID,
 			Type:         proto.EvaluationTypeCluster,
 		}
 		s.evalQueue.add(eval)
@@ -437,8 +437,7 @@ func (s *Server) UpsertInstance(n *proto.Instance) error {
 		return err
 	}
 	update := &InstanceUpdate{
-		Id:      n.ID,
-		Cluster: n.DeploymentID,
+		InstanceID: n.ID,
 	}
 
 	for _, ch := range s.subs {
@@ -450,8 +449,8 @@ func (s *Server) UpsertInstance(n *proto.Instance) error {
 	return nil
 }
 
-func (s *Server) GetInstance(id, cluster string) (*proto.Instance, error) {
-	return s.State.LoadInstance(cluster, id)
+func (s *Server) GetInstance(instanceID string) (*proto.Instance, error) {
+	return s.State.LoadNode(instanceID)
 }
 
 func (s *Server) SubscribeInstanceUpdates() <-chan *InstanceUpdate {

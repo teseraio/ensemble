@@ -149,7 +149,7 @@ func (c *Client) runProvider() {
 }
 
 func (c *Client) handleInstanceMsg(msg *operator.InstanceUpdate) {
-	instance, err := c.controlPlane.GetInstance(msg.Id, msg.Cluster)
+	instance, err := c.controlPlane.GetInstance(msg.InstanceID)
 	if err != nil {
 		panic(err)
 	}
@@ -421,7 +421,7 @@ func (c *Client) createImpl(ctx context.Context, node *proto.Instance) (string, 
 
 		// panic("bad")
 
-		ii, err := c.controlPlane.GetInstance(node.ID, node.DeploymentID)
+		ii, err := c.controlPlane.GetInstance(node.ID)
 		if err != nil {
 			panic(err)
 		}

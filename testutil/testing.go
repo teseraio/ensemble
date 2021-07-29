@@ -43,7 +43,7 @@ func readEvent(p operator.ControlPlane, t *testing.T) *proto.Instance {
 
 	select {
 	case msg := <-ch:
-		instance, err := p.GetInstance(msg.Id, msg.Cluster)
+		instance, err := p.GetInstance(msg.InstanceID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -76,7 +76,7 @@ func waitForEvent(c operator.ControlPlane, t *testing.T, handler func(i *proto.I
 	for {
 		select {
 		case evnt := <-evnts:
-			instance, err := c.GetInstance(evnt.Id, evnt.Cluster)
+			instance, err := c.GetInstance(evnt.InstanceID)
 			if err != nil {
 				t.Fatal(err)
 			}
