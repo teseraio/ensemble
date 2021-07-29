@@ -177,6 +177,8 @@ func TestWatcher_WatchImpl(t *testing.T) {
 }
 
 func TestWatcher_Lifecycle(t *testing.T) {
+	t.Skip()
+
 	p, _ := K8sFactory(hclog.NewNullLogger(), nil)
 
 	crd := setupCRD(t, p, "testlifecycle")
