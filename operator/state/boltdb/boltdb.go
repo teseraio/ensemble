@@ -19,6 +19,7 @@ import (
 var (
 	// clustersBucket    = []byte("clusters")
 	deploymentsBucket = []byte("deployments")
+	instancesBucket   = []byte("instances")
 	componentsBucket  = []byte("components")
 
 	// deployment key
@@ -81,6 +82,7 @@ func (b *BoltDB) Wait(id string) chan struct{} {
 func (b *BoltDB) initialize() error {
 	buckets := [][]byte{
 		deploymentsBucket,
+		instancesBucket,
 		componentsBucket,
 	}
 	err := b.db.Update(func(tx *bolt.Tx) error {
@@ -848,29 +850,6 @@ func (b *BoltDB) GetTask(ctx context.Context) *proto.Task {
 	return task.Task
 }
 
-func (b *BoltDB) LoadInstance(cluster, id string) (*proto.Instance, error) {
-	tx, err := b.db.Begin(false)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	depsBkt := tx.Bucket(deploymentsBucket)
-
-	// find the sub-bucket for the cluster
-	depBkt := depsBkt.Bucket([]byte(cluster))
-	if depBkt == nil {
-		return nil, fmt.Errorf("bad")
-	}
-
-	nodeID := "node-" + id
-	instance := proto.Instance{}
-	if err := dbGet(depBkt, []byte(nodeID), &instance); err != nil {
-		return nil, err
-	}
-	return &instance, nil
-}
-
 func (b *BoltDB) ListDeployments() ([]*proto.Deployment, error) {
 	tx, err := b.db.Begin(false)
 	if err != nil {
@@ -915,6 +894,8 @@ func (b *BoltDB) loadDeploymentImpl(tx *bolt.Tx, depsBkt *bolt.Bucket, id string
 		return nil, nil
 	}
 
+	instancesBkt := tx.Bucket(instancesBucket)
+
 	// load the cluster meta
 	c := &proto.Deployment{
 		Instances: []*proto.Instance{},
@@ -941,8 +922,10 @@ func (b *BoltDB) loadDeploymentImpl(tx *bolt.Tx, depsBkt *bolt.Bucket, id string
 			if !strings.HasPrefix(string(k), "node-") {
 				continue
 			}
+			k = bytes.TrimPrefix(k, []byte("node-"))
+
 			n := &proto.Instance{}
-			if err := dbGet(depBkt, k, n); err != nil {
+			if err := dbGet(instancesBkt, k, n); err != nil {
 				return nil, err
 			}
 			if n.Status != proto.Instance_OUT {
@@ -981,6 +964,22 @@ func (b *BoltDB) UpdateDeployment(d *proto.Deployment) error {
 	return nil
 }
 
+func (b *BoltDB) LoadNode(id string) (*proto.Instance, error) {
+	tx, err := b.db.Begin(false)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	instancesBkt := tx.Bucket(instancesBucket)
+
+	instance := proto.Instance{}
+	if err := dbGet(instancesBkt, []byte(id), &instance); err != nil {
+		return nil, err
+	}
+	return &instance, nil
+}
+
 // UpsertNode implements the BoltDB interface
 func (b *BoltDB) UpsertNode(n *proto.Instance) error {
 	tx, err := b.db.Begin(true)
@@ -989,18 +988,17 @@ func (b *BoltDB) UpsertNode(n *proto.Instance) error {
 	}
 	defer tx.Rollback()
 
-	depsBkt := tx.Bucket(deploymentsBucket)
-	depID := n.DeploymentID
+	instancesBkt := tx.Bucket(instancesBucket)
 
 	// find the sub-bucket for the cluster
-	depBkt := depsBkt.Bucket([]byte(depID))
+	depBkt := tx.Bucket(deploymentsBucket).Bucket([]byte(n.DeploymentID))
 	if depBkt == nil {
-		return fmt.Errorf("deployment does not exists '%s'", depID)
+		return fmt.Errorf("deployment does not exists '%s'", n.DeploymentID)
 	}
-
-	// upsert under node-<id>
-	id := "node-" + n.ID
-	if err := dbPut(depBkt, []byte(id), n); err != nil {
+	if err := depBkt.Put([]byte("node-"+n.ID), nil); err != nil {
+		return err
+	}
+	if err := dbPut(instancesBkt, []byte(n.ID), n); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {

@@ -7,13 +7,12 @@ import (
 )
 
 type InstanceUpdate struct {
-	Id      string
-	Cluster string
+	InstanceID string
 }
 
 type ControlPlane interface {
 	UpsertInstance(*proto.Instance) error
-	GetInstance(id, cluster string) (*proto.Instance, error)
+	GetInstance(instanceID string) (*proto.Instance, error)
 	SubscribeInstanceUpdates() <-chan *InstanceUpdate
 }
 
@@ -32,8 +31,7 @@ func (i *InmemControlPlane) UpsertInstance(ii *proto.Instance) error {
 	}
 	i.instances[ii.ID] = ii
 	update := &InstanceUpdate{
-		Id:      ii.ID,
-		Cluster: ii.DeploymentID,
+		InstanceID: ii.ID,
 	}
 	for _, ch := range i.subs {
 		select {
@@ -44,8 +42,8 @@ func (i *InmemControlPlane) UpsertInstance(ii *proto.Instance) error {
 	return nil
 }
 
-func (i *InmemControlPlane) GetInstance(id, cluster string) (*proto.Instance, error) {
-	ii, ok := i.instances[id]
+func (i *InmemControlPlane) GetInstance(InstanceID string) (*proto.Instance, error) {
+	ii, ok := i.instances[InstanceID]
 	if !ok {
 		return nil, nil
 	}

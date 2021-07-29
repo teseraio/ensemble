@@ -161,7 +161,7 @@ func (b *BaseOperator) Setup(cplane ControlPlane) {
 }
 
 func (b *BaseOperator) handleMsg(msg *InstanceUpdate) error {
-	instance, err := b.cplane.GetInstance(msg.Id, msg.Cluster)
+	instance, err := b.cplane.GetInstance(msg.InstanceID)
 	if err != nil {
 		return err
 	}

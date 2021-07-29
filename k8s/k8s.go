@@ -121,7 +121,7 @@ func (p *Provider) Setup(cplane operator.ControlPlane) error {
 			if msg == nil {
 				return
 			}
-			instance, err := cplane.GetInstance(msg.Id, msg.Cluster)
+			instance, err := cplane.GetInstance(msg.InstanceID)
 			if err != nil {
 				p.logger.Error("failed to get instance", "err", err)
 				continue
@@ -139,7 +139,7 @@ func (p *Provider) Setup(cplane operator.ControlPlane) error {
 }
 
 func (p *Provider) handlePodUpdate(deploymentID string, pod *PodItem) error {
-	instance, err := p.cplane.GetInstance(pod.Metadata.Name, deploymentID)
+	instance, err := p.cplane.GetInstance(pod.Metadata.Name)
 	if err != nil {
 		return err
 	}
