@@ -149,16 +149,19 @@ func (p *Provider) handlePodUpdate(deploymentID string, pod *PodItem) error {
 
 	p.logger.Debug("pod update", "instance", pod.Metadata.Name, "phase", pod.Status.Phase)
 
-	if pod.Status.Phase == PodPhaseRunning {
+	if pod.Status.Phase == PodPhasePending {
+		// pending events are only informative
+		return nil
+
+	} else if pod.Status.Phase == PodPhaseRunning {
 		if instance.Status == proto.Instance_RUNNING {
 			return nil
 		}
 
 		instance.Ip = pod.Status.PodIP
 		instance.Status = proto.Instance_RUNNING
-	}
 
-	if pod.Status.Phase == PodPhaseSucceeded || pod.Status.Phase == PodPhaseFailed {
+	} else if pod.Status.Phase == PodPhaseSucceeded || pod.Status.Phase == PodPhaseFailed {
 		if instance.Status == proto.Instance_STOPPED {
 			return nil
 		}
@@ -169,6 +172,11 @@ func (p *Provider) handlePodUpdate(deploymentID string, pod *PodItem) error {
 			return fmt.Errorf("failed to get exit result")
 		}
 		instance.ExitResult = exitRes
+
+	} else {
+		// unknown event
+		p.logger.Debug("unknown status event", "phase", pod.Status.Phase)
+		return nil
 	}
 
 	if err := p.cplane.UpsertInstance(instance); err != nil {

@@ -990,9 +990,6 @@ func (b *BoltDB) UpsertNode(n *proto.Instance) error {
 	defer tx.Rollback()
 
 	depsBkt := tx.Bucket(deploymentsBucket)
-
-	fmt.Println(n.ClusterName)
-
 	depID := n.DeploymentID
 
 	// find the sub-bucket for the cluster
