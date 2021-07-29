@@ -1,7 +1,6 @@
 package operator
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/teseraio/ensemble/operator/proto"
@@ -27,13 +26,6 @@ type InmemControlPlane struct {
 func (i *InmemControlPlane) UpsertInstance(ii *proto.Instance) error {
 	i.lock.Lock()
 	defer i.lock.Unlock()
-
-	fmt.Println("-x-xxxxxx")
-	fmt.Println(i)
-	fmt.Println(ii)
-	if ii == nil {
-		panic("X")
-	}
 
 	if i.instances == nil {
 		i.instances = map[string]*proto.Instance{}
