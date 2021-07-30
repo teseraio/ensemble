@@ -22,6 +22,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/ryanuber/columnize v2.1.2+incompatible
 	github.com/stretchr/testify v1.7.0
+	github.com/teseraio/helm-template-engine v0.0.0-20210730123011-5cb24fdee68b
 	golang.org/x/net v0.0.0-20201021035429-f5854403a974 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/grpc v1.32.0

@@ -1,9 +1,15 @@
-# github.com/Masterminds/goutils v1.1.0
+# github.com/BurntSushi/toml v0.3.1
+github.com/BurntSushi/toml
+# github.com/Masterminds/goutils v1.1.1
 github.com/Masterminds/goutils
 # github.com/Masterminds/semver v1.5.0
 github.com/Masterminds/semver
+# github.com/Masterminds/semver/v3 v3.1.1
+github.com/Masterminds/semver/v3
 # github.com/Masterminds/sprig v2.22.0+incompatible
 github.com/Masterminds/sprig
+# github.com/Masterminds/sprig/v3 v3.2.2
+github.com/Masterminds/sprig/v3
 # github.com/Microsoft/go-winio v0.4.14
 ## explicit
 github.com/Microsoft/go-winio
@@ -54,6 +60,15 @@ github.com/docker/spdystream
 github.com/docker/spdystream/spdy
 # github.com/fatih/color v1.7.0
 github.com/fatih/color
+# github.com/gobwas/glob v0.2.3
+github.com/gobwas/glob
+github.com/gobwas/glob/compiler
+github.com/gobwas/glob/match
+github.com/gobwas/glob/syntax
+github.com/gobwas/glob/syntax/ast
+github.com/gobwas/glob/syntax/lexer
+github.com/gobwas/glob/util/runes
+github.com/gobwas/glob/util/strings
 # github.com/golang/protobuf v1.4.3
 ## explicit
 github.com/golang/protobuf/proto
@@ -91,7 +106,7 @@ github.com/michaelklishin/rabbit-hole/v2
 # github.com/mitchellh/cli v1.1.2
 ## explicit
 github.com/mitchellh/cli
-# github.com/mitchellh/copystructure v1.0.0
+# github.com/mitchellh/copystructure v1.2.0
 github.com/mitchellh/copystructure
 # github.com/mitchellh/go-homedir v1.1.0
 ## explicit
@@ -99,7 +114,7 @@ github.com/mitchellh/go-homedir
 # github.com/mitchellh/mapstructure v1.3.3
 ## explicit
 github.com/mitchellh/mapstructure
-# github.com/mitchellh/reflectwalk v1.0.0
+# github.com/mitchellh/reflectwalk v1.0.2
 github.com/mitchellh/reflectwalk
 # github.com/oklog/ulid v1.3.1
 ## explicit
@@ -119,10 +134,23 @@ github.com/posener/complete/match
 # github.com/ryanuber/columnize v2.1.2+incompatible
 ## explicit
 github.com/ryanuber/columnize
+# github.com/shopspring/decimal v1.2.0
+github.com/shopspring/decimal
+# github.com/spf13/cast v1.3.1
+github.com/spf13/cast
 # github.com/stretchr/testify v1.7.0
 ## explicit
 github.com/stretchr/testify/assert
+# github.com/teseraio/helm-template-engine v0.0.0-20210730123011-5cb24fdee68b
+## explicit
+github.com/teseraio/helm-template-engine
+github.com/teseraio/helm-template-engine/chart
+github.com/teseraio/helm-template-engine/loader
+github.com/teseraio/helm-template-engine/loader/ignore
+github.com/teseraio/helm-template-engine/loader/sympath
 # golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
+golang.org/x/crypto/bcrypt
+golang.org/x/crypto/blowfish
 golang.org/x/crypto/pbkdf2
 golang.org/x/crypto/scrypt
 # golang.org/x/net v0.0.0-20201021035429-f5854403a974
@@ -229,3 +257,5 @@ google.golang.org/protobuf/types/known/timestamppb
 gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
 gopkg.in/yaml.v3
+# sigs.k8s.io/yaml v1.2.0
+sigs.k8s.io/yaml

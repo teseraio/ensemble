@@ -2,22 +2,28 @@ package command
 
 import (
 	"encoding/json"
+	"regexp"
 	"sort"
 	"strings"
 
+	"github.com/teseraio/ensemble/command/artifacts"
 	"github.com/teseraio/ensemble/command/flagset"
-	"github.com/teseraio/ensemble/k8s"
-	"github.com/teseraio/ensemble/lib/template"
+	engine "github.com/teseraio/helm-template-engine"
+	"github.com/teseraio/helm-template-engine/chart"
+	"github.com/teseraio/helm-template-engine/loader"
 	"gopkg.in/yaml.v2"
 )
+
+//go:generate go-bindata -pkg artifacts -o ./artifacts/artifacts.go ../charts/operator/...
 
 // K8sArtifactsCommand is the command for kubernetes
 type K8sArtifactsCommand struct {
 	Meta
 
-	service bool
-	crd     bool
-	dev     bool
+	service     bool
+	crd         bool
+	dev         bool
+	serviceAcct string
 }
 
 // Help implements the cli.Command interface
@@ -43,7 +49,7 @@ func (c *K8sArtifactsCommand) Flags() *flagset.Flagset {
 	f.BoolFlag(&flagset.BoolFlag{
 		Name:  "dev",
 		Value: &c.dev,
-		Usage: "Use development images in service artifacts",
+		Usage: "Use local development image in service artifacts",
 	})
 
 	f.BoolFlag(&flagset.BoolFlag{
@@ -56,6 +62,12 @@ func (c *K8sArtifactsCommand) Flags() *flagset.Flagset {
 		Name:  "crd",
 		Value: &c.crd,
 		Usage: "Filter by CRD artifacts",
+	})
+
+	f.StringFlag(&flagset.StringFlag{
+		Name:  "service-account",
+		Value: &c.serviceAcct,
+		Usage: "Name of the service account to deploy the operator",
 	})
 
 	return f
@@ -78,74 +90,59 @@ func (k *K8sArtifactsCommand) Run(args []string) int {
 		k.service, k.crd = true, true
 	}
 
-	// TODO: By default load the docker image that represents the
-	// version of the binary.
-
-	var image, pullPolicy string
-	if k.dev {
-		// load from local repository
-		image = "ensemble:dev"
-		pullPolicy = "Never"
-	} else {
-		// load the latest docker image
-		image = "teseraio/ensemble:latest"
-		pullPolicy = "Always"
+	cc, err := loader.LoadFiles(artifacts.GetArtifacts())
+	if err != nil {
+		k.UI.Error(err.Error())
+		return 1
 	}
 
-	artifacts := []string{}
+	chartVals := map[string]interface{}{
+		"dev": k.dev,
+		"serviceAccount": map[string]interface{}{
+			"name": k.serviceAcct,
+		},
+	}
+	opts := chart.ReleaseOptions{
+		Name: "ensemble",
+	}
+	vals, err := chart.ToRenderValues(cc, chartVals, opts)
+	if err != nil {
+		k.UI.Error(err.Error())
+		return 1
+	}
+	result, err := engine.Render(cc, vals)
+	if err != nil {
+		k.UI.Error(err.Error())
+		return 1
+	}
+
+	artifacts := artifactsOrder{}
+
+	addArfifact := func(data string) {
+		data = strings.TrimPrefix(data, "---")
+		data = strings.Trim(data, "\n")
+		artifacts = append(artifacts, data)
+	}
 
 	if k.crd {
-		crdObjs, err := listAssetsByPrefix("crd-", nil)
-		if err != nil {
-			k.UI.Error(err.Error())
-			return 1
+		// crds
+		for _, i := range cc.Files {
+			if i.Name != ".helmignore" {
+				addArfifact(string(i.Data))
+			}
 		}
-		artifacts = append(artifacts, crdObjs...)
 	}
-
 	if k.service {
-		objs := map[string]interface{}{
-			"Image":           image,
-			"ImagePullPolicy": pullPolicy,
+		// operator
+		for _, i := range result {
+			addArfifact(i)
 		}
-		srvObjs, err := listAssetsByPrefix("srv-", objs)
-		if err != nil {
-			k.UI.Error(err.Error())
-			return 1
-		}
-		artifacts = append(artifacts, srvObjs...)
 	}
 
-	k.UI.Output(strings.Join(artifacts, "---\n"))
+	sort.Sort(artifacts)
+	k.UI.Output(strings.Join(artifacts, "\n---\n"))
+
 	return 0
-}
-
-func listAssetsByPrefix(prefix string, obj interface{}) ([]string, error) {
-	artifacts := []string{}
-
-	// sort to return the files always in the same order
-	assetNames := k8s.AssetNames()
-	sort.Strings(assetNames)
-
-	for _, n := range assetNames {
-		if strings.Contains(n, prefix) {
-			asset := k8s.MustAsset(n)
-			if strings.HasSuffix(n, ".template") {
-				// render the template
-				res, err := template.RunTmpl(string(asset), obj)
-				if err != nil {
-					return nil, err
-				}
-				asset = res
-			}
-			yaml, err := convertJSONToYaml(asset)
-			if err != nil {
-				return nil, err
-			}
-			artifacts = append(artifacts, string(yaml))
-		}
-	}
-	return artifacts, nil
 }
 
 func convertJSONToYaml(in []byte) ([]byte, error) {
@@ -158,4 +155,40 @@ func convertJSONToYaml(in []byte) ([]byte, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+var artifactOrders = []string{
+	"ServiceAccount",
+	"ClusterRole",
+	"ClusterRoleBinding",
+	"Deployment",
+	"Service",
+	"CustomResourceDefinition",
+}
+
+type artifactsOrder []string
+
+func (a artifactsOrder) Len() int {
+	return len(a)
+}
+
+func (a artifactsOrder) Less(i, j int) bool {
+	return parseKind(a[i]) < parseKind(a[j])
+}
+
+func (a artifactsOrder) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+
+func parseKind(s string) int {
+	re := regexp.MustCompile(`kind: (\w*)`)
+	match := re.FindStringSubmatch(s)
+	kind := strings.TrimSpace(match[1])
+
+	for indx, k := range artifactOrders {
+		if k == kind {
+			return indx
+		}
+	}
+	return -1
 }

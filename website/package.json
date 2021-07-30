@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "next",
-    "build": "next build",
+    "prebuild": "cp -r ../charts ./pages",
+    "build": "yarn prebuild && next build",
     "start": "next start",
     "storybook": "start-storybook -p 6006",
     "build-storybook": "build-storybook"
