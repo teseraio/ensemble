@@ -1,5 +1,5 @@
 
-## 0.1.3 (Unreleased)
+## 0.1.3 (July 30, 2021)
 
 FEATURES:
 
