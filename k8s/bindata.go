@@ -348,7 +348,7 @@ func resourcesSrvClusterRoleJson() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "resources/srv-cluster-role.json", size: 1476, mode: os.FileMode(436), modTime: time.Unix(1627626765, 0)}
+	info := bindataFileInfo{name: "resources/srv-cluster-role.json", size: 1476, mode: os.FileMode(436), modTime: time.Unix(1627669519, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
