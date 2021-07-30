@@ -36,6 +36,9 @@ func TestProvider(t *testing.T, p operator.Provider) {
 	t.Run("TestPodBarArgs", func(t *testing.T) {
 		TestPodBarArgs(t, c, p)
 	})
+	t.Run("TestPodConfigFile", func(t *testing.T) {
+		TestPodConfigFile(t, c, p)
+	})
 }
 
 func readEvent(p operator.ControlPlane, t *testing.T) *proto.Instance {
@@ -302,4 +305,40 @@ func TestDNS(t *testing.T, c operator.ControlPlane, p operator.Provider) {
 	// invalid dns
 	_, err = p.Exec(source.ID, "curl", "--fail", "--silent", "--show-error", target.Name+".c12")
 	assert.Error(t, err)
+}
+
+func TestPodConfigFile(t *testing.T, c operator.ControlPlane, p operator.Provider) {
+	cases := [][]*proto.NodeSpec_File{
+		{
+			{
+				Name:    "/data/file.txt",
+				Content: "test1",
+			},
+		},
+	}
+
+	for _, cc := range cases {
+		ii := &proto.Instance{
+			ID:           uuid.UUID(),
+			DeploymentID: "c11",
+			ClusterName:  "c11",
+			Name:         uuid.UUID(),
+			Image:        "nginx",
+			Spec: &proto.NodeSpec{
+				Files: cc,
+			},
+			Status: proto.Instance_PENDING,
+		}
+		if err := c.UpsertInstance(ii); err != nil {
+			t.Fatal(err)
+		}
+
+		waitForRunning(c, t)
+
+		for _, f := range cc {
+			content, err := p.Exec(ii.ID, "cat", f.Name)
+			assert.NoError(t, err)
+			assert.Equal(t, content, f.Content)
+		}
+	}
 }
