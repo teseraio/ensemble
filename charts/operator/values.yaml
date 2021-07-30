@@ -6,11 +6,11 @@ replicaCount: 1
 
 dev: false
 
+prerelease:
+
 image:  
   repository: teseraio/ensemble
   pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
-  tag: "0.1.2"
 
 imagePullSecrets: []
 nameOverride: ""

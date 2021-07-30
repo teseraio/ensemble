@@ -69,7 +69,7 @@ Select docker image and tag
 {{- end }}
 
 {{- define "ensemble.tag" -}}
-{{- if .Values.dev }}{{ "dev" }}{{- else }}{{ .Values.image.tag | default .Chart.AppVersion }}{{- end }}
+{{- if .Values.dev }}{{ "dev" }}{{- else }}{{ .Chart.Version }}{{- if .Values.prerelease}}-{{.Values.prerelease}}{{- end}}{{- end }}
 {{- end }}
 
 {{- define "ensemble.pullPolicy" -}}
