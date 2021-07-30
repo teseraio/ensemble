@@ -17,3 +17,4 @@ protoc:
 bindata:
 	go generate ./k8s
 	go generate ./backends/clickhouse
+	go generate ./command
