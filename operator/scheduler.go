@@ -110,6 +110,7 @@ func (s *scheduler) Process(eval *proto.Evaluation) (*proto.Plan, error) {
 			ii.Canary = i.update
 
 			placeInstances = append(placeInstances, ii)
+			break
 		}
 
 		placeInstances, err := handler.ApplyNodes(placeInstances, dep.Instances)

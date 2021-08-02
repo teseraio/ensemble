@@ -167,7 +167,16 @@ func (b *BaseOperator) handleMsg(msg *InstanceUpdate) error {
 	}
 	if instance.Status == proto.Instance_RUNNING && !instance.Healthy {
 		ii := instance.Copy()
-		if err := b.handler.Spec().Startup(ii); err != nil {
+
+		fmt.Println("-- startup --")
+		fmt.Println(b.handler.Spec().Name)
+
+		startup := b.handler.Spec().Startup
+		if startup == nil {
+			return nil
+		}
+		fmt.Println("CC")
+		if err := startup(ii); err != nil {
 			// move to a failing state directly, or maybe ist just to reuquee the msg
 			return err
 		}

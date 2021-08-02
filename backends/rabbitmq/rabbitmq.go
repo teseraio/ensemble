@@ -33,38 +33,50 @@ func Factory() operator.Handler {
 }
 
 func (b *backend) startupProbe(instance *proto.Instance) error {
-	clt, err := rabbithole.NewClient("http://"+instance.Ip+":15672", "guest", "guest")
-	if err != nil {
-		return err
-	}
+	fmt.Println(instance.Ip)
 
-	// check if rabbimq is running
-	err = loopRetry(5*time.Minute, func() error {
-		_, err = clt.Overview()
-		fmt.Println(err)
-		return err
-	})
-	if err != nil {
-		return fmt.Errorf("timeout readiness probe")
-	}
-
-	nodesExpected, _ := instance.GetInt("num")
-
-	// check if its syncer with others
-	err = loopRetry(5*time.Minute, func() error {
-		nodes, err := clt.ListNodes()
+	/*
+		clt, err := rabbithole.NewClient("http://"+instance.Ip+":15672", "guest", "guest")
 		if err != nil {
 			return err
 		}
-		fmt.Println(len(nodes), nodesExpected)
-		if len(nodes) == nodesExpected {
-			return nil
+	*/
+
+	fmt.Println("- startup probe -")
+
+	time.Sleep(10 * time.Second)
+
+	/*
+		// check if rabbimq is running
+		err = loopRetry(5*time.Minute, func() error {
+			_, err := clt.Overview()
+			fmt.Println(err)
+			return err
+		})
+		if err != nil {
+			return fmt.Errorf("timeout readiness probe")
 		}
-		return fmt.Errorf("not yet")
-	})
-	if err != nil {
-		return fmt.Errorf("failed cluster formation")
-	}
+	*/
+
+	/*
+		nodesExpected, _ := instance.GetInt("num")
+
+		// check if its syncer with others
+		err = loopRetry(5*time.Minute, func() error {
+			nodes, err := clt.ListNodes()
+			if err != nil {
+				return err
+			}
+			fmt.Println(len(nodes), nodesExpected)
+			if len(nodes) == nodesExpected {
+				return nil
+			}
+			return fmt.Errorf("not yet")
+		})
+		if err != nil {
+			return fmt.Errorf("failed cluster formation")
+		}
+	*/
 
 	instance.Healthy = true
 	return nil
@@ -84,7 +96,6 @@ func loopRetry(timeout time.Duration, handler func() error) error {
 		case <-doneCh:
 			return fmt.Errorf("timeout")
 		}
-
 		err := handler()
 		if err == nil {
 			break
@@ -98,13 +109,13 @@ func (b *backend) Name() string {
 }
 
 const rabbitmqConfFile = `
-cluster_formation.peer_discovery_backend = classic_config
 loopback_users = none
-{{ if .Nodes }}
-{{ range $i, $elem := .Nodes }}
-cluster_formation.classic_config.nodes.{{ $i }} = rabbit@{{ $elem }}
-{{ end }}
-{{ end }}`
+
+cluster_formation.peer_discovery_backend = dns
+cluster_formation.dns.hostname = {{.ClusterName}}.default.svc.cluster.local
+
+log.file.level = info
+`
 
 func (b *backend) Initialize(n []*proto.Instance, target *proto.Instance) (*proto.NodeSpec, error) {
 	target.Spec.AddEnv("RABBITMQ_ERLANG_COOKIE", "TODO")
@@ -114,13 +125,16 @@ func (b *backend) Initialize(n []*proto.Instance, target *proto.Instance) (*prot
 
 	target.SetInt("num", len(n))
 
-	var nodes []string
-	for _, i := range n {
-		if i.ID != target.ID {
-			nodes = append(nodes, i.FullName())
+	/*
+		var nodes []string
+		for _, i := range n {
+			if i.ID != target.ID {
+				nodes = append(nodes, i.FullName())
+			}
 		}
-	}
-	configContent, err := template.RunTmpl(rabbitmqConfFile, map[string]interface{}{"Nodes": nodes})
+	*/
+
+	configContent, err := template.RunTmpl(rabbitmqConfFile, map[string]interface{}{"ClusterName": target.ClusterName})
 	if err != nil {
 		return nil, err
 	}

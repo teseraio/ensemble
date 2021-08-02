@@ -59,7 +59,7 @@ func TestBootstrap(t *testing.T) {
 }
 
 func TestE2E(t *testing.T) {
-	testutil.IsE2EEnabled(t)
+	// testutil.IsE2EEnabled(t)
 
 	srv := testutil.TestOperator(t, Factory)
 	// defer srv.Close()

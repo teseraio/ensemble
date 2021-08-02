@@ -8,7 +8,7 @@ import (
 )
 
 func TestE2E(t *testing.T) {
-	testutil.IsE2EEnabled(t)
+	// testutil.IsE2EEnabled(t)
 
 	srv := testutil.TestOperator(t, Factory)
 	// defer srv.Close()
@@ -26,6 +26,8 @@ func TestE2E(t *testing.T) {
 	})
 
 	srv.WaitForTask(uuid)
+
+	return
 
 	// Scale up
 	uuid = srv.Apply(&proto.Component{

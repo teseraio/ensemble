@@ -46,6 +46,8 @@ type Client struct {
 	resourcesLock sync.Mutex
 
 	controlPlane operator.ControlPlane
+
+	dnsSearchIP string
 }
 
 // NewClient creates a new docker Client
@@ -70,7 +72,46 @@ func NewDockerClient() (*Client, error) {
 		}
 	}
 
+	// create the dns resolver
+	if err := clt.createDnsResolver(); err != nil {
+		return nil, err
+	}
+
 	return clt, nil
+}
+
+func (c *Client) createDnsResolver() error {
+	config := &container.Config{
+		Image: "dockeringress:dev",
+		Cmd: strslice.StrSlice([]string{
+			"--service", "net1",
+		}),
+	}
+	netConfig := &network.NetworkingConfig{
+		EndpointsConfig: map[string]*network.EndpointSettings{
+			networkName: {},
+		},
+	}
+	hostConfig := &container.HostConfig{
+		Binds: []string{
+			"/var/run/docker.sock:/var/run/docker.sock",
+		},
+	}
+	ctx := context.Background()
+	body, err := c.client.ContainerCreate(ctx, config, hostConfig, netConfig, uuid.UUID())
+	if err != nil {
+		return err
+	}
+	if err := c.client.ContainerStart(ctx, body.ID, types.ContainerStartOptions{}); err != nil {
+		return err
+	}
+
+	res, err := c.client.ContainerInspect(context.Background(), body.ID)
+	if err != nil {
+		return err
+	}
+	c.dnsSearchIP = res.NetworkSettings.Networks[networkName].IPAddress
+	return nil
 }
 
 func (c *Client) Name() string {
@@ -295,17 +336,19 @@ func (c *Client) buildBody(node *proto.Instance) (string, error) {
 		return "", err
 	}
 
-	extraHostsMap := map[string]string{}
-	for _, r := range c.resources {
-		if r.instance.Ip == "" {
-			continue
+	/*
+		extraHostsMap := map[string]string{}
+		for _, r := range c.resources {
+			if r.instance.Ip == "" {
+				continue
+			}
+			extraHostsMap[r.instance.ClusterName] = r.instance.Ip
 		}
-		extraHostsMap[r.instance.ClusterName] = r.instance.Ip
-	}
-	extraHost := []string{}
-	for k, v := range extraHostsMap {
-		extraHost = append(extraHost, k+":"+v)
-	}
+		extraHost := []string{}
+		for k, v := range extraHostsMap {
+			extraHost = append(extraHost, k+":"+v)
+		}
+	*/
 
 	env := []string{}
 	for k, v := range builder.Env {
@@ -318,20 +361,30 @@ func (c *Client) buildBody(node *proto.Instance) (string, error) {
 	}
 	cmd = append(cmd, builder.Args...)
 
+	labels := map[string]string{
+		"dnsresolve": node.ClusterName + ".net1",
+	}
+
 	config := &container.Config{
-		Hostname: name,
+		Hostname: name + ".net1",
 		Image:    image,
 		Env:      env,
 		Cmd:      strslice.StrSlice(cmd),
+		Labels:   labels,
 	}
 	hostConfig := &container.HostConfig{
-		Binds:      binds,
-		ExtraHosts: extraHost,
+		Binds: binds,
+		// ExtraHosts: extraHost,
+		DNS: []string{
+			c.dnsSearchIP,
+		},
 	}
 
 	netConfig := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
-			networkName: {},
+			networkName: {
+				Aliases: []string{},
+			},
 		},
 	}
 
